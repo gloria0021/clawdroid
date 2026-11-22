@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +36,6 @@ import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
 import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
-import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 
@@ -58,12 +59,8 @@ internal fun SettingIconRow(
     model: String?,
     effort: String?,
     permission: String?,
-    draftOptions: Map<SessionSetting, String>,
     availability: SettingAvailability,
-    canSelectFull: Boolean,
-    catalog: ModelCatalog?,
-    onNeedCatalog: () -> Unit,
-    onSelect: (SessionSetting, String?) -> Unit,
+    onOpen: (SessionSetting) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val defaultLabel = stringResource(R.string.chat_setting_default)
@@ -85,9 +82,7 @@ internal fun SettingIconRow(
                 icon = icon,
                 value = value,
                 enabled = enabled && agent != null,
-                options = if (agent == null) null else settingOptions(setting, agent, session, draftOptions, canSelectFull, catalog),
-                onOpen = { if (setting != SessionSetting.PERMISSIONS) onNeedCatalog() },
-                onSelect = { onSelect(setting, it) },
+                onOpen = { onOpen(setting) },
                 // 実行権限はアイコンだけ（ラベルは読み上げとメニューで分かる）
                 showValue = setting != SessionSetting.PERMISSIONS,
                 modifier = if (setting == SessionSetting.PERMISSIONS) Modifier else Modifier.weight(1f),
@@ -102,75 +97,70 @@ private fun SettingIconButton(
     icon: Int,
     value: String,
     enabled: Boolean,
-    options: List<SettingOption>?,
     onOpen: () -> Unit,
-    onSelect: (String?) -> Unit,
     showValue: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    var open by rememberSaveable { mutableStateOf(false) }
     val title = stringResource(setting.title())
     val cd = "$title: $value"
-    Box(modifier) {
-        Surface(
-            onClick = { onOpen(); open = true },
-            enabled = enabled,
-            shape = MaterialTheme.shapes.extraLarge,
-            // テーマの強い色（利用者のメッセージ・モデルのピルと同じ）
-            color = accentContainer().container,
-            contentColor = accentContainer().content,
-            modifier = (if (showValue) Modifier.fillMaxWidth() else Modifier.widthIn(min = Dimens.minTouchTarget))
-                .heightIn(min = Dimens.minTouchTarget).semantics { contentDescription = cd },
+    Surface(
+        onClick = onOpen,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.extraLarge,
+        // テーマの強い色（利用者のメッセージ・モデルのピルと同じ）
+        color = accentContainer().container,
+        contentColor = accentContainer().content,
+        modifier = modifier
+            .then(if (showValue) Modifier.fillMaxWidth() else Modifier.widthIn(min = Dimens.minTouchTarget))
+            .heightIn(min = Dimens.minTouchTarget).semantics { contentDescription = cd },
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spacing.m),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                Modifier.padding(horizontal = Spacing.m),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
-                if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
+            if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        // 高さの上限を決めて、どのメニューもボタンの下に出す（高すぎるメニューは画面の中央に回されるため）
-        GlassDropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            modifier = Modifier.widthIn(max = Dimens.settingMenuMaxWidth).heightIn(max = Dimens.settingMenuMaxHeight),
-        ) {
-            when {
-                options == null -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(Spacing.m))
-                options.isEmpty() -> Text(
-                    stringResource(R.string.chat_settings_unavailable),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(Spacing.m),
-                )
-                else -> options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            // 上下に 12dp。1 行のエフォートと 2 行（名前と説明）のモデル・権限で、行の上下の余白をそろえる
-                            // 実行権限のメニューだけ文字を 1 段階小さく（説明文があって長いため）
-                            val compact = setting == SessionSetting.PERMISSIONS
-                            Column(Modifier.padding(vertical = if (compact) Spacing.s else Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                Text(option.name, style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge)
-                                option.description?.let {
-                                    Text(
-                                        it,
-                                        style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+    }
+}
+
+/**
+ * 設定の選択肢の一覧（シートの中に重ねるガラスの面に載せる）。
+ * ポップアップ（別のウィンドウ）ではシートの中身を透かせないため、同じ画面の上に重ねて出す。
+ */
+@Composable
+internal fun SettingOptionsList(setting: SessionSetting, options: List<SettingOption>?, onSelect: (String?) -> Unit) {
+    // 実行権限だけ文字を 1 段階小さく（説明文があって長いため）
+    val compact = setting == SessionSetting.PERMISSIONS
+    Column(Modifier.heightIn(max = Dimens.settingMenuMaxHeight).verticalScroll(rememberScrollState()).padding(vertical = Spacing.xs)) {
+        when {
+            options == null -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(Spacing.m))
+            options.isEmpty() -> Text(
+                stringResource(R.string.chat_settings_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(Spacing.m),
+            )
+            else -> options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Column(Modifier.padding(vertical = if (compact) Spacing.s else Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Text(option.name, style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge)
+                            option.description?.let {
+                                Text(
+                                    it,
+                                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
-                        },
-                        leadingIcon = option.icon?.let { icon -> { Icon(painterResource(icon), contentDescription = null) } },
-                        trailingIcon = if (option.selected) ({ Icon(painterResource(R.drawable.ic_huge_check), contentDescription = null) }) else null,
-                        enabled = option.enabled,
-                        onClick = {
-                            open = false
-                            onSelect(option.value)
-                        },
-                    )
-                }
+                        }
+                    },
+                    leadingIcon = option.icon?.let { icon -> { Icon(painterResource(icon), contentDescription = null) } },
+                    trailingIcon = if (option.selected) ({ Icon(painterResource(R.drawable.ic_huge_check), contentDescription = null) }) else null,
+                    enabled = option.enabled,
+                    onClick = { onSelect(option.value) },
+                )
             }
         }
     }

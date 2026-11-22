@@ -1,5 +1,15 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import jp.miyavi.android.clawdroid.core.designsystem.MENU_OPACITY
+import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
 import android.text.format.DateUtils
@@ -87,35 +97,78 @@ fun ComposerSessionSheet(
     val catalog by produceState<ModelCatalog?>(null, wantCatalog, agent?.id, session?.key) {
         if (wantCatalog && agent != null) value = loadModels(agent.id, session?.key) ?: ModelCatalog(canReset = false)
     }
-    // メニューがシートの中身を透かせるように、シートの面を透かす元にする
+    // 選択肢の面がシートの中身を透かせるように、シートの面を透かす元にする
     val sheetHaze = rememberHazeState()
+    var openSetting by remember { mutableStateOf<SessionSetting?>(null) }
+    var rowBottom by remember { mutableIntStateOf(0) }
+    BackHandler(enabled = openSetting != null) { openSetting = null }
 
     AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState) {
-        ProvideScreenHaze(sheetHaze) {
-            Surface(
-                color = sheetFieldColor(),
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
-            ) {
+        Surface(
+            color = sheetFieldColor(),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
+        ) {
+            Box(Modifier.verticalScroll(rememberScrollState())) {
                 Column(
-                    Modifier.hazeSource(sheetHaze).verticalScroll(rememberScrollState()).padding(Spacing.l),
+                    Modifier.hazeSource(sheetHaze).padding(Spacing.l),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m),
                 ) {
-                    // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すとメニューで選ぶ
+                    // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すと選択肢の面が重なる
                     SettingIconRow(
                         agent = agent,
                         session = session,
                         model = model,
                         effort = effort,
                         permission = permission,
-                        draftOptions = draftOptions,
                         availability = availability,
-                        canSelectFull = canSelectFull,
-                        catalog = catalog,
-                        onNeedCatalog = { wantCatalog = true },
-                        onSelect = onSelect,
+                        onOpen = { setting ->
+                            if (setting != SessionSetting.PERMISSIONS) wantCatalog = true
+                            openSetting = if (openSetting == setting) null else setting
+                        },
+                        modifier = Modifier.onPlaced { rowBottom = (it.positionInParent().y + it.size.height).toInt() },
                     )
                     Usage(session = session, providers = providers)
+                }
+                // 選択肢: 外を押すと閉じる。面は設定の行のすぐ下に重ねる（同じ画面の上なので下が透ける）
+                if (openSetting != null) {
+                    Box(
+                        Modifier.matchParentSize().clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { openSetting = null },
+                    )
+                }
+                val visible = remember { MutableTransitionState(false) }
+                var shown by remember { mutableStateOf<SessionSetting?>(null) }
+                LaunchedEffect(openSetting) {
+                    if (openSetting != null) shown = openSetting
+                    visible.targetState = openSetting != null
+                }
+                val density = LocalDensity.current
+                androidx.compose.animation.AnimatedVisibility(
+                    visibleState = visible,
+                    enter = expandEnter(),
+                    exit = shrinkExit(),
+                    modifier = Modifier
+                        .padding(top = with(density) { rowBottom.toDp() } + Spacing.l + Spacing.xs)
+                        .padding(horizontal = Spacing.l),
+                ) {
+                    val setting = shown
+                    if (setting != null && agent != null) {
+                        ProvideScreenHaze(sheetHaze) {
+                            GlassPanel(hazeState = sheetHaze, fixedOpacity = MENU_OPACITY, modifier = Modifier.fillMaxWidth()) {
+                                SettingOptionsList(
+                                    setting = setting,
+                                    options = settingOptions(setting, agent, session, draftOptions, canSelectFull, catalog),
+                                    onSelect = { value ->
+                                        openSetting = null
+                                        onSelect(setting, value)
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
