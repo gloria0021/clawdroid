@@ -158,6 +158,7 @@ fun ChatScreen(
             newChat = viewModel::newChat,
             rename = viewModel::rename,
             archive = viewModel::setArchived,
+            delete = viewModel::delete,
             textChange = viewModel::onTextChange,
             reply = viewModel::replyTo,
             addImage = viewModel::addImage,
@@ -182,6 +183,7 @@ data class ChatActions(
     val newChat: () -> Unit,
     val rename: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit,
     val archive: (jp.miyavi.android.clawdroid.core.data.SessionSummary, Boolean) -> Unit,
+    val delete: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val textChange: (String) -> Unit,
     val reply: (String) -> Unit,
     val addImage: (android.net.Uri) -> Unit,
@@ -314,6 +316,7 @@ fun ChatContent(
                     },
                     onRename = actions.rename,
                     onArchive = actions.archive,
+                    onDelete = actions.delete,
                     onOpenAutomations = { scope.launch { drawerState.close() }; navigation.openAutomations() },
                     onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
                 )

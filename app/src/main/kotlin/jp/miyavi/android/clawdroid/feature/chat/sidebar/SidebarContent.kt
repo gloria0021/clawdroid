@@ -90,6 +90,7 @@ fun SidePanel(
     onSelectSession: (SessionSummary) -> Unit,
     onRename: (SessionSummary, String) -> Unit,
     onArchive: (SessionSummary, Boolean) -> Unit,
+    onDelete: (SessionSummary) -> Unit,
     onOpenAutomations: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -151,6 +152,7 @@ fun SidePanel(
                             onSelect = onSelectSession,
                             onRename = onRename,
                             onArchive = onArchive,
+                            onDelete = onDelete,
                         )
                     }
                 }
@@ -208,6 +210,7 @@ private fun SessionList(
     onSelect: (SessionSummary) -> Unit,
     onRename: (SessionSummary, String) -> Unit,
     onArchive: (SessionSummary, Boolean) -> Unit,
+    onDelete: (SessionSummary) -> Unit,
 ) {
     when {
         state.loading && state.sessions.isEmpty() && state.archived.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -236,6 +239,7 @@ private fun SessionList(
                     onClick = { onSelect(session) },
                     onRename = { onRename(session, it) },
                     onArchive = { onArchive(session, !session.archived) },
+                    onDelete = { onDelete(session) },
                     modifier = motionItem(),
                 )
             }
@@ -251,6 +255,7 @@ private fun SessionList(
                         onClick = { onSelect(session) },
                         onRename = { onRename(session, it) },
                         onArchive = { onArchive(session, !session.archived) },
+                        onDelete = { onDelete(session) },
                         modifier = motionItem(),
                     )
                 }
@@ -279,10 +284,12 @@ private fun SessionItem(
     onClick: () -> Unit,
     onRename: (String) -> Unit,
     onArchive: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val title = session.title ?: stringResource(R.string.session_untitled)
     val menuLabel = stringResource(R.string.session_menu_open_label)
     Box(modifier) {
@@ -315,7 +322,26 @@ private fun SessionItem(
                 leadingIcon = { Icon(painterResource(R.drawable.ic_huge_archive), contentDescription = null) },
                 onClick = { menuOpen = false; onArchive() },
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.session_menu_delete), color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_huge_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = { menuOpen = false; confirmDelete = true },
+            )
         }
+    }
+    // 削除は元に戻せないので確認する（AGENTS.md 2.7: 確認は AlertDialog）
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.session_delete_title)) },
+            text = { Text(stringResource(R.string.session_delete_body, title)) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete() }) {
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
     if (renaming) {
         RenameDialog(initial = session.title.orEmpty(), onDismiss = { renaming = false }, onConfirm = { renaming = false; onRename(it) })

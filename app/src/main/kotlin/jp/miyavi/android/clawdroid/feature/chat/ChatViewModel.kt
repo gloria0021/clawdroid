@@ -378,6 +378,12 @@ class ChatViewModel(
 
     fun rename(session: SessionSummary, label: String) = mutate { sessions.rename(session, label) }
     fun setArchived(session: SessionSummary, archived: Boolean) = mutate { sessions.setArchived(session, archived) }
+
+    /** セッションを削除する。開いていたセッションなら新規チャットに戻す。 */
+    fun delete(session: SessionSummary) = mutate {
+        sessions.delete(session)
+        if (selectedSessionKey.value == session.key) newChat()
+    }
     fun refreshSessions(agentId: String) = mutate { sessions.refresh(agentId) }
     fun retryHistory() = mutate { currentChat.value?.refreshHistory() }
 

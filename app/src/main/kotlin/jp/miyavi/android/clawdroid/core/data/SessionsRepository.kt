@@ -180,6 +180,29 @@ class SessionsRepository(
         put("archived", archived)
         session.sessionId?.let { put("expectedSessionId", it) }
     }
+    /**
+     * セッションを削除する（会話の記録も消す）。アーカイブ済みならそのまま、アクティブならアーカイブしてから消す
+     * （Gateway は archivedOnly の削除を operator.write に許し、それ以外は operator.admin を求めるため、公式アプリと同じ手順にする）。
+     */
+    suspend fun delete(session: SessionSummary) {
+        if (!session.archived) {
+            gateway.request("sessions.patch", buildJsonObject {
+                put("key", session.key)
+                session.agentId?.let { put("agentId", it) }
+                put("archived", true)
+                session.sessionId?.let { put("expectedSessionId", it) }
+            })
+        }
+        gateway.request("sessions.delete", buildJsonObject {
+            put("key", session.key)
+            session.agentId?.let { put("agentId", it) }
+            put("deleteTranscript", true)
+            put("archivedOnly", true)
+            session.sessionId?.let { put("expectedSessionId", it) }
+        })
+        session.agentId?.let { refresh(it) }
+    }
+
     suspend fun markRead(session: SessionSummary) = patch(session) { put("unread", false) }
 
     suspend fun setOption(key: String, agentId: String, setting: SessionSetting, value: String?) =

@@ -226,4 +226,7 @@
     <string name="settings_glass_refraction_desc">縁で背景をどれだけ曲げて見せるか</string>
     <string name="settings_blur_strength">ぼかしの強さ</string>
     <string name="settings_blur_strength_desc">浮いている面の後ろをどれだけぼかすか</string>
+    <string name="session_menu_delete">削除</string>
+    <string name="session_delete_title">セッションを削除しますか？</string>
+    <string name="session_delete_body">「%1$s」と会話の記録を Gateway から削除します。元に戻せません。</string>
 </resources>

@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.core.designsystem
 
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import android.content.res.Configuration
 import androidx.compose.foundation.background
@@ -92,9 +93,8 @@ val SHEET_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
 private val BLUR_RADIUS_MAX = 48.dp
 
 /**
- * 透過面の色付け。テーマカラーで色を付けてよいのは AppTitleBar だけ（AGENTS.md 2.10、マスター指定）。
- * それ以外はすべて無彩色の面の色（ライト = surfaceContainerLowest、ダーク = surfaceContainerHighest）。
- * `surface` は背景をテーマカラーへ寄せてあるので、ガラスの色には使わない。
+ * 透過面の色付け（AGENTS.md 2.10）。どの面もテーマカラーを暗く沈めた色を背景の上に 20% 重ねた色味。
+ * THEME はタイトルバー（その色を 20% で重ねる）、NEUTRAL はほかの面（同じ色味を面ごとの不透明度で）、FIELD は入力欄（白）。
  */
 enum class GlassTint { THEME, NEUTRAL, FIELD }
 
@@ -114,14 +114,18 @@ fun Modifier.hazeSurface(
     tint: GlassTint = GlassTint.NEUTRAL,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
+    // テーマの色付け（マスター指定 2026-11-22）: テーマカラーを暗く沈めた色を、背景の上に 20% 重ねた色。全部の透過面で同じ色味にする
+    val themed = lerp(colors.primary, colors.scrim, TITLE_BAR_DARKEN)
     val tintColor = when (tint) {
-        // タイトルバーはテーマカラーを暗く沈めた色（primary と scrim の中間）を薄く重ねる。背景より少し暗く、ほんのり色が入る
-        GlassTint.THEME -> lerp(colors.primary, colors.scrim, TITLE_BAR_DARKEN)
-        GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
+        // タイトルバー: 沈めた色そのものを 20%（TITLE_BAR_OPACITY）で重ねる
+        GlassTint.THEME -> themed
+        // ほかの面: 同じ色味を、面ごとの不透明度（読みやすさのため 50〜90%）で重ねる
+        GlassTint.NEUTRAL -> themed.copy(alpha = TITLE_BAR_OPACITY.glass).compositeOver(colors.surface)
+        // 入力欄だけは白（マスター指定）
+        GlassTint.FIELD -> sheetFieldColor()
     }
-    // 下に敷く面は常に無彩色。テーマカラーは不透明度の分だけ重ねる（敷く面に色を使うと、不透明度に関係なく色が付くため）
-    // タイトルバーの下地は画面の背景色（白ではなく、背景と地続きにほんのり色を乗せる）
-    val base = if (tint == GlassTint.THEME) colors.surface else sheetFieldColor()
+    // 下に敷く面: 入力欄は白、それ以外は画面の背景色（背景と地続きに色を乗せる）
+    val base = if (tint == GlassTint.FIELD) sheetFieldColor() else colors.surface
     when (LocalSurfaceStyle.current) {
         SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor, base)
         SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor, base)
