@@ -35,7 +35,14 @@ class ChatSessionQueueTest {
 
     @Before fun setUp() {
         gateway.handlers["chat.send"] = { buildJsonObject { put("status", "started") } }
-        gateway.handlers["chat.abort"] = { buildJsonObject { put("ok", true) } }
+        gateway.handlers["chat.abort"] = { params ->
+            buildJsonObject {
+                val withdrawn = params?.string("runId")?.takeIf { it == "idem-2" }
+                put("ok", true)
+                put("aborted", withdrawn != null)
+                put("runIds", buildJsonArray { withdrawn?.let { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
+            }
+        }
         gateway.handlers["sessions.messages.subscribe"] = { null }
         gateway.handlers["chat.history"] = {
             buildJsonObject {
@@ -73,6 +80,36 @@ class ChatSessionQueueTest {
 
     private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(10_000) { block() } }
 
+    @Test fun completedRunStaysIdleDespiteStaleEventsAndHistory() {
+        await { client.connect(gateway.url, "t"); client.awaitConnected() }
+        val chat = ChatSession(client, scope, "agent:a:s1", "a")
+        chat.open()
+        await { chat.state.first { !it.loading && it.running } }
+
+        fun emitChat(run: String, status: String) = gateway.emit("chat", buildJsonObject {
+            put("sessionKey", chat.sessionKey)
+            put("runId", run)
+            put("state", status)
+            put("phase", "thinking")
+        })
+        emitChat("run-1", "final")
+        await { chat.state.first { !it.running } }
+        emitChat("run-1", "status")
+        gateway.emit("session.tool", buildJsonObject {
+            put("sessionKey", chat.sessionKey)
+            put("name", "finished-tool")
+        })
+        // The fixture continues returning run-1 as in flight, even after final.
+        await { chat.refreshHistory() }
+        assertEquals(false, chat.state.value.running)
+        assertEquals(null, chat.state.value.activity)
+        assertEquals(null, chat.state.value.live)
+
+        emitChat("run-2", "status")
+        await { chat.state.first { it.running && it.activeRunId == "run-2" } }
+        chat.close()
+    }
+
     @Test fun sendWhileRunning_isSteer_andShowsPending_thenCancelDiscards() {
         await { client.connect(gateway.url, "t"); client.awaitConnected() }
         val chat = ChatSession(client, scope, "agent:a:s1", "a")
@@ -92,8 +129,9 @@ class ChatSessionQueueTest {
         await { chat.refreshHistory() }
         assertEquals(1, chat.state.value.pending.count { it.runId == "idem-2" })
 
+        assertEquals(false, await { chat.cancelPending("not-queued") })
         queuedRunIds = emptyList()
-        await { chat.cancelPending("idem-2") }
+        assertEquals(true, await { chat.cancelPending("idem-2") })
         val abort = gateway.requests.last { it.first == "chat.abort" }.second!!
         assertEquals("idem-2", abort.string("runId"))
         assertEquals(true, abort.bool("discardPendingInput"))

@@ -48,6 +48,7 @@ class AppContainer(app: Application) {
     val chats = ChatRepository(gateway, appScope)
     val inboundImages = jp.miyavi.android.clawdroid.core.data.InboundImageLoader(gateway)
     val gatewayControl = GatewayControlRepository(gateway)
+    internal val approvals = jp.miyavi.android.clawdroid.core.data.ApprovalsRepository(gateway, appScope)
 }
 
 class ClawdroidApp : Application() {

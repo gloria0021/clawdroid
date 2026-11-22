@@ -46,6 +46,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +61,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.GlassSnackbarHost
 import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
+import jp.miyavi.android.clawdroid.core.settings.AppFont
 import jp.miyavi.android.clawdroid.core.settings.AppTheme
 import jp.miyavi.android.clawdroid.core.settings.Appearance
 import jp.miyavi.android.clawdroid.core.settings.SurfaceStyle
@@ -78,6 +80,8 @@ data class SettingsActions(
     val onBack: () -> Unit,
     val setAppearance: (Appearance) -> Unit,
     val setTheme: (AppTheme) -> Unit,
+    val setFont: (AppFont) -> Unit,
+    val setFontSize: (Int) -> Unit,
     val setCustomSeed: (Int) -> Unit,
     val setSurfaceStyle: (SurfaceStyle) -> Unit,
     val setGlassRefraction: (Int) -> Unit,
@@ -193,6 +197,13 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                 modifier = Modifier.clickable(role = Role.Button) { dialog = "custom" },
                             )
                         }
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.settings_font)) },
+                            supportingContent = { Text(stringResource(fontLabel(state.theme.font))) },
+                            colors = transparentItem(),
+                            modifier = Modifier.clickable(role = Role.Button) { dialog = "font" },
+                        )
+                        FontSizeSlider(state.theme.fontSizeSp, actions.setFontSize)
                         Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s)) {
                             Text(stringResource(R.string.settings_surface_style), style = MaterialTheme.typography.bodyLarge)
                             AnimatedSegmentedRow(
@@ -233,6 +244,16 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
         ) { theme ->
             dialog = if (theme == AppTheme.CUSTOM && state.theme.customSeedArgb == null) "custom" else null
             if (theme != AppTheme.CUSTOM || state.theme.customSeedArgb != null) actions.setTheme(theme)
+        }
+        "font" -> ChoiceDialog(
+            title = stringResource(R.string.settings_font),
+            options = AppFont.entries,
+            selected = state.theme.font,
+            label = { stringResource(fontLabel(it)) },
+            onDismiss = { dialog = null },
+        ) { font ->
+            actions.setFont(font)
+            dialog = null
         }
         "custom" -> CustomColorDialog(
             initial = state.theme.customSeedArgb ?: DefaultCustomSeed.toArgb(),
@@ -304,6 +325,11 @@ private fun <T> ChoiceDialog(
     )
 }
 
+private fun fontLabel(font: AppFont) = when (font) {
+    AppFont.LINE_SEED_JP -> R.string.settings_font_line_seed_jp
+    AppFont.SYSTEM -> R.string.settings_appearance_system
+}
+
 private fun appearanceLabel(v: Appearance) = when (v) {
     Appearance.SYSTEM -> R.string.settings_appearance_system
     Appearance.LIGHT -> R.string.settings_appearance_light
@@ -322,6 +348,24 @@ private fun themeDescription(v: AppTheme) = when (v) {
     AppTheme.MODERN -> R.string.theme_modern_desc
     AppTheme.DYNAMIC -> R.string.theme_dynamic_desc
     AppTheme.CUSTOM -> R.string.theme_custom_desc
+}
+
+@Composable
+private fun FontSizeSlider(size: Int, onSizeChange: (Int) -> Unit) {
+    val title = stringResource(R.string.settings_font_size)
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_font_size_value, size), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(
+            value = size.toFloat(),
+            onValueChange = { onSizeChange(it.roundToInt()) },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = title },
+            valueRange = ThemeSettings.MIN_FONT_SIZE_SP.toFloat()..ThemeSettings.MAX_FONT_SIZE_SP.toFloat(),
+            steps = ThemeSettings.MAX_FONT_SIZE_SP - ThemeSettings.MIN_FONT_SIZE_SP - 1,
+        )
+    }
 }
 
 /** 0〜10 の強さのスライダー。動かしているあいだも即座に反映する。 */

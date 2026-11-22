@@ -2,12 +2,10 @@ package jp.miyavi.android.clawdroid.feature.chat
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import jp.miyavi.android.clawdroid.feature.chat.message.ThinkingIndicator
+import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.LocalInboundImages
 import jp.miyavi.android.clawdroid.core.data.InboundImageSource
 import jp.miyavi.android.clawdroid.core.data.InboundImageLoader
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import android.content.ClipData
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,9 +33,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,7 +66,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -107,20 +103,19 @@ import jp.miyavi.android.clawdroid.feature.chat.composer.rememberVoiceInput
 import jp.miyavi.android.clawdroid.feature.chat.message.AssistantMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
 import jp.miyavi.android.clawdroid.feature.chat.message.LiveAssistantMessage
+import jp.miyavi.android.clawdroid.feature.chat.message.ModelChangeDivider
 import jp.miyavi.android.clawdroid.feature.chat.message.ToolGroup
 import jp.miyavi.android.clawdroid.feature.chat.message.UserMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.VideoPreviewSheet
 import jp.miyavi.android.clawdroid.feature.chat.message.rememberChatLinkOpener
 import jp.miyavi.android.clawdroid.feature.chat.message.webUri
 import jp.miyavi.android.clawdroid.feature.chat.sidebar.SidePanel
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /** 会話の画面の外への操作。 */
 data class ChatNavigation(
     val openSettings: () -> Unit,
-    val openAutomations: () -> Unit,
+    val openAutomations: (Agent) -> Unit,
     val openTerminal: (sessionKey: String?) -> Unit,
     val openFiles: (sessionKey: String, agentId: String) -> Unit,
     val restartGateway: () -> Unit,
@@ -137,11 +132,13 @@ fun ChatScreen(
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val sendFailed = stringResource(R.string.chat_send_failed)
+    val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
     val retry = stringResource(R.string.action_retry)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 ChatEvent.SendFailed -> if (snackbar.showSnackbar(sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) viewModel.send()
+                ChatEvent.PendingAlreadyTaken -> snackbar.showSnackbar(pendingAlreadyTaken)
                 is ChatEvent.Error -> snackbar.showSnackbar(event.message ?: sendFailed)
             }
         }
@@ -155,7 +152,6 @@ fun ChatScreen(
         navigation = navigation,
         actions = ChatActions(
             selectAgent = viewModel::selectAgent,
-            preloadAgent = viewModel::preloadAgent,
             selectSession = viewModel::selectSession,
             newChat = viewModel::newChat,
             rename = viewModel::rename,
@@ -170,18 +166,19 @@ fun ChatScreen(
             stop = viewModel::abort,
             retryHistory = viewModel::retryHistory,
             cancelPending = viewModel::cancelPending,
+            restorePending = viewModel::restorePending,
             loadUsage = viewModel::loadProviderUsage,
             loadContext = viewModel::loadContextBreakdown,
             loadModels = viewModel::loadModelCatalog,
             updateSetting = viewModel::updateSessionSetting,
             reconnect = viewModel::reconnect,
+            preloadAgents = viewModel::preloadAgentSessions,
         ),
     )
 }
 
 data class ChatActions(
     val selectAgent: (String) -> Unit,
-    val preloadAgent: (String) -> Unit,
     val selectSession: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val newChat: () -> Unit,
     val rename: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit,
@@ -196,11 +193,13 @@ data class ChatActions(
     val stop: () -> Unit,
     val retryHistory: () -> Unit,
     val cancelPending: (String) -> Unit,
+    val restorePending: (String) -> Unit,
     val loadUsage: suspend () -> List<ProviderUsage>,
     val loadContext: suspend () -> jp.miyavi.android.clawdroid.core.data.ContextBreakdown?,
     val loadModels: suspend (String, String?) -> ModelCatalog?,
     val updateSetting: (SessionSetting, String?) -> Unit,
     val reconnect: () -> Unit,
+    val preloadAgents: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -218,28 +217,10 @@ fun ChatContent(
     val scope = rememberCoroutineScope()
     val hazeState = rememberHazeState()
     val agents = state.agents.agents
-    val selectedIndex = agents.indexOfFirst { it.id == state.selectedAgentId }.coerceAtLeast(0)
-    val pagerState = rememberPagerState(initialPage = selectedIndex) { agents.size }
-
-    // タブとページが止まった位置のエージェントを選ぶ（サイドバーの一覧と会話を同時に切り替える。FR-011）
-    LaunchedEffect(pagerState, agents) {
-        snapshotFlow { pagerState.settledPage }.distinctUntilChanged().drop(1).collect { page ->
-            agents.getOrNull(page)?.let { actions.selectAgent(it.id) }
-        }
-    }
-    LaunchedEffect(pagerState, agents) {
-        snapshotFlow { pagerState.targetPage }.distinctUntilChanged().collect { page ->
-            agents.getOrNull(page)?.let { actions.preloadAgent(it.id) }
-        }
-    }
-    // 外から選択が変わったら（復元・通知から開くなど）ページを合わせる。位置の復元は動かさない
-    LaunchedEffect(selectedIndex, agents.size) {
-        if (agents.isNotEmpty() && pagerState.currentPage != selectedIndex && !pagerState.isScrollInProgress) {
-            pagerState.scrollToPage(selectedIndex)
-        }
-    }
-
     BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
+    // サイドパネルを開けたら、ほかのエージェントの履歴も読んでおく（切り替えた瞬間に中身がそろうように）
+    val drawerOpening = drawerState.targetValue == DrawerValue.Open
+    LaunchedEffect(drawerOpening) { if (drawerOpening) actions.preloadAgents() }
 
     val clipboard = LocalClipboard.current
     val composerFocus = remember { FocusRequester() }
@@ -305,7 +286,8 @@ fun ChatContent(
                 // 全画面のサイドパネル（Gemini 型）。開くと画面いっぱいまで広がる
                 SidePanel(
                     agents = agents,
-                    pagerState = pagerState,
+                    selectedAgentId = state.selectedAgentId,
+                    onSelectAgent = actions.selectAgent,
                     sessionsByAgent = state.sessionsByAgent,
                     selectedSessionKey = state.currentSessionKey,
                     timeLabel = timeLabel,
@@ -321,12 +303,12 @@ fun ChatContent(
                     onRename = actions.rename,
                     onArchive = actions.archive,
                     onDelete = actions.delete,
-                    onOpenAutomations = { scope.launch { drawerState.close() }; navigation.openAutomations() },
+                    onOpenAutomations = { agent -> scope.launch { drawerState.close() }; navigation.openAutomations(agent) },
                     onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
                 )
             },
         ) {
-            val listState = rememberLazyListState()
+            val listState = key(state.currentSessionKey) { rememberLazyListState() }
             val titleBarState = key(state.currentSessionKey) { rememberTopAppBarState() }
             val titleBarScroll = TopAppBarDefaults.enterAlwaysScrollBehavior(
                 state = titleBarState,
@@ -369,6 +351,7 @@ fun ChatContent(
                                 onOpenSession = { showSessionSheet = true },
                                 pending = state.chat?.pending.orEmpty(),
                                 onCancelPending = actions.cancelPending,
+                                onRestorePending = actions.restorePending,
                                 onTextChange = actions.textChange,
                                 onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                 onRemoveImage = actions.removeImage,
@@ -550,31 +533,12 @@ private fun MessageList(
             if (tools.isNotEmpty()) add(tools)
         }
     }
+    val rowKeys = remember(rows) { chatRowKeys(rows.map { it.first().message.id }) }
     val live = chat?.live
-    val pending = chat?.pending.orEmpty()
-    // 一番下に付いていくか。利用者がスクロールを終えたときに「一番下にいるか」で決め直す（上を読んでいる最中は動かさない）
-    var stickToBottom by remember(state.currentSessionKey) { mutableStateOf(true) }
-    val dragged by listState.interactionSource.collectIsDraggedAsState()
-    LaunchedEffect(listState, state.currentSessionKey) {
-        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (!scrolling) stickToBottom = !listState.canScrollForward
-        }
-    }
-    suspend fun followBottom() {
-        if (!stickToBottom || dragged) return
-        withFrameNanos { } // 新しい行の配置を待つ
-        val last = listState.layoutInfo.totalItemsCount - 1
-        if (last >= 0) listState.scrollToItem(last, Int.MAX_VALUE / 2)
-    }
-    // 中身が増えた・応答が伸びた・受け付け待ちが変わったとき
-    LaunchedEffect(rows.size, live?.text?.length, pending.size, chat?.running, state.currentSessionKey) { followBottom() }
-    // 入力欄が伸びる・キーボードが出るなどで表示の高さが変わったとき（会話の表示は縮み、最新の行を見せたままにする）
-    LaunchedEffect(listState, state.currentSessionKey) {
-        snapshotFlow { listState.layoutInfo.viewportSize.height to listState.layoutInfo.afterContentPadding }
-            .distinctUntilChanged().collect { followBottom() }
-    }
+    val liveText = live?.text.orEmpty()
+    val latestFirst = rows.asReversed()
     when {
-        state.currentSessionKey == null || (chat != null && !chat.loading && messages.isEmpty() && live == null) -> {
+        state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && messages.isEmpty() && live == null) -> {
             Box(modifier, contentAlignment = Alignment.Center) {
                 Text(
                     stringResource(R.string.chat_empty_title),
@@ -595,21 +559,46 @@ private fun MessageList(
             state = listState,
             modifier = modifier,
             contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(Spacing.l),
+            reverseLayout = true,
+            verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            items(rows, key = { it.first().message.id }, contentType = { it.last().message.role }) { row ->
+            // 末尾のキーを固定し、生成中の行が伸びても同じレイアウトで下端に留める。
+            // 履歴へスクロールしていれば LazyColumn がその行のキーと位置を維持する。
+            item(key = "chat-tail") {
+                if (chat.running || liveText.isNotBlank()) {
+                    LiveAssistantMessage(
+                        text = liveText,
+                        agent = agent,
+                        running = chat.running,
+                        startedAt = chat.runStartedAt,
+                        reportedOutputTokens = chat.reportedOutputTokens,
+                        modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
+                            .padding(top = if (rows.isEmpty()) 0.dp else Spacing.l),
+                    )
+                }
+            }
+            itemsIndexed(latestFirst, key = { index, _ -> rowKeys[rowKeys.lastIndex - index] }, contentType = { _, row -> row.last().message.role }) { index, row ->
                 val item = row.last()
                 val message = item.message
                 val itemModifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
+                    .padding(top = if (index == latestFirst.lastIndex) 0.dp else Spacing.l)
                 val precedingTools = remember(row) { row.dropLast(1).flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } }
-                if (message.parts.isNotEmpty() && message.parts.all { it is MessagePart.ToolCall }) {
+                val modelChange = item.modelChange
+                if (message.parts.isEmpty()) {
+                    // モデルの切り替えの記録だけの行
+                    if (modelChange != null) ModelChangeDivider(modelChange, itemModifier)
+                } else if (message.parts.all { it is MessagePart.ToolCall }) {
                     ToolGroup(
                         parts = remember(row) { row.flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } },
                         modifier = itemModifier,
                     )
                 } else when (message.role) {
-                    ChatMessage.Role.USER -> UserMessage(message, item.timeLabel, onOpenImage, onOpenVideo, itemModifier)
+                    ChatMessage.Role.USER -> Column(itemModifier) {
+                        // この送信から別のモデルが答える
+                        if (modelChange != null) ModelChangeDivider(modelChange, Modifier.padding(bottom = Spacing.l))
+                        UserMessage(message, item.timeLabel, onOpenImage, onOpenVideo)
+                    }
                     ChatMessage.Role.ASSISTANT, ChatMessage.Role.SYSTEM -> AssistantMessage(
                         message = message,
                         agent = agent,
@@ -626,25 +615,7 @@ private fun MessageList(
                     ChatMessage.Role.TOOL_RESULT -> Unit
                 }
             }
-            if (live != null && live.text.isNotBlank()) {
-                item(key = "live-${live.runId}") {
-                    LiveAssistantMessage(live.text, agent, Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth())
-                }
-            }
-            // 実行中は、応答が流れていてもいなくても最後に考え中の表示（経過時間と今していること）
-            if (chat.running) {
-                item(key = "thinking") {
-                    ThinkingIndicator(
-                        startedAt = chat.runStartedAt,
-                        activity = chat.activity,
-                        modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth().animateItem(
-                            fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-                            placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                            fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
-                        ),
-                    )
-                }
-            }
+
         }
     }
 }
@@ -653,7 +624,7 @@ private fun MessageList(
 @Composable
 private fun ScrollToBottomButton(listState: LazyListState, hazeState: dev.chrisbanes.haze.HazeState) {
     val scope = rememberCoroutineScope()
-    val show by remember { androidx.compose.runtime.derivedStateOf { listState.canScrollForward && listState.layoutInfo.totalItemsCount > 0 } }
+    val show by remember { androidx.compose.runtime.derivedStateOf { listState.canScrollBackward } }
     AnimatedVisibility(
         visible = show,
         enter = scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
@@ -663,7 +634,7 @@ private fun ScrollToBottomButton(listState: LazyListState, hazeState: dev.chrisb
             hazeState = hazeState,
             icon = painterResource(R.drawable.ic_huge_arrow_down),
             contentDescription = stringResource(R.string.chat_scroll_bottom_cd),
-            onClick = { scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0), Int.MAX_VALUE / 2) } },
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.padding(bottom = Spacing.s),
         )
     }

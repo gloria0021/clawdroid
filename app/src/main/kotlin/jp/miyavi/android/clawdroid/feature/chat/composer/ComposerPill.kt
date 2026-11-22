@@ -92,6 +92,7 @@ fun ComposerPill(
     onOpenSession: () -> Unit,
     pending: List<PendingInput>,
     onCancelPending: (String) -> Unit,
+    onRestorePending: (String) -> Unit,
     onTextChange: (String) -> Unit,
     onAttach: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
@@ -131,7 +132,7 @@ fun ComposerPill(
             pending.forEach { input ->
                 key(input.runId) {
                     AnimatedVisibility(visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }, enter = expandEnter(), exit = shrinkExit()) {
-                        PendingInputRow(hazeState, input, onCancel = { onCancelPending(input.runId) })
+                        PendingInputRow(hazeState, input, enabled, onRestore = { onRestorePending(input.runId) }, onCancel = { onCancelPending(input.runId) })
                     }
                 }
             }
@@ -214,7 +215,7 @@ fun ComposerPill(
 
 /** 受け付け待ちの 1 行。ガラスの面に、待ちの目印・本文（1 行）・取り消し。 */
 @Composable
-private fun PendingInputRow(hazeState: HazeState, input: PendingInput, onCancel: () -> Unit) {
+private fun PendingInputRow(hazeState: HazeState, input: PendingInput, enabled: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
     GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.xs),
@@ -235,8 +236,13 @@ private fun PendingInputRow(hazeState: HazeState, input: PendingInput, onCancel:
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onCancel) {
-                Icon(painterResource(R.drawable.ic_huge_delete), contentDescription = stringResource(R.string.chat_pending_cancel_cd))
+            Row {
+                IconButton(enabled = enabled && !input.local && !input.hasAttachments && input.text.isNotBlank(), onClick = onRestore) {
+                    Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.chat_pending_restore_cd))
+                }
+                IconButton(enabled = enabled, onClick = onCancel) {
+                    Icon(painterResource(R.drawable.ic_huge_delete), contentDescription = stringResource(R.string.chat_pending_cancel_cd))
+                }
             }
         }
     }

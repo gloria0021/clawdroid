@@ -19,6 +19,7 @@ object Dimens {
     val compactTouchTarget = 32.dp
     val maxReadingWidth = 720.dp
     val sidebarWidth = 320.dp
+    val sidebarAppIcon = compactTouchTarget * 1.2f
     val floatingButtonSize = 48.dp
     val composerMaxWidth = 720.dp
     /** 入力欄が伸びる上限の行数ぶんの高さ。 */

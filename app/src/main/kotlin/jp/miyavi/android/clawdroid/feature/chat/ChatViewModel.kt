@@ -17,6 +17,7 @@ import jp.miyavi.android.clawdroid.core.data.ChatRepository
 import jp.miyavi.android.clawdroid.core.data.ChatSession
 import jp.miyavi.android.clawdroid.core.data.ChatState
 import jp.miyavi.android.clawdroid.core.data.ModelCatalog
+import jp.miyavi.android.clawdroid.core.data.ModelChange
 import jp.miyavi.android.clawdroid.core.data.OutgoingImage
 import jp.miyavi.android.clawdroid.core.data.Parse
 import jp.miyavi.android.clawdroid.core.data.ProviderUsage
@@ -68,6 +69,8 @@ data class MessageUi(
     val message: ChatMessage,
     val timeLabel: String?,
     val elapsedMs: Long? = null,
+    /** この行の上に出すモデルの切り替え。 */
+    val modelChange: ModelChange? = null,
 )
 
 /** 入力欄の状態。 */
@@ -100,6 +103,7 @@ data class ChatScreenState(
 sealed interface ChatEvent {
     data class Error(val message: String?) : ChatEvent
     data object SendFailed : ChatEvent
+    data object PendingAlreadyTaken : ChatEvent
 }
 
 /**
@@ -155,6 +159,8 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatScreenState())
 
     private var draftJob: Job? = null
+    /** セッションを開くたびに増える。後から届いた古い切り替えで上書きしないため。 */
+    private var sessionGeneration = 0
     private var settingsJob: Job? = null
 
     init {
@@ -178,15 +184,23 @@ class ChatViewModel(
 
     fun selectAgent(agentId: String) {
         if (agentId == selectedAgentId.value) return
+        // 選択は先に確定する（続けて「新しいセッション」を押しても、このエージェントで開く）
+        selectedAgentId.value = agentId
+        sessions.ensureLoaded(agentId)
+        val generation = sessionGeneration
         viewModelScope.launch {
             val saved = settings.selection.first().selectedSessionKeyByAgent[agentId]
-            applyAgent(agentId, saved)
+            // 読むあいだに別のセッション・新しいチャットが開かれていたら、そちらを優先する
+            if (generation == sessionGeneration && selectedAgentId.value == agentId) openSession(saved, agentId)
             settings.selectAgent(agentId)
         }
     }
 
-    /** サイドバーのページが変わったとき、一覧だけ先に読み込む（会話はまだ替えない）。 */
-    fun preloadAgent(agentId: String) = sessions.ensureLoaded(agentId)
+    /** まだ読んでいないエージェントのセッション履歴を先に読む（サイドパネルで切り替えたときに中身がそろっているように）。 */
+    fun preloadAgentSessions() {
+        val loaded = sessions.sessions.value
+        state.value.agents.agents.forEach { agent -> if (agent.id !in loaded) sessions.ensureLoaded(agent.id) }
+    }
 
     suspend fun loadModelCatalog(agentId: String, sessionKey: String?): ModelCatalog? {
         if (!gateway.supports("models.list")) return null
@@ -308,6 +322,7 @@ class ChatViewModel(
     }
 
     private fun openSession(sessionKey: String?, agentId: String) {
+        sessionGeneration++
         if (sessionKey == selectedSessionKey.value && currentChat.value?.agentId == agentId && sessionKey != null) return
         currentChat.value?.close()
         selectedSessionKey.value = sessionKey
@@ -393,6 +408,28 @@ class ChatViewModel(
         viewModelScope.launch { runCatching { chat.cancelPending(runId) }.onFailure { _events.tryEmit(ChatEvent.Error(it.message)) } }
     }
 
+    fun restorePending(runId: String) {
+        val chat = currentChat.value ?: return
+        val input = chat.state.value.pending.firstOrNull { it.runId == runId } ?: return
+        if (input.text.isBlank() || input.hasAttachments || input.local || !restoringPending.add(runId)) return
+        mutate {
+            try {
+                if (!chat.cancelPending(runId)) {
+                    _events.tryEmit(ChatEvent.PendingAlreadyTaken)
+                } else if (currentChat.value === chat) {
+                    _composer.update { it.copy(text = mergeRestoredDraft(input.text, it.text)) }
+                } else {
+                    val key = chat.sessionKey
+                    drafts.upsert(DraftEntity(key, mergeRestoredDraft(input.text, drafts.get(key)?.text.orEmpty()), System.currentTimeMillis()))
+                }
+            } finally {
+                restoringPending.remove(runId)
+            }
+        }
+    }
+
+    private val restoringPending = mutableSetOf<String>()
+
     fun abort() {
         val chat = currentChat.value ?: return
         viewModelScope.launch { runCatching { chat.abort() }.onFailure { _events.tryEmit(ChatEvent.Error(it.message)) } }
@@ -440,11 +477,31 @@ class ChatViewModel(
 }
 
 
-/** 記録にある利用者の送信時刻と応答時刻から、回答までのおおよその時間を求める。 */
+/**
+ * 記録にある利用者の送信時刻と応答時刻から、回答までのおおよその時間を求める。
+ * あわせて、モデルが切り替わった行を見つける（Control UI と同じ判定）。
+ */
 internal fun formatMessages(messages: List<ChatMessage>, timeFormatter: (Long) -> String): List<MessageUi> {
     val promptsByRun = mutableMapOf<String, ChatMessage>()
     var latestPrompt: ChatMessage? = null
+    var lastModel: String? = null
+    var seenTurn = false
     return messages.map { message ->
+        val modelChange = when {
+            message.modelChange != null -> message.modelChange.also { lastModel = it.to }
+            message.role == ChatMessage.Role.USER -> {
+                val selection = message.modelSelection
+                // 切り替え前のモデルは、手元で最後に見た選択。無ければ（履歴の途中からなら）記録の直前の選択
+                val before = selection?.let { lastModel ?: it.previous.takeIf { seenTurn } }
+                if (selection != null) lastModel = selection.current
+                seenTurn = true
+                if (selection == null || before == null || before == selection.current) null else ModelChange(before, selection.current)
+            }
+            else -> {
+                if (message.role == ChatMessage.Role.ASSISTANT) seenTurn = true
+                null
+            }
+        }
         if (message.role == ChatMessage.Role.USER) {
             latestPrompt = message
             message.runId?.let { promptsByRun[it] = message }
@@ -460,6 +517,6 @@ internal fun formatMessages(messages: List<ChatMessage>, timeFormatter: (Long) -
         } else {
             null
         }
-        MessageUi(message, message.timestamp?.let(timeFormatter), elapsed)
+        MessageUi(message, message.timestamp?.let(timeFormatter), elapsed, modelChange)
     }
 }

@@ -22,6 +22,8 @@ enum class AppTheme { OPENCLAW, MODERN, DYNAMIC, CUSTOM }
 /** 浮いている面の透かし方（FR-082）。 */
 enum class SurfaceStyle { GLASS, BLUR }
 
+enum class AppFont { LINE_SEED_JP, SYSTEM }
+
 enum class LockScreenContent { FOLLOW_SYSTEM, HIDE }
 
 data class ThemeSettings(
@@ -33,8 +35,13 @@ data class ThemeSettings(
     val glassRefraction: Int = DEFAULT_GLASS_REFRACTION,
     /** ぼかしの強さ（0〜10）。 */
     val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
+    val font: AppFont = AppFont.LINE_SEED_JP,
+    val fontSizeSp: Int = DEFAULT_FONT_SIZE_SP,
 ) {
     companion object {
+        const val MIN_FONT_SIZE_SP = 14
+        const val MAX_FONT_SIZE_SP = 20
+        const val DEFAULT_FONT_SIZE_SP = 16
         const val MIN_LEVEL = 0
         const val MAX_LEVEL = 10
         const val DEFAULT_GLASS_REFRACTION = 6
@@ -67,6 +74,8 @@ class SettingsStore(context: Context) {
             appearance = p[APPEARANCE].toEnum(Appearance.SYSTEM),
             theme = p[THEME].toEnum(AppTheme.OPENCLAW),
             customSeedArgb = p[CUSTOM_SEED],
+            font = p[FONT].toEnum(AppFont.LINE_SEED_JP),
+            fontSizeSp = (p[FONT_SIZE] ?: ThemeSettings.DEFAULT_FONT_SIZE_SP).coerceIn(ThemeSettings.MIN_FONT_SIZE_SP, ThemeSettings.MAX_FONT_SIZE_SP),
             surfaceStyle = p[SURFACE_STYLE].toEnum(SurfaceStyle.GLASS),
             glassRefraction = (p[GLASS_REFRACTION] ?: ThemeSettings.DEFAULT_GLASS_REFRACTION).coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL),
             blurStrength = (p[BLUR_STRENGTH] ?: ThemeSettings.DEFAULT_BLUR_STRENGTH).coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL),
@@ -93,6 +102,10 @@ class SettingsStore(context: Context) {
     }.distinctUntilChanged()
 
     suspend fun setAppearance(v: Appearance) = store.edit { it[APPEARANCE] = v.name }
+    suspend fun setFont(v: AppFont) = store.edit { it[FONT] = v.name }
+    suspend fun setFontSize(v: Int) = store.edit {
+        it[FONT_SIZE] = v.coerceIn(ThemeSettings.MIN_FONT_SIZE_SP, ThemeSettings.MAX_FONT_SIZE_SP)
+    }
     suspend fun setTheme(v: AppTheme) = store.edit { it[THEME] = v.name }
     suspend fun setCustomSeed(argb: Int) = store.edit {
         it[CUSTOM_SEED] = argb
@@ -121,6 +134,8 @@ class SettingsStore(context: Context) {
     private companion object {
         val APPEARANCE = stringPreferencesKey("appearance")
         val THEME = stringPreferencesKey("theme")
+        val FONT = stringPreferencesKey("font")
+        val FONT_SIZE = intPreferencesKey("font_size_sp")
         val CUSTOM_SEED = intPreferencesKey("custom_seed")
         val SURFACE_STYLE = stringPreferencesKey("surface_style")
         val GLASS_REFRACTION = intPreferencesKey("glass_refraction")

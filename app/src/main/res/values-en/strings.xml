@@ -137,6 +137,10 @@
     <string name="files_title">Files</string>
     <string name="terminal_title">Terminal</string>
     <string name="automations_title">Automations</string>
+    <string name="automations_load_failed">Could not load automations</string>
+    <string name="automations_empty">No automations for this agent</string>
+    <string name="automation_enabled">Enabled</string>
+    <string name="automation_disabled">Disabled</string>
     <string name="panel_new_session">New session</string>
     <string name="panel_history">Session history</string>
     <string name="panel_close_cd">Close panel</string>
@@ -163,6 +167,8 @@
     <string name="chat_context_tokens">%1$s / %2$s tokens</string>
     <string name="chat_setting_default">Default</string>
     <string name="chat_setting_model">Model</string>
+    <string name="chat_model_changed">%1$s → %2$s</string>
+    <string name="chat_model_changed_cd">Model switched from %1$s to %2$s</string>
     <string name="chat_setting_effort">Effort</string>
     <string name="chat_setting_permissions">Execution permissions</string>
     <string name="chat_settings_unavailable">No choices are available for this agent</string>
@@ -183,7 +189,6 @@
     <string name="usage_window_5h">5 hours</string>
     <string name="usage_window_week">Week</string>
     <string name="usage_window_day">Day</string>
-    <string name="chat_activity_tool">Running %1$s</string>
     <string-array name="chat_thinking_phrases">
         <item>Sharpening claws…</item>
         <item>Reading the tide…</item>
@@ -223,4 +228,17 @@
     <string name="context_part_skills">Skills catalog</string>
     <string name="context_part_system">System instructions</string>
     <string name="settings_appearance_label">Appearance</string>
+    <string name="approval_exec_title">Command approval required</string>
+    <string name="approval_plugin_title">Plugin approval required</string>
+    <string name="approval_count">%1$d pending approvals</string>
+    <string name="approval_always">Always allow</string>
+    <string name="approval_once">Allow once</string>
+    <string name="approval_always_warning">Future matching operations will be allowed without asking.</string>
+    <string name="approval_failed">Could not send your decision. Check the connection and try again.</string>
+    <string name="chat_output_tokens_estimated">· Tokens: ≈%1$s</string>
+    <string name="chat_output_tokens_live">· Tokens: %1$s</string>
+    <string name="settings_font">Font</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="chat_pending_restore_cd">Return to draft</string>
+    <string name="chat_pending_already_taken">This message is no longer queued</string>
 </resources>

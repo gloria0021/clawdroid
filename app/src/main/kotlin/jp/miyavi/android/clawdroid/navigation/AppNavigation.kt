@@ -49,6 +49,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.AppContainer
 import jp.miyavi.android.clawdroid.BuildConfig
@@ -59,6 +60,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.ScreenMotionScheme
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import jp.miyavi.android.clawdroid.core.settings.ThemeSettings
+import jp.miyavi.android.clawdroid.feature.automation.AutomationsScreen
 import jp.miyavi.android.clawdroid.feature.chat.ChatNavigation
 import jp.miyavi.android.clawdroid.feature.chat.ChatScreen
 import jp.miyavi.android.clawdroid.feature.chat.ChatViewModel
@@ -72,7 +74,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ChatRoute : NavKey
 @Serializable data object SettingsRoute : NavKey
-@Serializable data object AutomationsRoute : NavKey
+@Serializable data class AutomationsRoute(val agentId: String, val agentName: String) : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
@@ -102,7 +104,9 @@ fun AppNavigation(container: AppContainer) {
             val vm: ConnectViewModel = viewModel(factory = viewModelFactory { initializer { ConnectViewModel(container.gateway, container.secrets) } })
             ConnectScreen(vm)
         } else {
-            MainNavigation(container)
+            val approvalHaze = rememberHazeState()
+            Box(Modifier.fillMaxSize().hazeSource(approvalHaze)) { MainNavigation(container) }
+            ApprovalPrompt(container.approvals, container.sessions, approvalHaze)
         }
     }
 }
@@ -159,7 +163,7 @@ private fun MainNavigation(container: AppContainer) {
                     timeLabel = timeLabel,
                     navigation = ChatNavigation(
                         openSettings = { gate.run { backStack.push(SettingsRoute) } },
-                        openAutomations = { gate.run { backStack.push(AutomationsRoute) } },
+                        openAutomations = { agent -> gate.run { backStack.push(AutomationsRoute(agent.id, agent.name)) } },
                         openTerminal = { key -> gate.run { backStack.push(TerminalRoute(key)) } },
                         openFiles = { key, agentId -> gate.run { backStack.push(FilesRoute(key, agentId)) } },
                         restartGateway = { confirmRestart = true },
@@ -179,6 +183,8 @@ private fun MainNavigation(container: AppContainer) {
                         onBack = { gate.run { backStack.pop() } },
                         setAppearance = { scope.launch { container.settings.setAppearance(it) } },
                         setTheme = { scope.launch { container.settings.setTheme(it) } },
+                        setFont = { scope.launch { container.settings.setFont(it) } },
+                        setFontSize = { scope.launch { container.settings.setFontSize(it) } },
                         setCustomSeed = { scope.launch { container.settings.setCustomSeed(it) } },
                         setSurfaceStyle = { scope.launch { container.settings.setSurfaceStyle(it) } },
                         setGlassRefraction = { scope.launch { container.settings.setGlassRefraction(it) } },
@@ -190,7 +196,10 @@ private fun MainNavigation(container: AppContainer) {
                     ),
                 )
             }
-            entry<AutomationsRoute> { ComingSoon(R.string.automations_title) { backStack.pop() } }
+            entry<AutomationsRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                AutomationsScreen(container.gateway, route.agentId, route.agentName) { gate.run { backStack.pop() } }
+            }
             entry<TerminalRoute> { ComingSoon(R.string.terminal_title) { backStack.pop() } }
             entry<FilesRoute> { ComingSoon(R.string.files_title) { backStack.pop() } }
             entry<UsageRoute> { ComingSoon(R.string.usage_title) { backStack.pop() } }

@@ -24,7 +24,6 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
-import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
@@ -195,8 +194,7 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
     val numbers = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     val percent = remember(locale) { NumberFormat.getPercentInstance(locale) }
     val timeOnly = remember(locale) { DateFormat.getTimeInstance(DateFormat.SHORT, locale) }
-    val weekday = remember(locale) { java.text.SimpleDateFormat("EEE", locale) }
-    val dateOnly = remember(locale) { java.text.SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(locale, "Md"), locale) }
+    val dateAndTime = remember(locale) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         // コンテキストウィンドウ: 見出しの右に「使った量 / 上限 · 割合」、下に内訳の色で塗り分けた細い棒と内訳の行
@@ -234,10 +232,15 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
         providers?.forEach { provider ->
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                    providerBrand(provider.ids, provider.name)?.let { brand ->
+                    val brand = providerBrand(provider.ids, provider.name)
+                    brand?.let {
                         Icon(painterResource(brand.icon()), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
                     }
-                    Text(provider.name, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Text(when (brand) {
+                        ProviderBrand.OPENAI -> "ChatGPT"
+                        ProviderBrand.CLAUDE -> "Claude"
+                        else -> provider.name
+                    }, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                     provider.plan?.let { plan ->
                         Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer) {
                             Text(plan, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = Spacing.s, vertical = Spacing.xs / 2))
@@ -250,7 +253,7 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
                         fraction = window.usedFraction,
                         label = windowLabel(window.label),
                         percentage = percent.format(window.usedFraction),
-                        reset = window.resetAt?.let { resetLabel(it, timeOnly, weekday, dateOnly) },
+                        reset = window.resetAt?.let { (if (android.text.format.DateUtils.isToday(it)) timeOnly else dateAndTime).format(Date(it)) },
                     )
                 }
             }
@@ -396,17 +399,6 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
             Spacer(Modifier.weight(1f))
             Text(percentage, style = MaterialTheme.typography.labelLarge, color = if (high) colors.error else colors.onSurface)
         }
-    }
-}
-
-/** リセットの時刻: 今日なら時刻、1 週間以内なら曜日、それ以降は日付。 */
-private fun resetLabel(at: Long, time: DateFormat, weekday: java.text.SimpleDateFormat, date: java.text.SimpleDateFormat): String {
-    val day = Date(at)
-    val days = (at - System.currentTimeMillis()) / DateUtils.DAY_IN_MILLIS
-    return when {
-        DateUtils.isToday(at) -> time.format(day)
-        days in 0..6 -> weekday.format(day)
-        else -> date.format(day)
     }
 }
 

@@ -1,24 +1,18 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -27,18 +21,22 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import jp.miyavi.android.clawdroid.R
-import jp.miyavi.android.clawdroid.core.data.RunActivity
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 /**
- * 考え中の表示（Control UI の「10m 13s · …」と同じ役割）。動くインジケーター・経過時間・今していること。
- * 経過時間は 1 秒ごとにこの行だけを描き直す。今していることが分からないあいだは、言い回しを数秒ごとに入れ替える。
+ * 考え中の表示（Control UI の「10m 13s · …」と同じ役割）。経過時間と、ふざけた言い回し。
+ * 経過時間は 1 秒ごとにこの行だけを描き直す。言い回しは数秒ごとに入れ替える（ツールの実行中も名前は出さない。マスター指定 2026-11-23）。
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ThinkingIndicator(startedAt: Long?, activity: RunActivity?, modifier: Modifier = Modifier) {
+fun ThinkingIndicator(
+    startedAt: Long?,
+    modifier: Modifier = Modifier,
+    outputText: String = "",
+    reportedOutputTokens: Long? = null,
+) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(startedAt) {
         while (true) {
@@ -48,33 +46,40 @@ fun ThinkingIndicator(startedAt: Long?, activity: RunActivity?, modifier: Modifi
     }
     val elapsed = ((now - (startedAt ?: now)) / 1_000).coerceAtLeast(0)
     val phrases = stringArrayResource(R.array.chat_thinking_phrases)
-    // 実行ごとに始まりのネタを変え、数秒ごとに次のネタへ（同じ実行のあいだは順番が変わらない）
-    val offset = remember(startedAt) { (startedAt ?: 0L).mod(phrases.size.toLong()).toInt() }
-    val phraseIndex = ((elapsed / PHRASE_SECONDS + offset) % phrases.size).toInt()
-    // ツールの実行中だけは何をしているかを出す。それ以外（待ち・準備・考え中）はネタ
-    val label = when (activity) {
-        is RunActivity.Tool -> stringResource(R.string.chat_activity_tool, activity.name)
-        else -> phrases[phraseIndex]
+    // ネタは毎回ランダムに選ぶ。直前と同じネタは続けない（マスター指定 2026-11-23）
+    var phraseIndex by remember(startedAt, phrases.size) { mutableIntStateOf(Random.nextInt(phrases.size)) }
+    LaunchedEffect(startedAt, phrases.size) {
+        if (phrases.size < 2) return@LaunchedEffect
+        while (true) {
+            delay(PHRASE_SECONDS * 1_000)
+            phraseIndex = (phraseIndex + 1 + Random.nextInt(phrases.size - 1)) % phrases.size
+        }
     }
-    Row(
+    val label = phrases[phraseIndex]
+    val count = remember(reportedOutputTokens, outputText) {
+        reportedOutputTokens?.let(::formatReportedOutputTokens)
+            ?: outputText.takeIf(String::isNotBlank)?.let { formatOutputTokens(estimateOutputTokens(it)) }
+    }
+    // 1 行目: 言い回し。2 行目: 経過時間とトークン数（マスター指定 2026-11-23）
+    Column(
         modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        verticalArrangement = Arrangement.Center,
     ) {
-        LoadingIndicator(Modifier.size(Dimens.compactTouchTarget))
         Text(
-            formatElapsed(elapsed),
+            label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        val motion = MaterialTheme.motionScheme
-        AnimatedContent(
-            targetState = label,
-            transitionSpec = { fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
-            label = "thinkingLabel",
-        ) { text ->
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
             Text(
-                "· $text",
+                formatElapsed(elapsed),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (count != null) Text(
+                stringResource(if (reportedOutputTokens != null) R.string.chat_output_tokens_live else R.string.chat_output_tokens_estimated, count),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

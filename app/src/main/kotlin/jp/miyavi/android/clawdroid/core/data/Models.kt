@@ -102,6 +102,10 @@ data class ChatMessage(
     val runId: String?,
     val isError: Boolean,
     val truncated: Boolean,
+    /** 利用者のメッセージを送ったときに選ばれていたモデル（`__openclaw.modelSelection`）。 */
+    val modelSelection: ModelSelection? = null,
+    /** モデルの切り替えの記録（`custom` の `session-model-change`）。 */
+    val modelChange: ModelChange? = null,
 ) {
     enum class Role { USER, ASSISTANT, TOOL_RESULT, SYSTEM }
 
@@ -121,6 +125,12 @@ sealed interface MessagePart {
         val isResult: Boolean,
     ) : MessagePart
 }
+
+/** 送信時のモデル（`provider/model`）と、その直前のモデル。 */
+data class ModelSelection(val current: String, val previous: String?)
+
+/** モデルの切り替え（`provider/model`）。 */
+data class ModelChange(val from: String, val to: String)
 
 /** 生成中の応答（chat の delta を組み立てたもの）。 */
 data class LiveRun(val runId: String, val text: String)
@@ -272,6 +282,12 @@ internal object Parse {
             }
         } else emptyList()
         val entryId = meta?.string("id")
+        val selection = if (role == ChatMessage.Role.USER) meta?.obj("modelSelection") else null
+        val modelChange = obj.takeIf { it.string("customType") == "session-model-change" }?.obj("details")?.let { details ->
+            val from = details.string("from")?.takeIf(String::isNotBlank) ?: return@let null
+            val to = details.string("to")?.takeIf(String::isNotBlank) ?: return@let null
+            ModelChange(from, to)
+        }
         return ChatMessage(
             id = entryId ?: "i$index-${obj.long("timestamp") ?: 0}",
             role = role,
@@ -284,7 +300,16 @@ internal object Parse {
                 )?.removeSuffix(":user"),
             isError = obj.bool("isError") == true || obj.string("stopReason") in setOf("error", "aborted"),
             truncated = meta?.bool("truncated") == true,
+            modelSelection = selectedModel(selection)?.let { ModelSelection(it, selectedModel(selection?.obj("previous"))) },
+            modelChange = modelChange,
         )
+    }
+
+    /** `{ provider, model }` を `provider/model` にする（Control UI と同じく両方そろったときだけ）。 */
+    private fun selectedModel(obj: JsonObject?): String? {
+        val provider = obj?.string("provider")?.takeIf(String::isNotBlank) ?: return null
+        val model = obj.string("model")?.takeIf(String::isNotBlank) ?: return null
+        return canonicalModel(model, provider)
     }
 
     fun contentParts(content: JsonElement?): List<MessagePart> = when (content) {

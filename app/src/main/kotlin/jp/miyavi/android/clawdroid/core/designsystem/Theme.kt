@@ -24,6 +24,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.core.graphics.ColorUtils
 import com.materialkolor.PaletteStyle
 import com.materialkolor.material3.rememberDynamicColorScheme
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontWeight
+import jp.miyavi.android.clawdroid.R
+import jp.miyavi.android.clawdroid.core.settings.AppFont
 import jp.miyavi.android.clawdroid.core.settings.AppTheme
 import jp.miyavi.android.clawdroid.core.settings.Appearance
 import jp.miyavi.android.clawdroid.core.settings.SurfaceStyle
@@ -84,6 +88,40 @@ val LocalGlassLevels = staticCompositionLocalOf { GlassLevels() }
 /** 現在の透かし方（ガラス / ぼかし）。共通部品（Glass.kt）が読む。 */
 val LocalSurfaceStyle = staticCompositionLocalOf { SurfaceStyle.GLASS }
 
+private val SystemTypography = Typography()
+
+private val LineSeedFamily = FontFamily(
+    Font(R.font.line_seed_jp_regular, FontWeight.Normal),
+    Font(R.font.line_seed_jp_bold, FontWeight.Bold),
+)
+private fun appTypography(font: AppFont, fontSizeSp: Int): Typography {
+    val t = SystemTypography
+    val scale = fontSizeSp / t.bodyLarge.fontSize.value
+    val family = if (font == AppFont.LINE_SEED_JP) LineSeedFamily else null
+    fun TextStyle.adjust() = copy(
+        fontFamily = family ?: fontFamily,
+        fontSize = fontSize * scale,
+        lineHeight = lineHeight * scale,
+    )
+    return t.copy(
+        displayLarge = t.displayLarge.adjust(),
+        displayMedium = t.displayMedium.adjust(),
+        displaySmall = t.displaySmall.adjust(),
+        headlineLarge = t.headlineLarge.adjust(),
+        headlineMedium = t.headlineMedium.adjust(),
+        headlineSmall = t.headlineSmall.adjust(),
+        titleLarge = t.titleLarge.adjust(),
+        titleMedium = t.titleMedium.adjust(),
+        titleSmall = t.titleSmall.adjust(),
+        bodyLarge = t.bodyLarge.adjust(),
+        bodyMedium = t.bodyMedium.adjust(),
+        bodySmall = t.bodySmall.adjust(),
+        labelLarge = t.labelLarge.adjust(),
+        labelMedium = t.labelMedium.adjust(),
+        labelSmall = t.labelSmall.adjust(),
+    )
+}
+
 @Composable
 fun ClawdroidTheme(
     settings: ThemeSettings = ThemeSettings(),
@@ -103,6 +141,7 @@ fun ClawdroidTheme(
     } else {
         AccentContainer(scheme.primaryContainer, scheme.onPrimaryContainer)
     }
+    val typography = remember(settings.font, settings.fontSizeSp) { appTypography(settings.font, settings.fontSizeSp) }
     CompositionLocalProvider(
         LocalSurfaceStyle provides settings.surfaceStyle,
         LocalGlassLevels provides GlassLevels(settings.glassRefraction, settings.blurStrength),
@@ -111,7 +150,7 @@ fun ClawdroidTheme(
         MaterialTheme(
             colorScheme = scheme,
             motionScheme = AppMotionScheme,
-            typography = Typography(),
+            typography = typography,
             content = content,
         )
     }

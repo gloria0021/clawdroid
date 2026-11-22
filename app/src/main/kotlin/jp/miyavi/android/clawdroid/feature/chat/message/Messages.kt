@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +44,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
@@ -52,6 +58,8 @@ import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.MessagePart
+import jp.miyavi.android.clawdroid.core.data.ModelChange
+import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.bodyContainerColor
@@ -151,28 +159,89 @@ fun AssistantMessage(
             )
         }
         val text = message.text
-        if (timeLabel != null) {
-            Text(timeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (text.isNotBlank()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                if (onReply != null && message.role == ChatMessage.Role.ASSISTANT) {
-                    IconButton(onClick = { onReply(text) }) {
-                        Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd), modifier = Modifier.size(Dimens.smallIcon))
-                    }
+        if (timeLabel != null || text.isNotBlank()) {
+            val metadataColor = MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (timeLabel != null) {
+                    Text(
+                        timeLabel,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = Spacing.xs),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = metadataColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                IconButton(onClick = { onCopy(text) }) {
-                    Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), modifier = Modifier.size(Dimens.smallIcon))
+                if (text.isNotBlank()) {
+                    val reply = onReply?.takeIf { message.role == ChatMessage.Role.ASSISTANT }
+                    if (reply != null) {
+                        IconButton(onClick = { reply(text) }) {
+                            Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd), tint = metadataColor, modifier = Modifier.offset(x = Spacing.xs).size(Dimens.smallIcon))
+                        }
+                    }
+                    IconButton(onClick = { onCopy(text) }) {
+                        Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), tint = metadataColor, modifier = Modifier.offset(x = if (reply != null) -Spacing.xs else 0.dp).size(Dimens.smallIcon))
+                    }
                 }
             }
         }
     }
 }
 
-/** 生成中の応答（逐次表示）。 */
+/**
+ * ここから別のモデルが答えることを示す区切り。線のあいだに「前 → 後」のモデル名。
+ * 短い名前が同じになるとき（プロバイダだけの切り替え）は、プロバイダ付きの名前を出す。
+ */
 @Composable
-fun LiveAssistantMessage(text: String, agent: Agent?, modifier: Modifier = Modifier) {
-    ReplyLayout(agent, showAvatar = true, modifier) { MarkdownText(text) }
+fun ModelChangeDivider(change: ModelChange, modifier: Modifier = Modifier) {
+    val (from, to) = remember(change) {
+        val from = shortModelName(change.from)
+        val to = shortModelName(change.to)
+        if (from == to) change.from to change.to else from to to
+    }
+    val description = stringResource(R.string.chat_model_changed_cd, from, to)
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+    ) {
+        HorizontalDivider(Modifier.weight(1f))
+        Icon(painterResource(R.drawable.ic_huge_model), contentDescription = null, tint = color, modifier = Modifier.size(Spacing.l))
+        Text(
+            stringResource(R.string.chat_model_changed, from, to),
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            textAlign = TextAlign.Center,
+        )
+        HorizontalDivider(Modifier.weight(1f))
+    }
+}
+
+/** 推論・ツール実行・本文生成を同じ応答ヘッダーで表示する。 */
+@Composable
+fun LiveAssistantMessage(
+    text: String,
+    agent: Agent?,
+    running: Boolean,
+    startedAt: Long?,
+    reportedOutputTokens: Long?,
+    modifier: Modifier = Modifier,
+) {
+    ReplyLayout(
+        agent,
+        showAvatar = true,
+        modifier,
+        avatarBusy = running,
+        header = {
+            if (running) ThinkingIndicator(startedAt, outputText = text, reportedOutputTokens = reportedOutputTokens)
+        },
+    ) {
+        // 未完の Markdown をチャンクごとに再解析せず、確定後に Markdown として描画する。
+        if (text.isNotBlank()) Text(text, style = bodyTextStyle())
+    }
 }
 
 /**
@@ -184,13 +253,14 @@ private fun ReplyLayout(
     agent: Agent?,
     showAvatar: Boolean,
     modifier: Modifier,
+    avatarBusy: Boolean = false,
     header: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
         if (showAvatar || header != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge)
+                if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge, busy = avatarBusy)
                 if (header != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs / 2)) { header() }
             }
         }

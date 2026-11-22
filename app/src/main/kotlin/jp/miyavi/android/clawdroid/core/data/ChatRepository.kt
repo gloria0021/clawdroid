@@ -38,7 +38,12 @@ data class ChatState(
     val runStartedAt: Long? = null,
     /** 今の実行の段階（status の phase、または実行中のツール名）。 */
     val activity: RunActivity? = null,
-)
+    val activeRunId: String? = null,
+    val usageByRun: Map<String, RunOutputUsage> = emptyMap(),
+    internal val completedRunIds: List<String> = emptyList(),
+) {
+    val reportedOutputTokens: Long? get() = usageByRun[activeRunId ?: live?.runId]?.tokens
+}
 
 /** 考え中の表示に出す、今していること。 */
 sealed interface RunActivity {
@@ -50,7 +55,7 @@ sealed interface RunActivity {
  * 受け付け待ちの送信。`local` は応答（ack）を待っている手元の送信、そうでなければ Gateway の pendingInputs（state = queued）。
  * `runId` は chat.send の idempotencyKey と同じで、キャンセル（chat.abort + discardPendingInput）に使う。
  */
-data class PendingInput(val runId: String, val text: String, val local: Boolean)
+data class PendingInput(val runId: String, val text: String, val local: Boolean, val hasAttachments: Boolean = false)
 
 /** 送る画像（Base64 にしたもの）。 */
 data class OutgoingImage(val mimeType: String, val base64: String, val fileName: String?)
@@ -112,6 +117,7 @@ class ChatSession(
     }
 
     suspend fun refreshHistory() {
+        val requestedState = _state.value
         runCatching {
             gateway.request("chat.history", buildJsonObject {
                 put("sessionKey", sessionKey)
@@ -121,8 +127,10 @@ class ChatSession(
         }.onSuccess { root ->
             val messages = root?.array("messages").orEmpty()
                 .mapIndexedNotNull { i, el -> Parse.message(el as? JsonObject ?: return@mapIndexedNotNull null, i) }
-                .filter { it.parts.isNotEmpty() }
-            val inFlight = root?.obj("inFlightRun")
+                .filter { it.parts.isNotEmpty() || it.modelChange != null }
+            val reportedRun = root?.obj("inFlightRun")
+            val reportedRunId = reportedRun?.string("runId")
+            val replayUsage = reportedRun?.array("events").orEmpty().mapNotNull { it.asObject()?.let(::parseRunOutputUsage) }
             val sessionInfo = Parse.session(root?.obj("sessionInfo"))
             val queued = root?.obj("pendingInputs")?.array("items").orEmpty().mapNotNull { el ->
                 val item = el as? JsonObject ?: return@mapNotNull null
@@ -131,9 +139,21 @@ class ChatSession(
                 val text = (item["message"] as? JsonObject)?.let { Parse.contentParts(it["content"]) }
                     ?.filterIsInstance<MessagePart.Text>()?.joinToString("\n") { it.markdown }
                     ?: (item["message"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                PendingInput(runId, text.orEmpty(), local = false)
+                val message = item.obj("message")
+                val hasAttachments = message?.let { Parse.contentParts(it["content"]).any { part -> part is MessagePart.Image } ||
+                    it.obj("__openclaw")?.array("media").orEmpty().isNotEmpty() } == true
+                PendingInput(runId, text.orEmpty(), local = false, hasAttachments = hasAttachments)
             }
             _state.update { current ->
+                val reportedRunEnded = reportedRunId != null && reportedRunId in current.completedRunIds
+                val inFlight = reportedRun.takeUnless { reportedRunEnded }
+                val runChanged = current.activeRunId != requestedState.activeRunId ||
+                    current.completedRunIds != requestedState.completedRunIds
+                // 先に届いたライブ通知を古い履歴で上書きしない。完了後は実行 ID のない
+                // セッション概要だけで推論中に戻さない（概要は完了直後に古いことがある）。
+                val running = if (runChanged) current.running else inFlight != null ||
+                    (!reportedRunEnded && sessionInfo?.running == true &&
+                        (current.running || current.completedRunIds.isEmpty()))
                 // 生成中の応答は、手元の delta の方が新しければそれを残す
                 val live = inFlight?.string("runId")?.let { runId ->
                     val fetched = inFlight.string("text").orEmpty()
@@ -143,7 +163,6 @@ class ChatSession(
                 // 履歴に取り込まれた送信と、Gateway が受け付け待ちにしている送信は手元の一覧から外す
                 val known = messages.mapNotNull { it.runId }.toSet() + queued.map { it.runId }
                 val localPending = current.pending.filter { it.local && it.runId !in known }
-                val running = inFlight != null || sessionInfo?.running == true
                 // 実行の始まりは、最後の利用者のメッセージの時刻（無ければ今）
                 val startedAt = when {
                     !running -> null
@@ -156,11 +175,16 @@ class ChatSession(
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
                     messages = messages,
-                    pending = localPending + queued,
+                    pending = localPending + queued.map { item ->
+                        item.copy(hasAttachments = item.hasAttachments || current.pending.any { it.runId == item.runId && it.hasAttachments })
+                    }.distinctBy { it.runId },
                     runStartedAt = startedAt,
                     activity = if (running) current.activity else null,
-                    live = live,
-                    running = inFlight != null || sessionInfo?.running == true,
+                    activeRunId = if (!running) null else if (runChanged) current.activeRunId
+                        else inFlight?.string("runId") ?: current.activeRunId,
+                    usageByRun = replayUsage.fold(current.usageByRun) { acc, usage -> acc.withUsage(usage) },
+                    live = if (runChanged) current.live else live,
+                    running = running,
                     loading = false,
                     error = null,
                 )
@@ -180,6 +204,19 @@ class ChatSession(
     private fun onEvent(event: GatewayEvent) {
         val payload = event.payload.asObject() ?: return
         val key = payload.string("sessionKey") ?: payload.string("key") ?: payload.obj("session")?.string("key")
+        if (event.name == "agent") {
+            val usage = parseRunOutputUsage(payload) ?: return
+            if (key != null && key != sessionKey) return
+            if (payload.string("agentId")?.let { it != agentId } == true) return
+            _state.update { current ->
+                if (key == null && usage.runId != current.activeRunId) current
+                else current.copy(
+                    activeRunId = current.activeRunId ?: usage.runId.takeIf { current.running },
+                    usageByRun = current.usageByRun.withUsage(usage),
+                )
+            }
+            return
+        }
         if (key != sessionKey) return
         when (event.name) {
             "chat" -> onChatEvent(payload)
@@ -188,7 +225,10 @@ class ChatSession(
             "session.tool" -> {
                 val data = payload.obj("data")
                 val name = listOf("name", "toolName", "tool").firstNotNullOfOrNull { data?.string(it) ?: payload.string(it) }
+                val runId = payload.string("runId") ?: data?.string("runId")
                 _state.update {
+                    if (!it.running || (runId != null &&
+                            (runId in it.completedRunIds || (it.activeRunId != null && it.activeRunId != runId)))) return@update it
                     it.copy(
                         running = true,
                         runStartedAt = it.runStartedAt ?: System.currentTimeMillis(),
@@ -197,10 +237,7 @@ class ChatSession(
                 }
                 scheduleRefresh()
             }
-            "sessions.changed" -> {
-                val row = Parse.session(payload.obj("session")) ?: return
-                _state.update { it.copy(running = row.running || it.live != null) }
-            }
+            "sessions.changed" -> scheduleRefresh()
         }
     }
 
@@ -209,13 +246,16 @@ class ChatSession(
         val runId = payload.string("runId") ?: return
         when (payload.string("state")) {
             "status" -> _state.update {
+                if (runId in it.completedRunIds) return@update it
                 it.copy(
                     running = true,
                     runStartedAt = it.runStartedAt ?: System.currentTimeMillis(),
                     activity = payload.string("phase")?.let(RunActivity::Phase) ?: it.activity,
+                    activeRunId = runId,
                 )
             }
             "delta" -> _state.update { current ->
+                if (runId in current.completedRunIds) return@update current
                 val snapshot = (payload["message"] as? JsonObject)?.let { Parse.contentParts(it["content"]) }
                     ?.filterIsInstance<MessagePart.Text>()?.joinToString("\n\n") { it.markdown }
                 val deltaText = payload.string("deltaText").orEmpty()
@@ -227,6 +267,7 @@ class ChatSession(
                 }
                 current.copy(
                     live = LiveRun(runId, text),
+                    activeRunId = runId,
                     running = true,
                     runStartedAt = current.runStartedAt ?: System.currentTimeMillis(),
                     activity = null,
@@ -234,9 +275,13 @@ class ChatSession(
             }
             "final", "aborted", "error" -> {
                 _state.update {
-                    it.copy(
+                    if (runId in it.completedRunIds) return@update it
+                    val completed = it.copy(completedRunIds = (it.completedRunIds + runId).takeLast(COMPLETED_RUN_LIMIT))
+                    if (it.activeRunId != null && it.activeRunId != runId) return@update completed
+                    completed.copy(
                         running = false,
                         runStartedAt = null,
+                        activeRunId = null,
                         activity = null,
                         error = if (payload.string("state") == "error") payload.string("errorMessage") else it.error,
                     )
@@ -269,8 +314,8 @@ class ChatSession(
             truncated = false,
         )
         _state.update {
-            if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true), error = null)
-            else it.copy(messages = it.messages + optimistic, running = true, runStartedAt = System.currentTimeMillis(), activity = null, error = null)
+            if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true, hasAttachments = images.isNotEmpty()), error = null)
+            else it.copy(messages = it.messages + optimistic, activeRunId = idempotencyKey, running = true, runStartedAt = System.currentTimeMillis(), activity = null, error = null)
         }
         try {
             gateway.request("chat.send", buildJsonObject {
@@ -307,19 +352,19 @@ class ChatSession(
     }
 
     /** 受け付け待ちの送信を取り消す（Control UI と同じく chat.abort に discardPendingInput を付ける）。 */
-    suspend fun cancelPending(runId: String) {
-        _state.update { s -> s.copy(pending = s.pending.filterNot { it.runId == runId }) }
-        try {
-            gateway.request("chat.abort", buildJsonObject {
+    suspend fun cancelPending(runId: String): Boolean = try {
+            val result = gateway.request("chat.abort", buildJsonObject {
                 put("sessionKey", sessionKey)
                 put("agentId", agentId)
                 put("runId", runId)
                 put("discardPendingInput", true)
-            })
+            }).asObject()
+            val withdrawn = result?.bool("aborted") == true && result.array("runIds")?.contains(kotlinx.serialization.json.JsonPrimitive(runId)) == true
+            if (withdrawn) _state.update { s -> s.copy(pending = s.pending.filterNot { it.runId == runId }) }
+            withdrawn
         } finally {
             refreshHistory()
         }
-    }
 
     suspend fun abort() {
         gateway.request("chat.abort", buildJsonObject {
@@ -344,6 +389,7 @@ class ChatSession(
     private companion object {
         const val HISTORY_LIMIT = 200
         const val REFRESH_DEBOUNCE_MS = 250L
+        const val COMPLETED_RUN_LIMIT = 32
     }
 }
 

@@ -2,6 +2,8 @@ package jp.miyavi.android.clawdroid.core.designsystem
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -23,17 +25,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import jp.miyavi.android.clawdroid.core.settings.SurfaceStyle
+import kotlin.math.roundToInt
 
 /** ピル型のタブ（Gerbil から移植）。選択中を示す面は、選んだタブへばねで滑って移る。 */
 @Composable
@@ -48,58 +50,68 @@ fun <T> PillTabs(
     content: @Composable (T) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
-    // 選択の面はテーマの強い色（OpenClaw ではくすんだ赤）
     val accent = accentContainer()
-    val indicatorColor = accent.container
+    val hazeState = LocalScreenHazeState.current
     // 各タブの左端と幅（px）。置かれてから分かる
     val bounds = remember { mutableStateMapOf<T, Pair<Float, Float>>() }
     val target = bounds[selected]
     // 位置が分かった最初の回はその場に出し、以後の変更だけを動かす
-    val indicator = if (target != null) {
-        val x by animateFloatAsState(target.first, motion.defaultSpatialSpec(), label = "tabIndicatorX")
-        val width by animateFloatAsState(target.second, motion.defaultSpatialSpec(), label = "tabIndicatorWidth")
-        Modifier.drawBehind {
-            val left = indicatorPadding.calculateLeftPadding(layoutDirection).toPx()
-            val right = indicatorPadding.calculateRightPadding(layoutDirection).toPx()
-            val top = indicatorPadding.calculateTopPadding().toPx()
-            val height = (size.height - top - indicatorPadding.calculateBottomPadding().toPx()).coerceAtLeast(0f)
-            drawRoundRect(
-                color = indicatorColor,
-                topLeft = Offset(x + left, top),
-                size = Size((width - left - right).coerceAtLeast(0f), height),
-                cornerRadius = CornerRadius(height / 2f),
+    Box {
+        if (target != null) {
+            val x by animateFloatAsState(target.first, motion.defaultSpatialSpec(), label = "tabIndicatorX")
+            val width by animateFloatAsState(target.second, motion.defaultSpatialSpec(), label = "tabIndicatorWidth")
+            val surface = if (hazeState != null) {
+                val outline = if (LocalSurfaceStyle.current == SurfaceStyle.BLUR) {
+                    Modifier.border(Dp.Hairline, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                } else Modifier
+                Modifier.hazeSurface(hazeState, CircleShape).then(outline)
+            } else {
+                Modifier.background(accent.container, CircleShape)
+            }
+            Box(
+                Modifier.matchParentSize().layout { measurable, constraints ->
+                    val left = indicatorPadding.calculateLeftPadding(layoutDirection).roundToPx()
+                    val right = indicatorPadding.calculateRightPadding(layoutDirection).roundToPx()
+                    val top = indicatorPadding.calculateTopPadding().roundToPx()
+                    val bottom = indicatorPadding.calculateBottomPadding().roundToPx()
+                    val highlightWidth = (width.roundToInt() - left - right).coerceIn(0, constraints.maxWidth)
+                    val highlightHeight = (constraints.maxHeight - top - bottom).coerceAtLeast(0)
+                    val highlight = measurable.measure(Constraints.fixed(highlightWidth, highlightHeight))
+                    layout(constraints.maxWidth, constraints.maxHeight) {
+                        // onPlaced reports a physical x, including in RTL layouts.
+                        highlight.place(x.roundToInt() + left, top)
+                    }
+                }.then(surface),
             )
         }
-    } else {
-        Modifier
-    }
-    Row(indicator.selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
-        tabs.forEach { tab ->
-            val isSelected = selected == tab
-            val interactions = remember { MutableInteractionSource() }
-            val contentColor by animateColorAsState(
-                if (isSelected) accent.content else MaterialTheme.colorScheme.onSurface,
-                motion.fastEffectsSpec(),
-                label = "tabTextColor",
-            )
-            Box(
-                modifier = (if (fillWidth) Modifier.weight(1f) else Modifier)
-                    .onPlaced { bounds[tab] = it.positionInParent().x to it.size.width.toFloat() }
-                    .selectable(
-                        selected = isSelected,
-                        interactionSource = interactions,
-                        indication = null,
-                        role = Role.Tab,
-                    ) { onSelect(tab) }
-                    .semantics { contentDescription = label(tab) }
-                    .heightIn(min = Dimens.minTouchTarget)
-                    .padding(indicatorPadding)
-                    .clip(CircleShape)
-                    .indication(interactions, ripple())
-                    .padding(horizontal = tabHorizontalPadding, vertical = Spacing.s),
-                contentAlignment = Alignment.Center,
-            ) {
-                CompositionLocalProvider(LocalContentColor provides contentColor) { content(tab) }
+        Row(Modifier.selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
+            tabs.forEach { tab ->
+                val isSelected = selected == tab
+                val interactions = remember { MutableInteractionSource() }
+                val contentColor by animateColorAsState(
+                    if (isSelected && hazeState == null) accent.content else MaterialTheme.colorScheme.onSurface,
+                    motion.fastEffectsSpec(),
+                    label = "tabTextColor",
+                )
+                Box(
+                    modifier = (if (fillWidth) Modifier.weight(1f) else Modifier)
+                        .onPlaced { bounds[tab] = it.positionInParent().x to it.size.width.toFloat() }
+                        .selectable(
+                            selected = isSelected,
+                            interactionSource = interactions,
+                            indication = null,
+                            role = Role.Tab,
+                        ) { onSelect(tab) }
+                        .semantics { contentDescription = label(tab) }
+                        .heightIn(min = Dimens.minTouchTarget)
+                        .padding(indicatorPadding)
+                        .clip(CircleShape)
+                        .indication(interactions, ripple())
+                        .padding(horizontal = tabHorizontalPadding, vertical = Spacing.s),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides contentColor) { content(tab) }
+                }
             }
         }
     }
