@@ -49,6 +49,7 @@ class AppContainer(app: Application) {
     val inboundImages = jp.miyavi.android.clawdroid.core.data.InboundImageLoader(gateway)
     val gatewayControl = GatewayControlRepository(gateway)
     internal val approvals = jp.miyavi.android.clawdroid.core.data.ApprovalsRepository(gateway, appScope)
+    internal val questions = jp.miyavi.android.clawdroid.core.data.QuestionsRepository(gateway, appScope)
 }
 
 class ClawdroidApp : Application() {

@@ -122,14 +122,20 @@ data class ChatNavigation(
 )
 
 @Composable
-fun ChatScreen(
+internal fun ChatScreen(
     viewModel: ChatViewModel,
     navigation: ChatNavigation,
+    questions: jp.miyavi.android.clawdroid.core.data.QuestionsRepository? = null,
     timeLabel: (Long) -> String,
     inboundImages: InboundImageLoader? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
+    val slashCommands by viewModel.slashCommands.collectAsStateWithLifecycle()
+    // あとで答えることにした、この会話への質問（入力欄の上から開き直す）
+    val questionRequests = questions?.requests?.collectAsStateWithLifecycle()?.value.orEmpty()
+    val snoozedQuestions = questions?.snoozed?.collectAsStateWithLifecycle()?.value.orEmpty()
+    val snoozedQuestion = questionRequests.firstOrNull { it.id in snoozedQuestions && it.belongsTo(state.currentSessionKey) }
     val snackbar = remember { SnackbarHostState() }
     val sendFailed = stringResource(R.string.chat_send_failed)
     val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
@@ -147,6 +153,9 @@ fun ChatScreen(
         inboundImages = inboundImages,
         state = state,
         composer = composer,
+        slashCommands = slashCommands,
+        hasQuestion = snoozedQuestion != null,
+        onOpenQuestion = { snoozedQuestion?.let { questions?.reopen(it.id) } },
         snackbar = snackbar,
         timeLabel = timeLabel,
         navigation = navigation,
@@ -212,6 +221,9 @@ fun ChatContent(
     navigation: ChatNavigation,
     actions: ChatActions,
     inboundImages: InboundImageLoader? = null,
+    slashCommands: List<jp.miyavi.android.clawdroid.core.data.SlashCommand> = emptyList(),
+    hasQuestion: Boolean = false,
+    onOpenQuestion: () -> Unit = {},
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -342,6 +354,9 @@ fun ChatContent(
                             ComposerPill(
                                 hazeState = hazeState,
                                 state = composer,
+                                slashCommands = slashCommands,
+                                hasQuestion = hasQuestion,
+                                onOpenQuestion = onOpenQuestion,
                                 running = state.chat?.running == true,
                                 enabled = canReply,
                                 focusRequester = composerFocus,

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- スラッシュコマンドの説明（Gateway は英語で返すので、日本語はアプリで持つ）。キーはコマンド名（- は _）。 -->
+<resources>
+    <string name="slash_cmd_help">使えるコマンドを表示する</string>
+    <string name="slash_cmd_commands">スラッシュコマンドをすべて表示する</string>
+    <string name="slash_cmd_tools">今使えるツールを表示する</string>
+    <string name="slash_cmd_skill">スキルを名前で実行する</string>
+    <string name="slash_cmd_dashboard">このセッションのダッシュボードを作る・更新する</string>
+    <string name="slash_cmd_learn">最近の作業や指定した資料から、スキルや記憶に学ぶ</string>
+    <string name="slash_cmd_loop">プロンプトを繰り返し実行する（/loop [間隔] プロンプト、/loop status、/loop stop [名前]）</string>
+    <string name="slash_cmd_status">今の状態を表示する</string>
+    <string name="slash_cmd_goal">今のゴールを表示・操作する</string>
+    <string name="slash_cmd_diagnostics">Gateway の診断と、Codex へのフィードバック送信の方法を説明する</string>
+    <string name="slash_cmd_login">モデルのプロバイダに接続する</string>
+    <string name="slash_cmd_openclaw">OpenClaw のセットアップと修復の手助けを実行する</string>
+    <string name="slash_cmd_allowlist">許可リストを表示・追加・削除する</string>
+    <string name="slash_cmd_approve">exec の実行を承認・拒否する</string>
+    <string name="slash_cmd_context">コンテキストの組み立てと使われ方を説明する</string>
+    <string name="slash_cmd_btw">この先の会話に残さずに、横から質問する</string>
+    <string name="slash_cmd_export_session">このセッションを HTML に書き出す（ワークスペースに、本人だけが読めるファイルで）</string>
+    <string name="slash_cmd_export_trajectory">このセッションの軌跡を JSONL にまとめて書き出す</string>
+    <string name="slash_cmd_tts">読み上げ（TTS）を操作する</string>
+    <string name="slash_cmd_whoami">自分の送信者 ID を表示する</string>
+    <string name="slash_cmd_session">会話の紐付けと、セッションの寿命の設定を管理する</string>
+    <string name="slash_cmd_subagents">このセッションのサブエージェントの実行を確認する</string>
+    <string name="slash_cmd_acp">ACP のセッションと実行時の設定を管理する</string>
+    <string name="slash_cmd_agents">このセッションのスレッドに紐付いたエージェントを表示する</string>
+    <string name="slash_cmd_steer">実行中の応答に指示を差し込む</string>
+    <string name="slash_cmd_followup">待ち方を変えずに、このメッセージを新しいターンとして実行する</string>
+    <string name="slash_cmd_usage">使用量の表示や費用の集計</string>
+    <string name="slash_cmd_stop">実行中の応答を止める</string>
+    <string name="slash_cmd_restart">OpenClaw を再起動する</string>
+    <string name="slash_cmd_update">OpenClaw を更新して再起動する</string>
+    <string name="slash_cmd_activation">グループでの反応の仕方を設定する</string>
+    <string name="slash_cmd_send">送信の方針を設定する</string>
+    <string name="slash_cmd_reset">今のセッションをリセットする</string>
+    <string name="slash_cmd_new">新しいセッションを始める</string>
+    <string name="slash_cmd_name">今のセッションに名前を付ける・変える</string>
+    <string name="slash_cmd_compact">セッションのコンテキストを圧縮する</string>
+    <string name="slash_cmd_think">思考の深さを設定する</string>
+    <string name="slash_cmd_verbose">詳細表示を切り替える</string>
+    <string name="slash_cmd_trace">プラグインのトレース行の表示を切り替える</string>
+    <string name="slash_cmd_fast">高速モードを切り替える</string>
+    <string name="slash_cmd_reasoning">推論の表示を切り替える</string>
+    <string name="slash_cmd_elevated">昇格モードを切り替える</string>
+    <string name="slash_cmd_exec">このセッションの exec の既定値を設定する</string>
+    <string name="slash_cmd_model">モデルを表示・設定する（-s / -a / -g で範囲を選ぶ）</string>
+    <string name="slash_cmd_models">モデルのプロバイダとモデルを一覧する</string>
+    <string name="slash_cmd_queue">待ち行列の設定を変える</string>
+    <string name="slash_cmd_pair">セットアップコードを作り、端末のペアリングを承認する</string>
+    <string name="slash_cmd_dreaming">記憶のドリーミングを有効・無効にする</string>
+    <string name="slash_cmd_voice">Talk の声を一覧・設定する（iOS の Talk の再生に効く）</string>
+    <string name="slash_cmd_codex">Codex の app-server ハーネスを確認・操作する</string>
+</resources>

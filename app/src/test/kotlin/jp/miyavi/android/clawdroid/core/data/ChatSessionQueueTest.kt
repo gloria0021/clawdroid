@@ -32,6 +32,8 @@ class ChatSessionQueueTest {
     private lateinit var client: GatewayClient
     /** 履歴が返す受け付け待ちの runId。 */
     @Volatile private var queuedRunIds = emptyList<String>()
+    /** 履歴に記録済みのエージェントの文（最後の利用者のメッセージの後ろ）。 */
+    @Volatile private var committedReply: String? = null
 
     @Before fun setUp() {
         gateway.handlers["chat.send"] = { buildJsonObject { put("status", "started") } }
@@ -46,7 +48,12 @@ class ChatSessionQueueTest {
         gateway.handlers["sessions.messages.subscribe"] = { null }
         gateway.handlers["chat.history"] = {
             buildJsonObject {
-                put("messages", buildJsonArray { })
+                put("messages", buildJsonArray {
+                    committedReply?.let { reply ->
+                        add(buildJsonObject { put("role", "user"); put("content", "go") })
+                        add(buildJsonObject { put("role", "assistant"); put("content", reply) })
+                    }
+                })
                 put("inFlightRun", buildJsonObject { put("runId", "run-1"); put("text", "working") })
                 put("pendingInputs", buildJsonObject {
                     put("total", queuedRunIds.size)
@@ -79,6 +86,25 @@ class ChatSessionQueueTest {
     }
 
     private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(10_000) { block() } }
+
+    @Test fun liveText_alreadyInTranscript_isNotShownTwice() {
+        await { client.connect(gateway.url, "t"); client.awaitConnected() }
+        // 途中の一言（working）が記録に入ったあとも、生成中の文が同じ working を持っている
+        committedReply = "working"
+        val chat = ChatSession(client, scope, "agent:a:s1", "a")
+        chat.open()
+        await { chat.state.first { !it.loading && it.running } }
+        assertEquals("", chat.state.value.live?.text)
+        // 遅れて同じ文の delta が届いても出さない。続きの文は出す
+        fun delta(text: String) = gateway.emit("chat", buildJsonObject {
+            put("sessionKey", chat.sessionKey); put("runId", "run-1"); put("state", "delta"); put("deltaText", text); put("replace", true)
+        })
+        delta("working")
+        // 生成中の文は実行全体をつないだもの。記録済みの一言を先頭から除き、続きだけを出す
+        delta("working\n\nnext step")
+        await { chat.state.first { it.live?.text == "next step" } }
+        chat.close()
+    }
 
     @Test fun completedRunStaysIdleDespiteStaleEventsAndHistory() {
         await { client.connect(gateway.url, "t"); client.awaitConnected() }

@@ -22,6 +22,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.Color
+import jp.miyavi.android.clawdroid.core.designsystem.MENU_OPACITY
+import jp.miyavi.android.clawdroid.core.data.SlashCommand
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -83,6 +90,9 @@ import jp.miyavi.android.clawdroid.feature.chat.message.rememberBase64Bitmap
 fun ComposerPill(
     hazeState: HazeState,
     state: ComposerState,
+    slashCommands: List<SlashCommand> = emptyList(),
+    hasQuestion: Boolean = false,
+    onOpenQuestion: () -> Unit = {},
     running: Boolean,
     enabled: Boolean,
     focusRequester: FocusRequester,
@@ -127,6 +137,10 @@ fun ComposerPill(
                 }
             }
         }
+        // あとで答えることにしたエージェントからの質問。押すとシートを開き直す
+        AnimatedVisibility(visible = hasQuestion, enter = expandEnter(), exit = shrinkExit()) {
+            QuestionRow(hazeState, onOpenQuestion, Modifier.padding(bottom = Spacing.xs))
+        }
         // 受け付け待ちの送信（steer）。入力欄の上に積み、会話に取り込まれたら消える。取り消しはゴミ箱
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.padding(bottom = Spacing.xs)) {
             pending.forEach { input ->
@@ -137,6 +151,19 @@ fun ComposerPill(
                 }
             }
         }
+        // 入力中の文字とカーソル（外から文字が変わったときは末尾にカーソルを置く）
+        var editingValue by remember { mutableStateOf(TextFieldValue(state.text)) }
+        val fieldValue = if (editingValue.text == state.text) editingValue else {
+            TextFieldValue(state.text, selection = TextRange(state.text.length))
+        }
+        // 補完。「/」で始めるとコマンド、「$」でスキルの候補を入力欄の上に出す
+        val cursor = fieldValue.selection.end
+        val suggestions = remember(fieldValue.text, cursor, slashCommands) { slashSuggestions(fieldValue.text, slashCommands, cursor) }
+        SlashSuggestionPanel(hazeState, suggestions, onPick = { suggestion ->
+            val (text, at) = suggestion.applyTo(fieldValue.text)
+            editingValue = TextFieldValue(text, selection = TextRange(at))
+            onTextChange(text)
+        })
         // 入力欄は白い面（色付けしない）
         GlassPanel(
             hazeState = hazeState,
@@ -156,10 +183,6 @@ fun ComposerPill(
                 val textStyle = bodyTextStyle().copy(color = LocalContentColor.current)
                 if (state.text.isEmpty()) {
                     Text(stringResource(R.string.chat_input_placeholder), style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                var editingValue by remember { mutableStateOf(TextFieldValue(state.text)) }
-                val fieldValue = if (editingValue.text == state.text) editingValue else {
-                    TextFieldValue(state.text, selection = TextRange(state.text.length))
                 }
                 BasicTextField(
                     value = fieldValue,
@@ -213,6 +236,79 @@ fun ComposerPill(
     }
 }
 
+/**
+ * 補完の候補の一覧（コマンド・スキル）。受け付け待ちの行と同じガラスの面に、名前（primary）と説明を並べる。
+ * ポップアップにしないので、出ているあいだもキーボードで打ち続けられる。押すと入力欄をその候補で置き換える。
+ */
+@Composable
+private fun SlashSuggestionPanel(hazeState: HazeState, suggestions: List<SlashSuggestion>, onPick: (SlashSuggestion) -> Unit) {
+    // 消える動きのあいだは、最後に出していた候補を残す
+    val last = remember { LastSuggestions() }
+    if (suggestions.isNotEmpty()) last.value = suggestions
+    AnimatedVisibility(visible = suggestions.isNotEmpty(), enter = expandEnter(), exit = shrinkExit()) {
+        GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs), fixedOpacity = MENU_OPACITY) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = Dimens.slashMenuMaxHeight)) {
+                items(last.value, key = { it.key }) { suggestion ->
+                    val (title, detail) = when (suggestion) {
+                        is SlashSuggestion.Command -> "/${suggestion.command.name}" to localizedDescription(suggestion.command)
+                        is SlashSuggestion.Choice -> suggestion.choice.label to suggestion.choice.id.takeIf { it != suggestion.choice.label }
+                        is SlashSuggestion.Skill -> suggestion.command.skillName.orEmpty() to suggestion.command.description
+                    }
+                    ListItem(
+                        headlineContent = { Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary) },
+                        supportingContent = detail?.takeIf(String::isNotBlank)?.let { text ->
+                            {
+                                Text(
+                                    text,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { onPick(suggestion) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** コマンドの説明をアプリの言語で。訳が無い（空・未登録）ときは Gateway の説明。 */
+@Composable
+private fun localizedDescription(command: SlashCommand): String {
+    val id = if (command.isSkill) null else SlashCommandDescriptions[command.name]
+    return id?.let { stringResource(it) }?.takeIf(String::isNotBlank) ?: command.description
+}
+
+/** 候補の一覧が空になったあとも、消える動きのあいだだけ前の中身を描くための入れ物（状態ではない）。 */
+private class LastSuggestions {
+    var value: List<SlashSuggestion> = emptyList()
+}
+
+/** 「質問が届いています」の 1 行。ガラスの面で、受け付け待ちの行と同じ形。 */
+@Composable
+private fun QuestionRow(hazeState: HazeState, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    GlassPanel(hazeState = hazeState, modifier = modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = Dimens.minTouchTarget).padding(horizontal = Spacing.l),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+        ) {
+            Text(
+                stringResource(R.string.question_pending),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(stringResource(R.string.question_open), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
 /** 受け付け待ちの 1 行。ガラスの面に、待ちの目印・本文（1 行）・取り消し。 */
 @Composable
 private fun PendingInputRow(hazeState: HazeState, input: PendingInput, enabled: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
@@ -237,8 +333,11 @@ private fun PendingInputRow(hazeState: HazeState, input: PendingInput, enabled: 
                 modifier = Modifier.weight(1f),
             )
             Row {
-                IconButton(enabled = enabled && !input.local && !input.hasAttachments && input.text.isNotBlank(), onClick = onRestore) {
-                    Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.chat_pending_restore_cd))
+                // 取り下げて入力欄に戻せるのは、Gateway が待ちに積んだ送信だけ。差し込みで受け付け済みのあいだはボタンを出さない
+                if (!input.local && !input.hasAttachments && input.text.isNotBlank()) {
+                    IconButton(enabled = enabled, onClick = onRestore) {
+                        Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.chat_pending_restore_cd))
+                    }
                 }
                 IconButton(enabled = enabled, onClick = onCancel) {
                     Icon(painterResource(R.drawable.ic_huge_delete), contentDescription = stringResource(R.string.chat_pending_cancel_cd))

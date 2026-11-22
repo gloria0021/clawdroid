@@ -84,6 +84,27 @@ data class ModelCatalog(val models: List<ModelChoice> = emptyList(), val canRese
     }
 }
 
+/**
+ * スラッシュコマンド（`commands.list` の 1 件）。`name` は先頭の `/` を除いた主な名前、`aliases` はほかの呼び方（こちらも `/` なし）。
+ */
+data class SlashCommand(
+    val name: String,
+    val aliases: List<String>,
+    val description: String,
+    val acceptsArgs: Boolean,
+    val args: List<SlashArg> = emptyList(),
+    /** スキルのコマンドなら、その表示名（スキルでなければ null）。 */
+    val skillName: String? = null,
+    /** スキルをモデルに見せているか（`$` の補完に出すのはこれだけ）。 */
+    val skillModelVisible: Boolean = false,
+) {
+    val allNames: List<String> get() = listOf(name) + aliases
+    val isSkill: Boolean get() = skillName != null
+}
+
+/** コマンドの引数。`choices` は選べる値（無ければ自由入力）。 */
+data class SlashArg(val name: String, val description: String, val choices: List<SettingChoice>)
+
 data class ProviderUsage(
     val name: String,
     val windows: List<UsageWindow>,
@@ -204,6 +225,34 @@ internal object Parse {
         val policy = obj.obj("modelSelectionPolicy")
         return ModelCatalog(models, policy == null || policy.string("defaultModel") != null)
     }
+
+    /** `commands.list`（scope = text）の結果。ネイティブ専用のコマンドは除く。 */
+    fun slashCommands(obj: JsonObject): List<SlashCommand> = obj.array("commands").mapNotNull { value ->
+        val command = value.asObject() ?: return@mapNotNull null
+        if (command.string("scope") == "native") return@mapNotNull null
+        val aliases = command.array("textAliases").mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.removePrefix("/")?.takeIf(String::isNotEmpty) }
+        val name = command.string("name")?.trim()?.removePrefix("/")?.takeIf(String::isNotEmpty) ?: aliases.firstOrNull() ?: return@mapNotNull null
+        SlashCommand(
+            name = name,
+            aliases = aliases.filter { it != name }.distinct(),
+            description = command.string("description").orEmpty(),
+            acceptsArgs = command.bool("acceptsArgs") == true,
+            args = command.array("args").mapNotNull { argValue ->
+                val arg = argValue.asObject() ?: return@mapNotNull null
+                SlashArg(
+                    name = arg.string("name") ?: return@mapNotNull null,
+                    description = arg.string("description").orEmpty(),
+                    choices = arg.array("choices").mapNotNull { choiceValue ->
+                        val choice = choiceValue.asObject() ?: return@mapNotNull null
+                        val id = choice.string("value") ?: return@mapNotNull null
+                        SettingChoice(id, choice.string("label") ?: id)
+                    },
+                )
+            },
+            skillName = if (command.string("source") == "skill") command.string("skillDisplayName")?.trim()?.takeIf(String::isNotEmpty) ?: name else null,
+            skillModelVisible = command.bool("skillModelVisible") != false,
+        )
+    }.distinctBy(SlashCommand::name)
 
     private fun thinkingChoices(obj: JsonObject): List<SettingChoice> =
         obj.array("thinkingLevels").mapNotNull { value ->

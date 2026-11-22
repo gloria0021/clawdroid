@@ -160,6 +160,8 @@ class ChatSession(
                     val local = current.live?.takeIf { it.runId == runId }?.text.orEmpty()
                     LiveRun(runId, if (local.length > fetched.length) local else fetched)
                 }
+                // 途中の文（ツールの前の一言など）が会話の記録に入ったら、生成中の表示からは外す（Control UI と同じ。二重に出さない）
+                fun LiveRun.withoutCommitted(): LiveRun = copy(text = withoutCommitted(text, runId, messages))
                 // 履歴に取り込まれた送信と、Gateway が受け付け待ちにしている送信は手元の一覧から外す
                 val known = messages.mapNotNull { it.runId }.toSet() + queued.map { it.runId }
                 val localPending = current.pending.filter { it.local && it.runId !in known }
@@ -183,13 +185,30 @@ class ChatSession(
                     activeRunId = if (!running) null else if (runChanged) current.activeRunId
                         else inFlight?.string("runId") ?: current.activeRunId,
                     usageByRun = replayUsage.fold(current.usageByRun) { acc, usage -> acc.withUsage(usage) },
-                    live = if (runChanged) current.live else live,
+                    live = (if (runChanged) current.live else live)?.withoutCommitted(),
                     running = running,
                     loading = false,
                     error = null,
                 )
             }
         }.onFailure { e -> _state.update { it.copy(loading = false, error = e.message) } }
+    }
+
+    /**
+     * 生成中の文から、もう会話の記録に入った部分を除く。生成中の文は実行全体の文をつないだもの（途中の一言 + 続き）なので、
+     * この実行で記録されたエージェントの文を、先頭から順に取り除く（Control UI と同じく二重に出さない）。
+     */
+    private fun withoutCommitted(text: String, runId: String, messages: List<ChatMessage>): String {
+        val byRun = messages.filter { it.role == ChatMessage.Role.ASSISTANT && it.runId == runId }
+        // 記録に runId が無いときは、最後の利用者のメッセージより後の文
+        val replies = byRun.ifEmpty { messages.takeLastWhile { it.role != ChatMessage.Role.USER }.filter { it.role == ChatMessage.Role.ASSISTANT } }
+            .map { it.text.trim() }
+            .filter(String::isNotEmpty)
+        var rest = text.trimStart()
+        for (reply in replies) {
+            if (rest.startsWith(reply)) rest = rest.removePrefix(reply).trimStart()
+        }
+        return if (rest.length == text.trimStart().length) text else rest
     }
 
     /** 連続する通知をまとめて取り直す。 */
@@ -264,7 +283,7 @@ class ChatSession(
                     snapshot != null -> snapshot
                     payload.bool("replace") == true -> deltaText
                     else -> base + deltaText
-                }
+                }.let { text -> withoutCommitted(text, runId, current.messages) }
                 current.copy(
                     live = LiveRun(runId, text),
                     activeRunId = runId,

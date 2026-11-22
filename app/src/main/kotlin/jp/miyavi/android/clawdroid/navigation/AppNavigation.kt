@@ -107,6 +107,9 @@ fun AppNavigation(container: AppContainer) {
             val approvalHaze = rememberHazeState()
             Box(Modifier.fillMaxSize().hazeSource(approvalHaze)) { MainNavigation(container) }
             ApprovalPrompt(container.approvals, container.sessions, approvalHaze)
+            // 承認を先に出す。承認が無いときだけ質問のシートを出す（シートを重ねない）
+            val approvals by container.approvals.requests.collectAsStateWithLifecycle()
+            if (approvals.isEmpty()) QuestionPrompt(container.questions, container.sessions, approvalHaze)
         }
     }
 }
@@ -159,6 +162,7 @@ private fun MainNavigation(container: AppContainer) {
                 )
                 ChatScreen(
                     viewModel = vm,
+                    questions = container.questions,
                     inboundImages = container.inboundImages,
                     timeLabel = timeLabel,
                     navigation = ChatNavigation(

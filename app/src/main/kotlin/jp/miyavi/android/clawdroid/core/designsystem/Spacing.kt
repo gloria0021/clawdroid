@@ -47,4 +47,6 @@ object Dimens {
     val messageImageMax = 240.dp
     /** 入力欄のモデルのピルの最大幅（長いモデル名は省略記号）。 */
     val modelPillMaxWidth = 200.dp
+    /** 入力欄の上に出すスラッシュコマンドの候補の最大の高さ（超えると候補の中でスクロール）。 */
+    val slashMenuMaxHeight = 280.dp
 }

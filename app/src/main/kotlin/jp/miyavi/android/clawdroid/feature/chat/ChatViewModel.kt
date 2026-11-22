@@ -24,6 +24,7 @@ import jp.miyavi.android.clawdroid.core.data.ProviderUsage
 import jp.miyavi.android.clawdroid.core.data.SessionListState
 import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
+import jp.miyavi.android.clawdroid.core.data.SlashCommand
 import jp.miyavi.android.clawdroid.core.data.SessionsRepository
 import jp.miyavi.android.clawdroid.core.database.DraftDao
 import jp.miyavi.android.clawdroid.core.database.DraftEntity
@@ -128,6 +129,12 @@ class ChatViewModel(
     private val _composer = MutableStateFlow(ComposerState())
     val composer: StateFlow<ComposerState> = _composer.asStateFlow()
 
+    /** エージェントごとのスラッシュコマンドの一覧（一度読んだら使い回す）。 */
+    private val commandsByAgent = MutableStateFlow<Map<String, List<SlashCommand>>>(emptyMap())
+    val slashCommands: StateFlow<List<SlashCommand>> = combine(commandsByAgent, selectedAgentId) { commands, agentId ->
+        agentId?.let(commands::get).orEmpty()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<ChatEvent> = _events.asSharedFlow()
 
@@ -173,6 +180,14 @@ class ChatViewModel(
                 ?: agents.agents.first().id
             applyAgent(agentId, saved.selectedSessionKeyByAgent[agentId])
         }
+        // 「/」か「$」を打ち始めたら、そのエージェントのコマンド（スキルを含む）の一覧を読む（読めなかったら、次に打ったときに読み直す）
+        viewModelScope.launch {
+            combine(_composer.map { it.text.startsWith("/") || '$' in it.text }.distinctUntilChanged(), selectedAgentId) { slash, agentId ->
+                agentId.takeIf { slash }
+            }.distinctUntilChanged().collect { agentId ->
+                if (agentId != null && agentId !in commandsByAgent.value) loadSlashCommands(agentId)
+            }
+        }
         // 下書きは入力を間引いて保存する（FR-028）
         viewModelScope.launch {
             // key は入力した時点のもの（保存までのあいだにセッションを替えても混ざらない）
@@ -200,6 +215,25 @@ class ChatViewModel(
     fun preloadAgentSessions() {
         val loaded = sessions.sessions.value
         state.value.agents.agents.forEach { agent -> if (agent.id !in loaded) sessions.ensureLoaded(agent.id) }
+    }
+
+    private suspend fun loadSlashCommands(agentId: String) {
+        if (!gateway.supports("commands.list")) return
+        val commands = try {
+            gateway.request("commands.list", buildJsonObject {
+                put("agentId", agentId)
+                selectedSessionKey.value?.let { put("sessionKey", it) }
+                put("scope", "text")
+                put("includeArgs", true)
+            }).asObject()?.let(Parse::slashCommands)
+        } catch (_: TimeoutCancellationException) {
+            null
+        } catch (_: GatewayNotConnectedException) {
+            null
+        } catch (_: GatewayRpcException) {
+            null
+        } ?: return
+        commandsByAgent.update { it + (agentId to commands) }
     }
 
     suspend fun loadModelCatalog(agentId: String, sessionKey: String?): ModelCatalog? {
