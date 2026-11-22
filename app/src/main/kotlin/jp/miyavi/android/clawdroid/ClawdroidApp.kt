@@ -2,6 +2,10 @@ package jp.miyavi.android.clawdroid
 
 import android.app.Application
 import android.os.Build
+import jp.miyavi.android.clawdroid.core.data.ChatRepository
+import jp.miyavi.android.clawdroid.core.data.GatewayControlRepository
+import jp.miyavi.android.clawdroid.core.data.SessionsRepository
+import jp.miyavi.android.clawdroid.core.database.ClawdroidDatabase
 import jp.miyavi.android.clawdroid.core.gateway.ClientInfo
 import jp.miyavi.android.clawdroid.core.gateway.DeviceIdentityRepository
 import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
@@ -38,6 +42,11 @@ class AppContainer(app: Application) {
             displayName = Build.MODEL,
         ),
     )
+
+    val database = ClawdroidDatabase.create(app)
+    val sessions = SessionsRepository(gateway, appScope)
+    val chats = ChatRepository(gateway, appScope)
+    val gatewayControl = GatewayControlRepository(gateway)
 }
 
 class ClawdroidApp : Application() {

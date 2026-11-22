@@ -88,4 +88,51 @@
     <string name="menu_usage">Usage</string>
     <string name="menu_restart_gateway">Restart Gateway</string>
     <string name="menu_disconnect">Disconnect</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="back_cd">Back</string>
+    <string name="settings_section_connection">Connection</string>
+    <string name="settings_connection_state_connected">Connected (Gateway %1$s)</string>
+    <string name="settings_connection_address">Address</string>
+    <string name="settings_reconnect">Reconnect</string>
+    <string name="settings_disconnect">Disconnect</string>
+    <string name="settings_forget">Forget connection</string>
+    <string name="settings_forget_confirm">Remove the address and token from this device and return to the connect screen.</string>
+    <string name="settings_section_gateway">Gateway</string>
+    <string name="settings_restart">Restart Gateway</string>
+    <string name="settings_restart_desc">Restarts after running work reaches a safe point</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_appearance_system">System</string>
+    <string name="settings_appearance_light">Light</string>
+    <string name="settings_appearance_dark">Dark</string>
+    <string name="settings_section_theme">Theme</string>
+    <string name="theme_openclaw">OpenClaw</string>
+    <string name="theme_openclaw_desc">OpenClaw red</string>
+    <string name="theme_modern">Modern</string>
+    <string name="theme_modern_desc">Monochrome</string>
+    <string name="theme_dynamic">Dynamic</string>
+    <string name="theme_dynamic_desc">Wallpaper colors</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_desc">Your color</string>
+    <string name="settings_custom_color">Custom color</string>
+    <string name="settings_custom_color_hint">#RRGGBB</string>
+    <string name="settings_custom_color_invalid">Enter a color as #RRGGBB</string>
+    <string name="settings_surface_style">Floating surfaces</string>
+    <string name="settings_surface_glass">Glass</string>
+    <string name="settings_surface_blur">Blur</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+
+    <string name="restart_confirm_title">Restart the Gateway?</string>
+    <string name="restart_confirm_body">Running agent work restarts after reaching a safe point. The connection drops during the restart.</string>
+    <string name="restart_confirm_action">Restart</string>
+    <string name="restart_done">Reconnected to the Gateway</string>
+    <string name="restart_timeout">Couldn\'t reconnect to the Gateway</string>
+    <string name="restart_failed">Couldn\'t request a restart</string>
+
+    <string name="coming_soon">This feature is coming soon</string>
+    <string name="usage_title">Usage</string>
+    <string name="files_title">Files</string>
+    <string name="terminal_title">Terminal</string>
+    <string name="automations_title">Automations</string>
 </resources>

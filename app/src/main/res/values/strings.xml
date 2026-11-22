@@ -98,4 +98,54 @@
     <string name="menu_usage">使用量</string>
     <string name="menu_restart_gateway">Gateway を再起動</string>
     <string name="menu_disconnect">切断</string>
+
+    <!-- 設定 -->
+    <string name="settings_title">設定</string>
+    <string name="back_cd">戻る</string>
+    <string name="settings_section_connection">接続</string>
+    <string name="settings_connection_state_connected">接続済み（Gateway %1$s）</string>
+    <string name="settings_connection_address">接続先</string>
+    <string name="settings_reconnect">接続し直す</string>
+    <string name="settings_disconnect">切断</string>
+    <string name="settings_forget">接続情報を消す</string>
+    <string name="settings_forget_confirm">接続先とトークンを端末から消して、接続画面に戻ります。</string>
+    <string name="settings_section_gateway">Gateway</string>
+    <string name="settings_restart">Gateway を再起動</string>
+    <string name="settings_restart_desc">実行中の作業がひと区切りついてから再起動します</string>
+    <string name="settings_section_appearance">外観</string>
+    <string name="settings_appearance_system">システム</string>
+    <string name="settings_appearance_light">ライト</string>
+    <string name="settings_appearance_dark">ダーク</string>
+    <string name="settings_section_theme">テーマ</string>
+    <string name="theme_openclaw">OpenClaw</string>
+    <string name="theme_openclaw_desc">OpenClaw の赤</string>
+    <string name="theme_modern">モダン</string>
+    <string name="theme_modern_desc">モノクロ</string>
+    <string name="theme_dynamic">ダイナミック</string>
+    <string name="theme_dynamic_desc">壁紙の色</string>
+    <string name="theme_custom">カスタム</string>
+    <string name="theme_custom_desc">好きな色</string>
+    <string name="settings_custom_color">カスタムの色</string>
+    <string name="settings_custom_color_hint">#RRGGBB</string>
+    <string name="settings_custom_color_invalid">#RRGGBB の形で入力してください</string>
+    <string name="settings_surface_style">浮いている面の透かし方</string>
+    <string name="settings_surface_glass">ガラス</string>
+    <string name="settings_surface_blur">ぼかし</string>
+    <string name="settings_section_about">このアプリについて</string>
+    <string name="settings_version">バージョン %1$s</string>
+
+    <!-- 再起動 -->
+    <string name="restart_confirm_title">Gateway を再起動しますか？</string>
+    <string name="restart_confirm_body">実行中のエージェントの作業は、ひと区切りついてから再起動します。再起動のあいだは接続が切れます。</string>
+    <string name="restart_confirm_action">再起動</string>
+    <string name="restart_done">Gateway に再接続しました</string>
+    <string name="restart_timeout">Gateway に再接続できませんでした</string>
+    <string name="restart_failed">再起動を指示できませんでした</string>
+
+    <!-- 準備中 -->
+    <string name="coming_soon">この機能は準備中です</string>
+    <string name="usage_title">使用量</string>
+    <string name="files_title">ファイル</string>
+    <string name="terminal_title">ターミナル</string>
+    <string name="automations_title">自動化</string>
 </resources>

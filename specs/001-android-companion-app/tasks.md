@@ -28,14 +28,14 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 ## Phase 1: Setup（プロジェクトの初期化）
 
-- [ ] T001 Gradle の土台を作る: `settings.gradle.kts`、`build.gradle.kts`、`gradle.properties`、Gradle Wrapper（Gerbil と同じ版）
-- [ ] T002 `gradle/libs.versions.toml` を作る（research R15 の版。Gerbil の toml を出発点に、Tink・Termux terminal-view・highlights・multiplatform-markdown-renderer を追加）
-- [ ] T003 `app/build.gradle.kts` を作る: `namespace = "jp.miyavi.android.clawdroid"`、minSdk 33、compile/targetSdk 37、JVM 21、Compose、kotlinx.serialization、KSP（Room）、Robolectric・Roborazzi
-- [ ] T004 `app/src/main/AndroidManifest.xml` を作る: `INTERNET`・`ACCESS_NETWORK_STATE`・`POST_NOTIFICATIONS`・`RECORD_AUDIO`・`FOREGROUND_SERVICE`・`FOREGROUND_SERVICE_CONNECTED_DEVICE`・`CHANGE_NETWORK_STATE`、`dataExtractionRules`（秘密情報をバックアップから外す）、`localeConfig`
-- [ ] T005 [P] `R/xml/network_security_config.xml` と `R/xml/data_extraction_rules.xml`、`R/xml/locales_config.xml`（ja・en）を作る
-- [ ] T006 [P] `R/values/strings.xml`（ja）と `R/values-en/strings.xml` の骨組みを作る（`*_cd` の命名規則を含む）
-- [ ] T007 [P] Hugeicons Stroke Rounded の VectorDrawable を `R/drawable/ic_huge_*.xml` に置く（menu・new-chat・more・send・stop・mic・attach・folder・file・terminal・settings・refresh・automation・check・close・copy・share・download）と、`app/src/main/assets/licenses/hugeicons-LICENSE`
-- [ ] T008 [P] `app/src/main/assets/licenses/openclaw-LICENSE`（MIT、流用した部分の著作権表示）を置く
+- [x] T001 Gradle の土台を作る: `settings.gradle.kts`、`build.gradle.kts`、`gradle.properties`、Gradle Wrapper（Gerbil と同じ版）
+- [x] T002 `gradle/libs.versions.toml` を作る（research R15 の版。Gerbil の toml を出発点に、Tink・Termux terminal-view・highlights・multiplatform-markdown-renderer を追加）
+- [x] T003 `app/build.gradle.kts` を作る: `namespace = "jp.miyavi.android.clawdroid"`、minSdk 33、compile/targetSdk 37、JVM 21、Compose、kotlinx.serialization、KSP（Room）、Robolectric・Roborazzi
+- [x] T004 `app/src/main/AndroidManifest.xml` を作る: `INTERNET`・`ACCESS_NETWORK_STATE`・`POST_NOTIFICATIONS`・`RECORD_AUDIO`・`FOREGROUND_SERVICE`・`FOREGROUND_SERVICE_CONNECTED_DEVICE`・`CHANGE_NETWORK_STATE`、`dataExtractionRules`（秘密情報をバックアップから外す）、`localeConfig`
+- [x] T005 [P] `R/xml/network_security_config.xml` と `R/xml/data_extraction_rules.xml`、`R/xml/locales_config.xml`（ja・en）を作る
+- [x] T006 [P] `R/values/strings.xml`（ja）と `R/values-en/strings.xml` の骨組みを作る（`*_cd` の命名規則を含む）
+- [x] T007 [P] Hugeicons Stroke Rounded の VectorDrawable を `R/drawable/ic_huge_*.xml` に置く（menu・new-chat・more・send・stop・mic・attach・folder・file・terminal・settings・refresh・automation・check・close・copy・share・download）と、`app/src/main/assets/licenses/hugeicons-LICENSE`
+- [x] T008 [P] `app/src/main/assets/licenses/openclaw-LICENSE`（MIT、流用した部分の著作権表示）を置く
 
 ---
 
@@ -45,35 +45,35 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 ### デザインシステム（Gerbil から移植）
 
-- [ ] T009 [P] `M/core/designsystem/Spacing.kt` を作る（`Spacing.xs/s/m/l/xl` = 4/8/12/16/24dp、`Dimens.*`。Gerbil の Spacing.kt を移植）
-- [ ] T010 [P] `M/core/designsystem/Motion.kt` を作る（M3 Expressive の motionScheme、画面遷移用の標準スキーム、大きさの割合の名前付き定数。Gerbil の `AppMotionScheme` を移植）
-- [ ] T011 `M/core/designsystem/Theme.kt` を作る: 4 テーマ（OpenClaw = 種色 ライト `#dc2626`／ダーク `#ff5c5c`・TonalSpot、Modern = `PaletteStyle.Monochrome` で `error` を残す、Dynamic = `dynamicLight/DarkColorScheme`、Custom = `PaletteStyle.Fidelity` ＋ `withContrastedSecondary`）、背景の `primaryContainer` 寄せ、リンク色のコントラスト 4.6 以上（Gerbil の Theme.kt を移植）
+- [x] T009 [P] `M/core/designsystem/Spacing.kt` を作る（`Spacing.xs/s/m/l/xl` = 4/8/12/16/24dp、`Dimens.*`。Gerbil の Spacing.kt を移植）
+- [x] T010 [P] `M/core/designsystem/Motion.kt` を作る（M3 Expressive の motionScheme、画面遷移用の標準スキーム、大きさの割合の名前付き定数。Gerbil の `AppMotionScheme` を移植）
+- [x] T011 `M/core/designsystem/Theme.kt` を作る: 4 テーマ（OpenClaw = 種色 ライト `#dc2626`／ダーク `#ff5c5c`・TonalSpot、Modern = `PaletteStyle.Monochrome` で `error` を残す、Dynamic = `dynamicLight/DarkColorScheme`、Custom = `PaletteStyle.Fidelity` ＋ `withContrastedSecondary`）、背景の `primaryContainer` 寄せ、リンク色のコントラスト 4.6 以上（Gerbil の Theme.kt を移植）
 - [ ] T012 [P] `T/core/designsystem/ThemeTest.kt` を書く: 全テーマ × ライト/ダークで本文・リンクのコントラストが WCAG AA 以上、Custom に白・灰色を入れても無彩色のまま（FR-087・088）
-- [ ] T013 `M/core/designsystem/Glass.kt` を作る: `Modifier.hazeSurface()` / `Modifier.sheetHazeSurface()`、`SurfaceStyle`（Glass / Blur）、不透明度は AGENTS.md 2.10 の固定値（シート・メニュー 90%、その他 50%、ぼかし 30%）。Gerbil の FloatingGlassBar.kt を移植し、強さのスライダーは移さない
-- [ ] T014 [P] `M/core/designsystem/components/` に共通部品を作る: `GlassPill`、`FloatingIconButton`（浮く丸いボタン）、`GlassSnackbarHost`、`GlassDropdownMenu`、`AppBottomSheet`（シートの共通部品。AGENTS.md 2.5）、`Placeholder`（光の帯）
+- [x] T013 `M/core/designsystem/Glass.kt` を作る: `Modifier.hazeSurface()` / `Modifier.sheetHazeSurface()`、`SurfaceStyle`（Glass / Blur）、不透明度は AGENTS.md 2.10 の固定値（シート・メニュー 90%、その他 50%、ぼかし 30%）。Gerbil の FloatingGlassBar.kt を移植し、強さのスライダーは移さない
+- [x] T014 [P] `M/core/designsystem/components/` に共通部品を作る: `GlassPill`、`FloatingIconButton`（浮く丸いボタン）、`GlassSnackbarHost`、`GlassDropdownMenu`、`AppBottomSheet`（シートの共通部品。AGENTS.md 2.5）、`Placeholder`（光の帯）
 
 ### 設定と秘密情報
 
-- [ ] T015 [P] `M/core/security/SecretStore.kt` を作る: Tink の AEAD（Android Keystore の鍵）で暗号化した DataStore。`GatewayConnection` と `DeviceIdentity` を保存（data-model 1。「`gatewayToken` は空は不可。画面とログに出さない」）
+- [x] T015 [P] `M/core/security/SecretStore.kt` を作る: Tink の AEAD（Android Keystore の鍵）で暗号化した DataStore。`GatewayConnection` と `DeviceIdentity` を保存（data-model 1。「`gatewayToken` は空は不可。画面とログに出さない」）
 - [ ] T016 [P] `T/core/security/SecretStoreTest.kt` を書く（保存・読み出し・消去、平文で残らないこと）
-- [ ] T017 [P] `M/core/settings/SettingsStore.kt` を作る: `ThemeSettings`（初期値 System / OpenClaw / 白 / Glass）、`NotificationSettings`（初期値 常駐オン・各種オン・FollowSystem）、`UiSelection`（data-model 3・4）
+- [x] T017 [P] `M/core/settings/SettingsStore.kt` を作る: `ThemeSettings`（初期値 System / OpenClaw / 白 / Glass）、`NotificationSettings`（初期値 常駐オン・各種オン・FollowSystem）、`UiSelection`（data-model 3・4）
 
 ### Gateway クライアント
 
-- [ ] T018 `M/core/gateway/Frames.kt` を作る: `req` / `res` / `event` のフレームと JSON の符号化（kotlinx.serialization。`ref-schema/frames.ts` に合わせる）
-- [ ] T019 [P] `T/core/gateway/FramesTest.kt` を書く（`ref-schema` の例と往復一致）
-- [ ] T020 `M/core/gateway/DeviceIdentity.kt` を作る: Tink の Ed25519 で鍵の作成・保存、`deviceId`（公開鍵の指紋）、v3 の署名内容（`ref-android/gateway/DeviceAuthPayload.kt` の `buildV3` と同じ並び）
-- [ ] T021 [P] `T/core/gateway/DeviceIdentityTest.kt` を書く（v3 の文字列が公式実装と一致、署名の検証）
-- [ ] T022 `T/core/gateway/FakeGateway.kt` を作る: MockWebServer の WebSocket で challenge・connect・hello-ok・PAIRING_REQUIRED・AUTH 拒否・イベントの送信・切断を再現する
-- [ ] T023 `T/core/gateway/GatewayClientTest.kt` を書く: 接続の成功、承認待ち → `device.pair.resolved` → 再接続、認証の拒否で自動再接続を止める、到達不能で段階的に延ばす、`tick` が `tickIntervalMs × 2` 途絶えたら閉じる（data-model 1 の状態遷移）
-- [ ] T024 `M/core/gateway/GatewayClient.kt` を作る: OkHttp の WebSocket（`pingInterval` 0）、`connect.challenge` を待って `connect`（role・scopes・caps は contracts/gateway-rpc.md）、`request()` の応答の対応付け、イベントの Flow、`ConnectionState`、再接続、`deviceToken` の保存（`ref-android/gateway/GatewaySession.kt` を参考）
-- [ ] T025 `M/core/gateway/GatewayErrors.kt` を作る: `error.details.code` と `recommendedNextStep` から `AuthRejected` / `Unreachable` / `AwaitingApproval` / `MissingScope` を判定
+- [x] T018 `M/core/gateway/Frames.kt` を作る: `req` / `res` / `event` のフレームと JSON の符号化（kotlinx.serialization。`ref-schema/frames.ts` に合わせる）
+- [x] T019 [P] `T/core/gateway/FramesTest.kt` を書く（`ref-schema` の例と往復一致）
+- [x] T020 `M/core/gateway/DeviceIdentity.kt` を作る: Tink の Ed25519 で鍵の作成・保存、`deviceId`（公開鍵の指紋）、v3 の署名内容（`ref-android/gateway/DeviceAuthPayload.kt` の `buildV3` と同じ並び）
+- [x] T021 [P] `T/core/gateway/DeviceIdentityTest.kt` を書く（v3 の文字列が公式実装と一致、署名の検証）
+- [x] T022 `T/core/gateway/FakeGateway.kt` を作る: MockWebServer の WebSocket で challenge・connect・hello-ok・PAIRING_REQUIRED・AUTH 拒否・イベントの送信・切断を再現する
+- [x] T023 `T/core/gateway/GatewayClientTest.kt` を書く: 接続の成功、承認待ち → `device.pair.resolved` → 再接続、認証の拒否で自動再接続を止める、到達不能で段階的に延ばす、`tick` が `tickIntervalMs × 2` 途絶えたら閉じる（data-model 1 の状態遷移）
+- [x] T024 `M/core/gateway/GatewayClient.kt` を作る: OkHttp の WebSocket（`pingInterval` 0）、`connect.challenge` を待って `connect`（role・scopes・caps は contracts/gateway-rpc.md）、`request()` の応答の対応付け、イベントの Flow、`ConnectionState`、再接続、`deviceToken` の保存（`ref-android/gateway/GatewaySession.kt` を参考）
+- [x] T025 `M/core/gateway/GatewayErrors.kt` を作る: `error.details.code` と `recommendedNextStep` から `AuthRejected` / `Unreachable` / `AwaitingApproval` / `MissingScope` を判定
 
 ### 土台の画面とデータ
 
-- [ ] T026 `M/core/database/ClawdroidDatabase.kt` を作る（Room。エンティティは各ストーリーで追加）
-- [ ] T027 `M/ClawdroidApp.kt` と `M/MainActivity.kt` を作る: `enableEdgeToEdge()`、テーマの適用、`GatewayClient` と DB の生成（手書きの依存の受け渡し）
-- [ ] T028 `M/navigation/AppNavigation.kt` を作る: Navigation 3 の `NavDisplay`、行き先（contracts/ui-navigation.md）、画面遷移の `transitionSpec` / `popTransitionSpec` / `predictivePopTransitionSpec`（上の画面が右から重なり、下は暗くなる）、入り終わるまで次の遷移を待つ処理
+- [x] T026 `M/core/database/ClawdroidDatabase.kt` を作る（Room。エンティティは各ストーリーで追加）
+- [x] T027 `M/ClawdroidApp.kt` と `M/MainActivity.kt` を作る: `enableEdgeToEdge()`、テーマの適用、`GatewayClient` と DB の生成（手書きの依存の受け渡し）
+- [x] T028 `M/navigation/AppNavigation.kt` を作る: Navigation 3 の `NavDisplay`、行き先（contracts/ui-navigation.md）、画面遷移の `transitionSpec` / `popTransitionSpec` / `predictivePopTransitionSpec`（上の画面が右から重なり、下は暗くなる）、入り終わるまで次の遷移を待つ処理
 
 **Checkpoint**: テーマ・ガラス・Gateway への接続（偽の Gateway で）が動く
 
@@ -94,23 +94,23 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 ### Implementation
 
-- [ ] T033 [US1] `M/feature/connect/ConnectViewModel.kt` と `ConnectScreen.kt`（`ConnectContent`）: 接続先・トークンの入力（マスク・貼り付け可）、接続中・承認待ち（承認の方法の案内）・失敗の表示（FR-001・004）
-- [ ] T034 [US1] `M/core/data/AgentsRepository.kt`: `agents.list`、`agent-kind` で `system` を分ける
-- [ ] T035 [US1] `M/core/data/SessionsRepository.kt`: `sessions.subscribe`（`sortBy: "activity"`）、`sessions.patch`（改名・アーカイブ・既読）、エージェントごとの一覧、Room のキャッシュ `M/core/database/SessionEntity.kt`
-- [ ] T036 [US1] `M/feature/chat/sidebar/SidebarContent.kt`: エージェントのタブ（ガラスの面の `PrimaryScrollableTabRow`）＋ `HorizontalPager` のセッション一覧（タブと Pager を同じ位置の値に追従、research R7）、項目は `ListItem`（タイトル 2 行・更新時刻・未読と実行中の目印）、`key` 付き、下部に 自動化・ターミナル・設定
-- [ ] T037 [US1] `M/feature/chat/sidebar/SessionItemMenu.kt`: 長押しの `GlassDropdownMenu`（改名・アーカイブ・アーカイブ解除、`onLongClickLabel`）（FR-013）
-- [ ] T038 [US1] `M/core/data/ChatRepository.kt`: `chat.startup`・`chat.history`（遡り）・`chat.message.get`・`sessions.messages.subscribe`（`includeApprovals`）・`chat` / `agent` イベントの組み立て・`chat.abort`、Room のキャッシュ `M/core/database/MessageEntity.kt`
+- [x] T033 [US1] `M/feature/connect/ConnectViewModel.kt` と `ConnectScreen.kt`（`ConnectContent`）: 接続先・トークンの入力（マスク・貼り付け可）、接続中・承認待ち（承認の方法の案内）・失敗の表示（FR-001・004）
+- [x] T034 [US1] `M/core/data/AgentsRepository.kt`: `agents.list`、`agent-kind` で `system` を分ける
+- [x] T035 [US1] `M/core/data/SessionsRepository.kt`: `sessions.subscribe`（`sortBy: "activity"`）、`sessions.patch`（改名・アーカイブ・既読）、エージェントごとの一覧、Room のキャッシュ `M/core/database/SessionEntity.kt`
+- [x] T036 [US1] `M/feature/chat/sidebar/SidebarContent.kt`: エージェントのタブ（ガラスの面の `PrimaryScrollableTabRow`）＋ `HorizontalPager` のセッション一覧（タブと Pager を同じ位置の値に追従、research R7）、項目は `ListItem`（タイトル 2 行・更新時刻・未読と実行中の目印）、`key` 付き、下部に 自動化・ターミナル・設定
+- [x] T037 [US1] `M/feature/chat/sidebar/SessionItemMenu.kt`: 長押しの `GlassDropdownMenu`（改名・アーカイブ・アーカイブ解除、`onLongClickLabel`）（FR-013）
+- [x] T038 [US1] `M/core/data/ChatRepository.kt`: `chat.startup`・`chat.history`（遡り）・`chat.message.get`・`sessions.messages.subscribe`（`includeApprovals`）・`chat` / `agent` イベントの組み立て・`chat.abort`、Room のキャッシュ `M/core/database/MessageEntity.kt`
 - [ ] T039 [US1] `M/core/data/SendQueue.kt`: 送信待ちの列（`PendingSend`、状態「`queued` → `sending` → `sent` / `failed`」、冪等キーを `chat.send` に渡す）、`M/core/database/PendingSendEntity.kt`
-- [ ] T040 [US1] `M/feature/chat/ChatViewModel.kt`: 会話の状態、送信・停止、Markdown と日付の整形を先に済ませた表示用のモデル
-- [ ] T041 [US1] `M/feature/chat/ChatScreen.kt`（`ChatContent`）: 浮く丸いボタン（メニュー・新規・⋮）、ヘッダのセッション名とフォルダ名、`ModalNavigationDrawer`、会話の `LazyColumn`（`key` 付き）、最下部へ戻るボタン
-- [ ] T042 [P] [US1] `M/feature/chat/message/UserMessage.kt` と `AssistantMessage.kt`: 右寄せの角丸の面／全幅の素の文字、`bodyLarge`（行の高さ 1.5）、コードは等幅、応答の下の操作行（コピー・共有）（FR-023・025）
-- [ ] T043 [P] [US1] `M/feature/chat/message/ToolCallRow.kt`: 折りたたみの行、展開で引数と出力、巨大な出力は先頭だけ（FR-024）
-- [ ] T044 [P] [US1] `M/feature/chat/message/ImageOverlay.kt`: 画像の全画面オーバーレイ（`MutableTransitionState` で消え終わってから閉じる）
-- [ ] T045 [US1] `M/feature/chat/composer/ComposerPill.kt`: 下部に浮くガラスのピル（添付 ｜ 入力 ｜ マイク／送信、生成中は停止）、画像の添付（`policy.attachments` の上限）（FR-021・022・026）
+- [x] T040 [US1] `M/feature/chat/ChatViewModel.kt`: 会話の状態、送信・停止、Markdown と日付の整形を先に済ませた表示用のモデル
+- [x] T041 [US1] `M/feature/chat/ChatScreen.kt`（`ChatContent`）: 浮く丸いボタン（メニュー・新規・⋮）、ヘッダのセッション名とフォルダ名、`ModalNavigationDrawer`、会話の `LazyColumn`（`key` 付き）、最下部へ戻るボタン
+- [x] T042 [P] [US1] `M/feature/chat/message/UserMessage.kt` と `AssistantMessage.kt`: 右寄せの角丸の面／全幅の素の文字、`bodyLarge`（行の高さ 1.5）、コードは等幅、応答の下の操作行（コピー・共有）（FR-023・025）
+- [x] T043 [P] [US1] `M/feature/chat/message/ToolCallRow.kt`: 折りたたみの行、展開で引数と出力、巨大な出力は先頭だけ（FR-024）
+- [x] T044 [P] [US1] `M/feature/chat/message/ImageOverlay.kt`: 画像の全画面オーバーレイ（`MutableTransitionState` で消え終わってから閉じる）
+- [x] T045 [US1] `M/feature/chat/composer/ComposerPill.kt`: 下部に浮くガラスのピル（添付 ｜ 入力 ｜ マイク／送信、生成中は停止）、画像の添付（`policy.attachments` の上限）（FR-021・022・026）
 - [ ] T046 [US1] `M/feature/chat/approval/ApprovalSheet.kt`: 承認・拒否（`approval.get` / `approval.resolve`）（FR-027）
 - [ ] T047 [US1] `M/core/database/DraftEntity.kt`・`ReadingPositionEntity.kt` と保存の処理: 入力ごとの下書き（間引く）、読んでいた位置、選択中のエージェントとセッション（FR-028、SC-008）
-- [ ] T048 [US1] `M/feature/chat/composer/VoiceInput.kt`: `SpeechRecognizer`、`isRecognitionAvailable()` が false ならマイクを出さない、結果は入力欄に入れるだけ（FR-029）
-- [ ] T049 [US1] `M/feature/chat/ConnectionBanner.kt` で接続の状態を表示: 再接続中の控えめな表示（上部）、認証の失効で接続画面へ誘導（Edge Cases）
+- [x] T048 [US1] `M/feature/chat/composer/VoiceInput.kt`: `SpeechRecognizer`、`isRecognitionAvailable()` が false ならマイクを出さない、結果は入力欄に入れるだけ（FR-029）
+- [x] T049 [US1] `M/feature/chat/ConnectionBanner.kt` で接続の状態を表示: 再接続中の控えめな表示（上部）、認証の失効で接続画面へ誘導（Edge Cases）
 - [ ] T050 [US1] `M/feature/chat/EmptyStates.kt` で空の状態: セッションが 0 件のときの説明と新規チャットの導線、アーカイブ済みのセッションでは入力欄を無効にして解除の操作（Edge Cases）
 
 **Checkpoint**: 実機で quickstart 検証 1・2 が通る。ここで一度コミットし、手元で使い始める
@@ -200,8 +200,8 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 **Independent Test**: quickstart 検証 9
 
 - [ ] T085 [P] [US7] `T/core/data/GatewayControlRepositoryTest.kt`（連打しても 1 回、再起動中 → 再接続中 → 接続済み、時間切れで失敗）
-- [ ] T086 [US7] `M/core/data/GatewayControlRepository.kt`: `gateway.restart.request`（引数は `ref-schema` で確認）、重複の抑止（FR-070・073）
-- [ ] T087 [US7] `M/feature/settings/RestartGatewayAction.kt` で再起動の UI: ⋮ メニューと設定のボタン、確認ダイアログ（実行中の作業への影響を説明）、状態の表示、再接続後に元の画面へ、失敗は再試行付きの Snackbar（FR-071・072）
+- [x] T086 [US7] `M/core/data/GatewayControlRepository.kt`: `gateway.restart.request`（引数は `ref-schema` で確認）、重複の抑止（FR-070・073）
+- [x] T087 [US7] `M/feature/settings/RestartGatewayAction.kt` で再起動の UI: ⋮ メニューと設定のボタン、確認ダイアログ（実行中の作業への影響を説明）、状態の表示、再接続後に元の画面へ、失敗は再試行付きの Snackbar（FR-071・072）
 
 ---
 

@@ -1,0 +1,48 @@
+package jp.miyavi.android.clawdroid.core.gateway
+
+import java.net.URI
+
+/** 接続先の検証の結果。 */
+sealed interface UrlCheck {
+    data class Ok(val normalized: String) : UrlCheck
+    data object Invalid : UrlCheck
+    /** 暗号化しない ws:// をプライベートでないアドレスに使おうとした。 */
+    data object CleartextPublic : UrlCheck
+}
+
+object GatewayUrl {
+    /**
+     * `ws://` はプライベートアドレス（LAN・Tailscale）だけに許す（data-model 1、憲章 IV）。
+     * `http(s)://` で入力されたら `ws(s)://` に読み替える。
+     */
+    fun check(input: String): UrlCheck {
+        val trimmed = input.trim().let {
+            when {
+                it.startsWith("https://") -> "wss://" + it.removePrefix("https://")
+                it.startsWith("http://") -> "ws://" + it.removePrefix("http://")
+                else -> it
+            }
+        }
+        val uri = runCatching { URI(trimmed) }.getOrNull() ?: return UrlCheck.Invalid
+        val host = uri.host?.lowercase() ?: return UrlCheck.Invalid
+        return when (uri.scheme?.lowercase()) {
+            "wss" -> UrlCheck.Ok(trimmed)
+            "ws" -> if (isPrivateHost(host)) UrlCheck.Ok(trimmed) else UrlCheck.CleartextPublic
+            else -> UrlCheck.Invalid
+        }
+    }
+
+    fun isPrivateHost(host: String): Boolean {
+        if (host == "localhost" || host.endsWith(".local") || host.endsWith(".ts.net") || host.endsWith(".lan")) return true
+        // 点の無いホスト名（LAN の名前解決）
+        if (!host.contains('.') && !host.contains(':')) return true
+        val octets = host.split('.').mapNotNull { it.toIntOrNull() }
+        if (octets.size != 4 || octets.any { it !in 0..255 }) return host.startsWith("fd") || host.startsWith("[fd")
+        val (a, b) = octets[0] to octets[1]
+        return a == 10 || a == 127 ||
+            (a == 172 && b in 16..31) ||
+            (a == 192 && b == 168) ||
+            (a == 100 && b in 64..127) || // Tailscale（CGNAT 100.64.0.0/10）
+            (a == 169 && b == 254)
+    }
+}
