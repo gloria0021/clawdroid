@@ -1,6 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
-import jp.miyavi.android.clawdroid.core.designsystem.MENU_OPACITY
+import jp.miyavi.android.clawdroid.core.designsystem.SurfaceOpacity
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.positionInParent
@@ -157,7 +157,7 @@ fun ComposerSessionSheet(
                     val setting = shown
                     if (setting != null && agent != null) {
                         ProvideScreenHaze(sheetHaze) {
-                            GlassPanel(hazeState = sheetHaze, fixedOpacity = MENU_OPACITY, modifier = Modifier.fillMaxWidth()) {
+                            GlassPanel(hazeState = sheetHaze, fixedOpacity = SETTING_OPTIONS_OPACITY, modifier = Modifier.fillMaxWidth()) {
                                 SettingOptionsList(
                                     setting = setting,
                                     options = settingOptions(setting, agent, session, draftOptions, canSelectFull, catalog),
@@ -286,3 +286,6 @@ private fun windowLabel(label: String): String = when (label.trim().lowercase())
 }
 
 
+
+/** シートの中の設定の選択肢の面（中身の文字が多く読みやすさ優先で 80%）。 */
+private val SETTING_OPTIONS_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
