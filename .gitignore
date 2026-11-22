@@ -1,0 +1,23 @@
+# OpenClaw の受信メディア・作業用ファイル
+/media/
+/.openclaw-cli-images/
+/.openclaw-rules/
+
+# Claude Code のローカル設定
+/.claude/settings.local.json
+
+# Android / Gradle
+.gradle/
+build/
+/local.properties
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.DS_Store
