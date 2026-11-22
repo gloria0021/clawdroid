@@ -75,6 +75,9 @@ data class SurfaceOpacity(val glass: Float, val blur: Float)
 /** 上部のボタン・入力ピル・タブ・Snackbar など、ふつうの透過面。 */
 val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 
+/** タイトルバー（テーマカラーで色を付ける唯一の面）。色は薄く 20%。 */
+val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.2f, blur = 0.2f)
+
 /** メニュー。文字を選ぶ面なので濃くする。 */
 val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
 
@@ -216,7 +219,7 @@ fun AppTitleBar(
         navigationIcon = navigationIcon,
         actions = actions,
         scrollBehavior = scrollBehavior,
-        modifier = Modifier.hazeSurface(hazeState, shape, rim = false, tint = GlassTint.THEME),
+        modifier = Modifier.hazeSurface(hazeState, shape, TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = Color.Transparent,
             scrolledContainerColor = Color.Transparent,
