@@ -76,8 +76,8 @@ data class SurfaceOpacity(val glass: Float, val blur: Float)
 /** 上部のボタン・入力ピル・タブ・Snackbar など、ふつうの透過面。 */
 val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 
-/** タイトルバー（テーマカラーで色を付ける唯一の面）。色は薄く 10%。 */
-val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.1f, blur = 0.1f)
+/** タイトルバー（テーマカラーで色を付ける唯一の面）。色は 20%。 */
+val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.2f, blur = 0.2f)
 
 /** タイトルバーの色を暗く沈める割合。 */
 private const val TITLE_BAR_DARKEN = 0.5f
