@@ -1,0 +1,174 @@
+package jp.miyavi.android.clawdroid.core.data
+
+import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
+import jp.miyavi.android.clawdroid.core.gateway.GatewayRpcException
+import jp.miyavi.android.clawdroid.core.gateway.asObject
+import jp.miyavi.android.clawdroid.core.gateway.long
+import jp.miyavi.android.clawdroid.core.gateway.string
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/** 保存の結果。 */
+sealed interface SaveResult {
+    data class Saved(val file: OpenedFile) : SaveResult
+    /** 開いたあとに Gateway 側で書き換えられた（FR-009）。 */
+    data object Conflict : SaveResult
+    /** ファイルが消えた。 */
+    data object Missing : SaveResult
+    data class Failed(val message: String?) : SaveResult
+}
+
+/** ファイルを開いた結果。大きすぎるファイルは中身なしで開く（FR-007）。 */
+sealed interface OpenResult {
+    data class Opened(val file: OpenedFile) : OpenResult
+    data object Missing : OpenResult
+}
+
+/** ダウンロードのもと（FR-013・015）。 */
+sealed interface DownloadSource {
+    /** Gateway からの相対の短命リンク（`sessions.files.download`）。 */
+    data class Link(val url: String, val filename: String, val mimeType: String) : DownloadSource
+    /** 中身をそのまま持っている（ワークスペース）。 */
+    data class Inline(val bytes: ByteArray, val filename: String, val mimeType: String) : DownloadSource
+    /** 渡せない（理由つき）。 */
+    data class Unavailable(val reason: Reason) : DownloadSource
+    enum class Reason { TOO_LARGE, NO_HTTP, MISSING, FAILED }
+}
+
+/** ファイルの読み書きの窓口（ViewModel のテストで偽物に差し替える）。 */
+interface FileSource {
+    suspend fun list(root: FileRoot, path: String): FileListing
+    suspend fun open(root: FileRoot, path: String): OpenResult
+    suspend fun save(file: OpenedFile, content: String, expectedHash: String = file.hash.orEmpty()): SaveResult
+}
+
+/**
+ * 作業フォルダ（`sessions.files.*`）とワークスペース（`agents.workspace.*`）の読み書き（spec 002、contracts/gateway-rpc.md）。
+ * 画面から GatewayClient を直接呼ばない（AGENTS.md）。
+ */
+class FilesRepository(private val gateway: GatewayClient) : FileSource {
+
+    override suspend fun list(root: FileRoot, path: String): FileListing = when (root) {
+        is FileRoot.Session -> FileParse.sessionListing(
+            gateway.request("sessions.files.list", buildJsonObject {
+                put("sessionKey", root.sessionKey)
+                put("agentId", root.agentId)
+                if (path.isNotEmpty()) put("path", path)
+            }).asObject(),
+            path,
+        )
+        is FileRoot.Workspace -> {
+            // ページを最後まで読む（1 ページ WORKSPACE_PAGE 件）
+            val entries = mutableListOf<FileEntry>()
+            var offset = 0
+            var first: FileListing? = null
+            do {
+                val (page, total, at) = FileParse.workspaceListing(
+                    gateway.request("agents.workspace.list", buildJsonObject {
+                        put("agentId", root.agentId)
+                        if (path.isNotEmpty()) put("path", path)
+                        put("offset", offset)
+                        put("limit", WORKSPACE_PAGE)
+                    }).asObject(),
+                    path,
+                )
+                if (first == null) first = page
+                entries += page.entries
+                offset = at + page.entries.size
+            } while (page.entries.isNotEmpty() && offset < total && entries.size < WORKSPACE_MAX_ENTRIES)
+            first!!.copy(entries = sortEntries(entries), truncated = entries.size >= WORKSPACE_MAX_ENTRIES)
+        }
+    }
+
+    override suspend fun open(root: FileRoot, path: String): OpenResult = try {
+        val file = when (root) {
+            is FileRoot.Session -> FileParse.sessionFile(root, gateway.request("sessions.files.get", sessionPath(root, path)).asObject())
+            is FileRoot.Workspace -> FileParse.workspaceFile(root, gateway.request("agents.workspace.get", buildJsonObject {
+                put("agentId", root.agentId)
+                put("path", path)
+            }).asObject())
+        }
+        file?.let(OpenResult::Opened) ?: OpenResult.Missing
+    } catch (e: GatewayRpcException) {
+        when (e.detailType) {
+            "session_file_not_found" -> OpenResult.Missing
+            // 大きすぎるファイルは、中身を出さずに種類と大きさだけで開く
+            "session_file_too_large" -> OpenResult.Opened(
+                OpenedFile(root, path, path.substringAfterLast('/'), e.error.details?.long("size"), null, PreviewKind.UNSUPPORTED, null, null, null, null),
+            )
+            else -> throw e
+        }
+    }
+
+    /** 保存（FR-008・009）。衝突の判定は Gateway の `expectedHash` に任せる。 */
+    override suspend fun save(file: OpenedFile, content: String, expectedHash: String): SaveResult {
+        val root = file.root as? FileRoot.Session ?: return SaveResult.Failed(null)
+        return try {
+            val result = gateway.request("sessions.files.set", buildJsonObject {
+                put("sessionKey", root.sessionKey)
+                put("agentId", root.agentId)
+                put("path", file.path)
+                put("content", content)
+                put("expectedHash", expectedHash)
+                file.source?.let { put("expectedSource", it) }
+            }).asObject()
+            FileParse.sessionFile(root, result)?.let(SaveResult::Saved) ?: SaveResult.Failed(null)
+        } catch (e: GatewayRpcException) {
+            when (e.detailType) {
+                "session_file_conflict", "session_file_source_changed" -> SaveResult.Conflict
+                "session_file_not_found" -> SaveResult.Missing
+                else -> SaveResult.Failed(e.error.message)
+            }
+        }
+    }
+
+    /** ダウンロードのもと。作業フォルダは短命リンク、ワークスペースは中身。 */
+    suspend fun downloadSource(root: FileRoot, path: String): DownloadSource = try {
+        when (root) {
+            is FileRoot.Session -> {
+                val result = gateway.request("sessions.files.download", sessionPath(root, path)).asObject()
+                val url = result?.string("url")
+                if (url == null) DownloadSource.Unavailable(DownloadSource.Reason.FAILED)
+                else DownloadSource.Link(url, result.string("filename") ?: path.substringAfterLast('/'), result.string("mimeType") ?: OCTET_STREAM)
+            }
+            is FileRoot.Workspace -> {
+                val file = gateway.request("agents.workspace.get", buildJsonObject {
+                    put("agentId", root.agentId)
+                    put("path", path)
+                }).asObject()?.let { it["file"] as? JsonObject }
+                val content = file?.string("content")
+                if (file == null || content == null) DownloadSource.Unavailable(DownloadSource.Reason.TOO_LARGE)
+                else DownloadSource.Inline(
+                    bytes = if (file.string("encoding") == "base64") android.util.Base64.decode(content, android.util.Base64.DEFAULT) else content.toByteArray(),
+                    filename = file.string("name") ?: path.substringAfterLast('/'),
+                    mimeType = file.string("mimeType") ?: OCTET_STREAM,
+                )
+            }
+        }
+    } catch (e: GatewayRpcException) {
+        DownloadSource.Unavailable(
+            when (e.detailType) {
+                "session_file_download_unavailable" -> DownloadSource.Reason.NO_HTTP
+                "session_file_not_found" -> DownloadSource.Reason.MISSING
+                "session_file_too_large" -> DownloadSource.Reason.TOO_LARGE
+                else -> DownloadSource.Reason.FAILED
+            },
+        )
+    }
+
+    private fun sessionPath(root: FileRoot.Session, path: String) = buildJsonObject {
+        put("sessionKey", root.sessionKey)
+        put("agentId", root.agentId)
+        put("path", path)
+    }
+
+    private val GatewayRpcException.detailType: String? get() = error.details?.string("type")
+
+    private companion object {
+        const val WORKSPACE_PAGE = 200
+        /** ワークスペースの 1 つのフォルダで読む上限。 */
+        const val WORKSPACE_MAX_ENTRIES = 2_000
+        const val OCTET_STREAM = "application/octet-stream"
+    }
+}

@@ -2,6 +2,7 @@ package jp.miyavi.android.clawdroid.core.database
 
 import android.content.Context
 import androidx.room.Dao
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -28,6 +29,29 @@ data class ReadingPositionEntity(
     val atBottom: Boolean,
 )
 
+/** 保存していないファイルの変更（spec 002 FR-011）。key は `session:<sessionKey>:<path>`。 */
+@Entity(tableName = "file_drafts")
+data class FileDraftEntity(
+    @PrimaryKey val key: String,
+    val content: String,
+    /** 編集を始めたときの Gateway のハッシュ（衝突の確認に使う）。 */
+    val baseHash: String,
+    val cursor: Int,
+    val updatedAt: Long,
+)
+
+@Dao
+interface FileDraftDao {
+    @Query("SELECT * FROM file_drafts WHERE `key` = :key")
+    suspend fun get(key: String): FileDraftEntity?
+
+    @Upsert
+    suspend fun upsert(draft: FileDraftEntity)
+
+    @Query("DELETE FROM file_drafts WHERE `key` = :key")
+    suspend fun delete(key: String)
+}
+
 @Dao
 interface DraftDao {
     @Query("SELECT * FROM drafts WHERE sessionKey = :key")
@@ -49,10 +73,17 @@ interface ReadingPositionDao {
     suspend fun upsert(position: ReadingPositionEntity)
 }
 
-@Database(entities = [DraftEntity::class, ReadingPositionEntity::class], version = 1, exportSchema = true)
+@Database(
+    entities = [DraftEntity::class, ReadingPositionEntity::class, FileDraftEntity::class],
+    version = 2,
+    exportSchema = true,
+    // 版 2: file_drafts を追加しただけ
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+)
 abstract class ClawdroidDatabase : RoomDatabase() {
     abstract fun drafts(): DraftDao
     abstract fun readingPositions(): ReadingPositionDao
+    abstract fun fileDrafts(): FileDraftDao
 
     companion object {
         fun create(context: Context): ClawdroidDatabase =

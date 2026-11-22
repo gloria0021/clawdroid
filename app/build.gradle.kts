@@ -83,6 +83,9 @@ dependencies {
     implementation(libs.haze.glass.material3)
     implementation(libs.material.kolor)
     implementation(libs.markdown.renderer.m3)
+    // ターミナルの表示（Termux、001 research R9 で承認）とコードの色分け（R10 で承認）
+    implementation(libs.termux.terminal.view)
+    implementation(libs.highlights)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 

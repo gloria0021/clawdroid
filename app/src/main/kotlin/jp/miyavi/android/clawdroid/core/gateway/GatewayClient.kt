@@ -241,6 +241,27 @@ class GatewayClient(
         }
     }
 
+    /**
+     * Gateway が返した相対の短命リンク（`sessions.files.download` の `url`）を HTTP で取り、中身を [sink] に渡す。
+     * リンクはこの接続に紐付くため認証は要らないが、前段に認証のある構成に備えて Bearer も付ける。届かなければ false。
+     */
+    suspend fun downloadLink(relativeUrl: String, sink: (java.io.InputStream) -> Unit): Boolean {
+        val connection = secrets.loadConnection() ?: return false
+        val base = connection.url.wsToHttpUrl() ?: return false
+        val url = base.resolve(relativeUrl) ?: return false
+        val token = listOfNotNull(connection.deviceToken, connection.gatewayToken).map(String::trim).firstOrNull(String::isNotEmpty)
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val request = Request.Builder().url(url).apply { token?.let { header("Authorization", "Bearer $it") } }.build()
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use false
+                    response.body.byteStream().use(sink)
+                    true
+                }
+            }.getOrDefault(false)
+        }
+    }
+
     private fun String.wsToHttpUrl(): HttpUrl? {
         val http = when {
             startsWith("wss://", ignoreCase = true) -> "https://" + substring(6)

@@ -75,7 +75,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object ChatRoute : NavKey
 @Serializable data object SettingsRoute : NavKey
 @Serializable data class AutomationsRoute(val agentId: String, val agentName: String) : NavKey
-@Serializable data class TerminalRoute(val sessionKey: String? = null) : NavKey
+@Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
 
@@ -168,7 +168,7 @@ private fun MainNavigation(container: AppContainer) {
                     navigation = ChatNavigation(
                         openSettings = { gate.run { backStack.push(SettingsRoute) } },
                         openAutomations = { agent -> gate.run { backStack.push(AutomationsRoute(agent.id, agent.name)) } },
-                        openTerminal = { key -> gate.run { backStack.push(TerminalRoute(key)) } },
+                        openTerminal = { key, agentId, cwd -> gate.run { backStack.push(TerminalRoute(key, agentId, cwd)) } },
                         openFiles = { key, agentId -> gate.run { backStack.push(FilesRoute(key, agentId)) } },
                         restartGateway = { confirmRestart = true },
                     ),
@@ -204,8 +204,54 @@ private fun MainNavigation(container: AppContainer) {
                 val gate = rememberNavGate(onBack = { backStack.pop() })
                 AutomationsScreen(container.gateway, route.agentId, route.agentName) { gate.run { backStack.pop() } }
             }
-            entry<TerminalRoute> { ComingSoon(R.string.terminal_title) { backStack.pop() } }
-            entry<FilesRoute> { ComingSoon(R.string.files_title) { backStack.pop() } }
+            entry<TerminalRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val vm: jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel(
+                                repository = jp.miyavi.android.clawdroid.core.data.TerminalRepository(
+                                    container.gateway,
+                                    jp.miyavi.android.clawdroid.core.data.SharedPreferencesTerminalIdStore(
+                                        context.getSharedPreferences("terminal_ids", android.content.Context.MODE_PRIVATE),
+                                    ),
+                                ),
+                                gateway = container.gateway,
+                                // 会話ごとに 1 つ。会話の無いときはエージェントごと
+                                conversationKey = route.sessionKey ?: "agent:${route.agentId.orEmpty()}",
+                                agentId = route.agentId,
+                                cwd = route.cwd,
+                            )
+                        }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.terminal.TerminalScreen(
+                    viewModel = vm,
+                    cwd = route.cwd,
+                    onBack = { gate.run { backStack.pop() } },
+                    onEnd = { vm.end { gate.run { backStack.pop() } } },
+                )
+            }
+            entry<FilesRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.files.FilesViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            jp.miyavi.android.clawdroid.feature.files.FilesViewModel(
+                                files = files,
+                                downloader = jp.miyavi.android.clawdroid.core.data.FileDownloader(files, container.gateway, context.contentResolver),
+                                drafts = container.database.fileDrafts(),
+                                sessionKey = route.sessionKey,
+                                agentId = route.agentId,
+                                // 会話には必ず Gateway の作業フォルダ（無ければエージェントのワークスペース）がある
+                                hasWorkingFolder = true,
+                            )
+                        }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.files.FilesScreen(vm) { gate.run { backStack.pop() } }
+            }
             entry<UsageRoute> { ComingSoon(R.string.usage_title) { backStack.pop() } }
         },
     )

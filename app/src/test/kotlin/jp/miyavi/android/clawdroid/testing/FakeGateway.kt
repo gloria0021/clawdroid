@@ -21,6 +21,9 @@ import okhttp3.WebSocketListener
  * 接続ごとに [ConnectBehavior] を 1 つ消費し、challenge → connect の応答を再現する。
  */
 class FakeGateway {
+    /** ハンドラから投げると、その RPC を失敗（`ok: false`）で返す。 */
+    class RpcError(val code: String, val details: JsonObject? = null) : Exception(code)
+
     sealed interface ConnectBehavior {
         data class Accept(val deviceToken: String? = "device-token-1", val tickIntervalMs: Long = 30_000) : ConnectBehavior
         data class Reject(val code: String, val detailCode: String) : ConnectBehavior
@@ -88,10 +91,16 @@ class FakeGateway {
                 if (handler == null) {
                     webSocket.send(error(id, "UNKNOWN_METHOD", null))
                 } else {
+                    val payload = try {
+                        handler(params) ?: JsonObject(emptyMap())
+                    } catch (e: RpcError) {
+                        webSocket.send(error(id, e.code, e.details))
+                        return
+                    }
                     webSocket.send(
                         buildJsonObject {
                             put("type", "res"); put("id", id); put("ok", true)
-                            put("payload", handler(params) ?: JsonObject(emptyMap()))
+                            put("payload", payload)
                         }.toString(),
                     )
                 }

@@ -116,7 +116,7 @@ import kotlinx.coroutines.launch
 data class ChatNavigation(
     val openSettings: () -> Unit,
     val openAutomations: (Agent) -> Unit,
-    val openTerminal: (sessionKey: String?) -> Unit,
+    val openTerminal: (sessionKey: String?, agentId: String?, cwd: String?) -> Unit,
     val openFiles: (sessionKey: String, agentId: String) -> Unit,
     val restartGateway: () -> Unit,
 )
@@ -478,7 +478,7 @@ private fun SessionTitleBar(
                     Icon(painterResource(R.drawable.ic_huge_folder), stringResource(R.string.menu_files))
                 }
             }
-            IconButton(onClick = { navigation.openTerminal(key) }) {
+            IconButton(onClick = { navigation.openTerminal(key, agentId, state.currentSession?.cwd) }) {
                 Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal))
             }
         },
