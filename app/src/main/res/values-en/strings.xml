@@ -241,11 +241,8 @@
     <string name="settings_font_size">Font size</string>
     <string name="chat_pending_restore_cd">Return to draft</string>
     <string name="chat_pending_already_taken">This message is no longer queued</string>
-    <string name="question_title">Question from %1$s</string>
-    <string name="question_other">Other (type your answer)</string>
     <string name="question_submit">Submit</string>
     <string name="question_skip">Skip</string>
-    <string name="question_later">Later</string>
     <string name="question_failed">Couldn\'t send. Please try again</string>
     <string name="question_unsupported">This question can\'t be answered in this app. Answer it in the Control UI, or skip it</string>
     <string name="question_pending">The agent is asking you something</string>
@@ -300,4 +297,11 @@
     <string name="terminal_key_down_cd">Down arrow</string>
     <string name="terminal_key_left_cd">Left arrow</string>
     <string name="terminal_key_right_cd">Right arrow</string>
+    <string name="question_sheet_title">Question</string>
+    <string name="question_step">%1$d of %2$d</string>
+    <string name="question_back">Back</string>
+    <string name="question_next">Next</string>
+    <string name="question_other_option">Other</string>
+    <string name="question_other_hint">Type your answer</string>
+    <string name="question_recommended">Recommended</string>
 </resources>

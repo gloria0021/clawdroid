@@ -255,11 +255,8 @@
     <string name="settings_font_line_seed_jp" translatable="false">LINE Seed JP</string>
     <string name="chat_pending_restore_cd">入力欄に戻す</string>
     <string name="chat_pending_already_taken">このメッセージはもう待機中ではありません</string>
-    <string name="question_title">%1$s からの質問</string>
-    <string name="question_other">その他（自由に入力）</string>
     <string name="question_submit">答える</string>
     <string name="question_skip">スキップ</string>
-    <string name="question_later">あとで</string>
     <string name="question_failed">送れませんでした。もう一度お試しください</string>
     <string name="question_unsupported">この質問はこのアプリでは答えられません。Control UI で答えるか、スキップしてください</string>
     <string name="question_pending">エージェントからの質問があります</string>
@@ -314,4 +311,11 @@
     <string name="terminal_key_down_cd">下矢印</string>
     <string name="terminal_key_left_cd">左矢印</string>
     <string name="terminal_key_right_cd">右矢印</string>
+    <string name="question_sheet_title">質問</string>
+    <string name="question_step">%1$d / %2$d</string>
+    <string name="question_back">戻る</string>
+    <string name="question_next">次へ</string>
+    <string name="question_other_option">その他</string>
+    <string name="question_other_hint">答えを入力</string>
+    <string name="question_recommended">おすすめ</string>
 </resources>
