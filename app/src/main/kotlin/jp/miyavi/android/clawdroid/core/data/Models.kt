@@ -376,3 +376,58 @@ fun shortModelName(reference: String): String {
 
 /** 大文字で書くモデル名の略語。 */
 private val MODEL_ACRONYMS = setOf("gpt", "glm", "oss")
+
+/**
+ * コンテキストの内訳（Control UI と同じ計算）。どれも文字数 ÷ 4 の見積もりで、取れない項目は null。
+ * `sessions.usage` の `contextWeight`（システムプロンプトの報告）から作る。
+ */
+data class ContextBreakdown(
+    val messages: Long?,
+    val files: Long?,
+    val tools: Long?,
+    val skills: Long?,
+    val system: Long?,
+)
+
+internal object ContextBreakdownParser {
+    private fun estimate(chars: Long) = Math.round(chars / 4.0)
+
+    fun parse(report: JsonObject, used: Long): ContextBreakdown {
+        val files = report.array("injectedWorkspaceFiles").mapNotNull { it.asObject() }
+        val fileChars: Long? = if (files.any { it["injectedChars"] == null || it.long("injectedChars") == null }) null
+        else files.sumOf { it.long("injectedChars") ?: 0 }
+        val systemChars = report.obj("systemPrompt")?.long("chars") ?: 0
+        val tools = report.obj("tools")
+        val schemaChars = tools?.long("schemaChars") ?: 0
+        val listChars = tools?.long("listChars") ?: 0
+        val skillChars = report.obj("skills")?.long("promptChars") ?: 0
+        val fixed = estimate(systemChars + schemaChars)
+        return ContextBreakdown(
+            messages = if (fileChars == null || fixed > used) null else used - fixed,
+            files = fileChars?.let(::estimate),
+            tools = estimate(schemaChars + listChars),
+            skills = estimate(skillChars),
+            system = fileChars?.let { estimate(maxOf(0, systemChars - it - skillChars - listChars)) },
+        )
+    }
+}
+
+/** プロバイダのロゴ（Hugeicons の各社のマーク）。分からなければ null。 */
+fun providerBrand(ids: List<String>, name: String?): ProviderBrand? {
+    val keys = (ids + listOfNotNull(name)).map { it.lowercase() }
+    fun any(vararg words: String) = keys.any { k -> words.any { k.contains(it) } }
+    return when {
+        any("anthropic", "claude") -> ProviderBrand.CLAUDE
+        any("openai", "codex", "chatgpt", "gpt") -> ProviderBrand.OPENAI
+        any("google", "gemini") -> ProviderBrand.GEMINI
+        any("deepseek") -> ProviderBrand.DEEPSEEK
+        any("xai", "grok") -> ProviderBrand.GROK
+        any("mistral") -> ProviderBrand.MISTRAL
+        any("meta", "llama") -> ProviderBrand.META
+        any("perplexity") -> ProviderBrand.PERPLEXITY
+        any("qwen", "alibaba", "dashscope") -> ProviderBrand.QWEN
+        else -> null
+    }
+}
+
+enum class ProviderBrand { CLAUDE, OPENAI, GEMINI, DEEPSEEK, GROK, MISTRAL, META, PERPLEXITY, QWEN }

@@ -217,4 +217,9 @@
     <string name="session_menu_delete">Delete</string>
     <string name="session_delete_title">Delete this session?</string>
     <string name="session_delete_body">“%1$s” and its transcript will be deleted from the Gateway. This can\'t be undone.</string>
+    <string name="context_part_messages">Messages and other</string>
+    <string name="context_part_files">Workspace files</string>
+    <string name="context_part_tools">Tool schemas</string>
+    <string name="context_part_skills">Skills catalog</string>
+    <string name="context_part_system">System instructions</string>
 </resources>

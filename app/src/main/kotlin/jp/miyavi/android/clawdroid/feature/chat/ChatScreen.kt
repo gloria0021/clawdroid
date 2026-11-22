@@ -171,6 +171,7 @@ fun ChatScreen(
             retryHistory = viewModel::retryHistory,
             cancelPending = viewModel::cancelPending,
             loadUsage = viewModel::loadProviderUsage,
+            loadContext = viewModel::loadContextBreakdown,
             loadModels = viewModel::loadModelCatalog,
             updateSetting = viewModel::updateSessionSetting,
             reconnect = viewModel::reconnect,
@@ -196,6 +197,7 @@ data class ChatActions(
     val retryHistory: () -> Unit,
     val cancelPending: (String) -> Unit,
     val loadUsage: suspend () -> List<ProviderUsage>,
+    val loadContext: suspend () -> jp.miyavi.android.clawdroid.core.data.ContextBreakdown?,
     val loadModels: suspend (String, String?) -> ModelCatalog?,
     val updateSetting: (SessionSetting, String?) -> Unit,
     val reconnect: () -> Unit,
@@ -433,6 +435,7 @@ fun ChatContent(
                 canSelectFull = canSelectFull,
                 loadModels = actions.loadModels,
                 loadUsage = actions.loadUsage,
+                loadContext = actions.loadContext,
                 onSelect = { setting, value -> actions.updateSetting(setting, value) },
                 onDismiss = { showSessionSheet = false },
             )

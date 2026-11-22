@@ -229,4 +229,9 @@
     <string name="session_menu_delete">削除</string>
     <string name="session_delete_title">セッションを削除しますか？</string>
     <string name="session_delete_body">「%1$s」と会話の記録を Gateway から削除します。元に戻せません。</string>
+    <string name="context_part_messages">メッセージとその他</string>
+    <string name="context_part_files">ワークスペースのファイル</string>
+    <string name="context_part_tools">ツールスキーマ</string>
+    <string name="context_part_skills">Skills カタログ</string>
+    <string name="context_part_system">システム指示</string>
 </resources>

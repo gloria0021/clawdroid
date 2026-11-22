@@ -1,5 +1,17 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.foundation.shape.CircleShape
+import jp.miyavi.android.clawdroid.core.data.providerBrand
+import jp.miyavi.android.clawdroid.core.data.ProviderBrand
+import jp.miyavi.android.clawdroid.core.data.ContextBreakdown
+import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import jp.miyavi.android.clawdroid.core.designsystem.SurfaceOpacity
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
 import androidx.compose.ui.platform.LocalDensity
@@ -88,10 +100,12 @@ fun ComposerSessionSheet(
     canSelectFull: Boolean,
     loadModels: suspend (String, String?) -> ModelCatalog?,
     loadUsage: suspend () -> List<ProviderUsage>,
+    loadContext: suspend () -> ContextBreakdown?,
     onSelect: (SessionSetting, String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val providers by produceState<List<ProviderUsage>?>(null) { value = loadUsage() }
+    val breakdown by produceState<ContextBreakdown?>(null) { value = loadContext() }
     // モデルの一覧は、モデルかエフォートのメニューを初めて開いたときに一度だけ取る
     var wantCatalog by remember { mutableStateOf(false) }
     val catalog by produceState<ModelCatalog?>(null, wantCatalog, agent?.id, session?.key) {
@@ -128,7 +142,7 @@ fun ComposerSessionSheet(
                         },
                         modifier = Modifier.onPlaced { rowBottom = (it.positionInParent().y + it.size.height).toInt() },
                     )
-                    Usage(session = session, providers = providers)
+                    Usage(session = session, breakdown = breakdown, providers = providers)
                 }
                 // 選択肢: 外を押すと閉じる。面は設定の行のすぐ下に重ねる（同じ画面の上なので下が透ける）
                 if (openSetting != null) {
@@ -176,22 +190,32 @@ fun ComposerSessionSheet(
 }
 
 @Composable
-private fun Usage(session: SessionSummary?, providers: List<ProviderUsage>?) {
+private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, providers: List<ProviderUsage>?) {
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     val percent = remember(locale) { NumberFormat.getPercentInstance(locale) }
     val timeOnly = remember(locale) { DateFormat.getTimeInstance(DateFormat.SHORT, locale) }
-    val dateTime = remember(locale) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale) }
+    val weekday = remember(locale) { java.text.SimpleDateFormat("EEE", locale) }
+    val dateOnly = remember(locale) { java.text.SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(locale, "Md"), locale) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-        SectionTitle(R.string.chat_context_title)
+        // コンテキストウィンドウ: 見出しの右に「使った量 / 上限 · 割合」、下に内訳の色で塗り分けた細い棒と内訳の行
         val fraction = session?.contextFraction
-        if (fraction != null && session.totalTokens != null && session.contextTokens != null) {
-            UsageMeter(
-                fraction = fraction,
-                label = stringResource(R.string.chat_context_tokens, numbers.format(session.totalTokens), numbers.format(session.contextTokens)),
-                percentage = percent.format(fraction),
-            )
+        val used = session?.totalTokens
+        val limit = session?.contextTokens
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle(R.string.chat_context_title, Modifier.weight(1f))
+            if (fraction != null && used != null && limit != null) {
+                Text(
+                    "${compactTokens(used)} / ${compactTokens(limit)} · ${percent.format(fraction)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (contextLevel(fraction) == ContextLevel.HIGH) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+        if (fraction != null && limit != null) {
+            ContextBar(breakdown, limit, fraction)
+            breakdown?.let { ContextRows(it) }
         } else {
             MutedText(stringResource(R.string.chat_usage_unavailable))
         }
@@ -209,23 +233,25 @@ private fun Usage(session: SessionSummary?, providers: List<ProviderUsage>?) {
         if (providers != null && providers.isEmpty()) MutedText(stringResource(R.string.chat_usage_unavailable))
         providers?.forEach { provider ->
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                Text(
-                    listOfNotNull(provider.name, provider.plan).joinToString(" · "),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                // 枠（5時間・週間など）は 1 行に 2 列で並べる
-                provider.windows.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.l)) {
-                        pair.forEach { window ->
-                            val reset = window.resetAt?.let {
-                                stringResource(R.string.chat_usage_reset, (if (DateUtils.isToday(it)) timeOnly else dateTime).format(Date(it)))
-                            }
-                            Box(Modifier.weight(1f)) {
-                                UsageMeter(window.usedFraction, windowLabel(window.label), percent.format(window.usedFraction), reset)
-                            }
-                        }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                    providerBrand(provider.ids, provider.name)?.let { brand ->
+                        Icon(painterResource(brand.icon()), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
                     }
+                    Text(provider.name, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    provider.plan?.let { plan ->
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer) {
+                            Text(plan, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = Spacing.s, vertical = Spacing.xs / 2))
+                        }
+                    }
+                }
+                // 枠（5時間・週間など）は 1 枠 1 行。ラベルと割合をインジケーターの上に重ねる（Control UI と同じ見せ方）
+                provider.windows.forEach { window ->
+                    UsageMeter(
+                        fraction = window.usedFraction,
+                        label = windowLabel(window.label),
+                        percentage = percent.format(window.usedFraction),
+                        reset = window.resetAt?.let { resetLabel(it, timeOnly, weekday, dateOnly) },
+                    )
                 }
             }
         }
@@ -233,13 +259,97 @@ private fun Usage(session: SessionSummary?, providers: List<ProviderUsage>?) {
 }
 
 @Composable
-private fun SectionTitle(text: Int) {
+private fun SectionTitle(text: Int, modifier: Modifier = Modifier) {
     Text(
         stringResource(text),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = Spacing.s).semantics { heading() },
+        modifier = modifier.padding(top = Spacing.s).semantics { heading() },
     )
+}
+
+/** 内訳の 5 つの区分と色（区分を見分けるための色。AGENTS.md 2.2 の「意味のある色分け」）。 */
+private enum class ContextPart(val label: Int) {
+    MESSAGES(R.string.context_part_messages),
+    FILES(R.string.context_part_files),
+    TOOLS(R.string.context_part_tools),
+    SKILLS(R.string.context_part_skills),
+    SYSTEM(R.string.context_part_system),
+}
+
+@Composable
+private fun ContextPart.color(): Color = when (this) {
+    ContextPart.MESSAGES -> MaterialTheme.colorScheme.primary
+    ContextPart.FILES -> MaterialTheme.colorScheme.tertiary
+    ContextPart.TOOLS -> MaterialTheme.colorScheme.secondary
+    ContextPart.SKILLS -> MaterialTheme.colorScheme.error
+    ContextPart.SYSTEM -> MaterialTheme.colorScheme.outline
+}
+
+private fun ContextBreakdown.parts(): List<Pair<ContextPart, Long?>> = listOf(
+    ContextPart.MESSAGES to messages,
+    ContextPart.FILES to files,
+    ContextPart.TOOLS to tools,
+    ContextPart.SKILLS to skills,
+    ContextPart.SYSTEM to system,
+)
+
+/** 細い棒。内訳があれば区分ごとに塗り分け、なければ使った割合を 1 色で。伸びはばね。 */
+@Composable
+private fun ContextBar(breakdown: ContextBreakdown?, limit: Long, fraction: Float) {
+    val motion = MaterialTheme.motionScheme
+    val grow = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { grow.animateTo(1f, motion.defaultSpatialSpec()) }
+    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val segments = breakdown?.parts()?.mapNotNull { (part, tokens) -> tokens?.let { part.color() to it.toFloat() / limit } }
+        ?: listOf(accentContainer().container to fraction)
+    Box(
+        Modifier.fillMaxWidth().height(Dimens.usageBarHeight).clip(CircleShape).background(track).drawBehind {
+            var x = 0f
+            segments.forEach { (color, share) ->
+                val w = size.width * share.coerceIn(0f, 1f) * grow.value
+                drawRect(color, topLeft = androidx.compose.ui.geometry.Offset(x, 0f), size = size.copy(width = w))
+                x += w
+            }
+        },
+    )
+}
+
+/** 内訳の行（色の四角・区分名・見積もりのトークン数）。 */
+@Composable
+private fun ContextRows(breakdown: ContextBreakdown) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        breakdown.parts().forEach { (part, tokens) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                Box(Modifier.size(Spacing.m).clip(MaterialTheme.shapes.extraSmall).background(part.color()))
+                Text(stringResource(part.label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Text(
+                    tokens?.let { "~${compactTokens(it)}" } ?: stringResource(R.string.chat_usage_unknown),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** 「46.6k」「1.2M」「797」。 */
+private fun compactTokens(n: Long): String = when {
+    n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
+    n >= 1_000 -> "%.1fk".format(n / 1_000.0).replace(".0k", "k")
+    else -> n.toString()
+}
+
+private fun ProviderBrand.icon(): Int = when (this) {
+    ProviderBrand.CLAUDE -> R.drawable.ic_huge_brand_claude
+    ProviderBrand.OPENAI -> R.drawable.ic_huge_brand_openai
+    ProviderBrand.GEMINI -> R.drawable.ic_huge_brand_gemini
+    ProviderBrand.DEEPSEEK -> R.drawable.ic_huge_brand_deepseek
+    ProviderBrand.GROK -> R.drawable.ic_huge_brand_grok
+    ProviderBrand.MISTRAL -> R.drawable.ic_huge_brand_mistral
+    ProviderBrand.META -> R.drawable.ic_huge_brand_meta
+    ProviderBrand.PERPLEXITY -> R.drawable.ic_huge_brand_perplexity
+    ProviderBrand.QWEN -> R.drawable.ic_huge_brand_qwen
 }
 
 @Composable
@@ -251,30 +361,57 @@ private fun MutedText(text: String) {
  * 使用量の 1 行。ラベルと割合の下に細い棒を 1 本だけ引く（枠や塗りの面は重ねない）。
  * 上限に近いと棒を error の色にする。
  */
+/**
+ * 使用量の 1 行。角丸の帯の中を使った割合だけ塗り、その上にラベル・リセット時刻・割合を重ねる。
+ * 塗りはテーマの強い色、上限に近い（80% 以上）ときは error のくすみ色。伸びはばねで動く。
+ */
 @Composable
-private fun UsageMeter(fraction: Float, label: String, percentage: String, detail: String? = null) {
+private fun UsageMeter(fraction: Float, label: String, percentage: String, reset: String? = null) {
     val motion = MaterialTheme.motionScheme
     val colors = MaterialTheme.colorScheme
     val progress = remember { Animatable(0f) }
     LaunchedEffect(fraction) { progress.animateTo(fraction.coerceIn(0f, 1f), motion.defaultSpatialSpec()) }
-    val level = contextLevel(fraction)
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(percentage, style = MaterialTheme.typography.labelLarge, color = if (level == ContextLevel.HIGH) colors.error else colors.onSurface)
+    val high = contextLevel(fraction) == ContextLevel.HIGH
+    val fill = if (high) lerp(colors.error, colors.surface, METER_FILL_MIX) else accentContainer().container
+    val shape = MaterialTheme.shapes.medium
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = Dimens.compactTouchTarget + Spacing.s)
+            .clip(shape)
+            .background(colors.surfaceContainer)
+            .drawBehind { drawRect(fill, size = size.copy(width = size.width * progress.value)) },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        ) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurface)
+            if (reset != null) {
+                Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Spacing.m + Spacing.xs))
+                Text(reset, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(percentage, style = MaterialTheme.typography.labelLarge, color = if (high) colors.error else colors.onSurface)
         }
-        LinearProgressIndicator(
-            progress = { progress.value },
-            modifier = Modifier.fillMaxWidth().height(Dimens.usageBarHeight),
-            color = if (level == ContextLevel.HIGH) colors.error else colors.primary,
-            trackColor = colors.surfaceContainerHighest,
-            strokeCap = StrokeCap.Round,
-            gapSize = 0.dp,
-            drawStopIndicator = {},
-        )
-        detail?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant) }
     }
 }
+
+/** リセットの時刻: 今日なら時刻、1 週間以内なら曜日、それ以降は日付。 */
+private fun resetLabel(at: Long, time: DateFormat, weekday: java.text.SimpleDateFormat, date: java.text.SimpleDateFormat): String {
+    val day = Date(at)
+    val days = (at - System.currentTimeMillis()) / DateUtils.DAY_IN_MILLIS
+    return when {
+        DateUtils.isToday(at) -> time.format(day)
+        days in 0..6 -> weekday.format(day)
+        else -> date.format(day)
+    }
+}
+
+/** 上限に近いときの塗りで、error を背景に溶かす割合。 */
+private const val METER_FILL_MIX = 0.72f
 
 /** Gateway の窓の名前（5h・Week など）を、分かるものだけ訳す。 */
 @Composable

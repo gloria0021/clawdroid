@@ -1,5 +1,10 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import jp.miyavi.android.clawdroid.core.gateway.string
+import jp.miyavi.android.clawdroid.core.gateway.obj
+import jp.miyavi.android.clawdroid.core.gateway.array
+import jp.miyavi.android.clawdroid.core.data.ContextBreakdownParser
+import jp.miyavi.android.clawdroid.core.data.ContextBreakdown
 import android.content.ContentResolver
 import android.net.Uri
 import android.util.Base64
@@ -252,6 +257,23 @@ class ChatViewModel(
         val provider = state.value.currentSession?.model?.substringBefore('/', "")?.lowercase()
             ?: state.value.selectedAgent?.defaultModel?.substringBefore('/', "")?.lowercase()
         return usage.sortedByDescending { p -> provider != null && provider.isNotEmpty() && p.ids.any { it.equals(provider, ignoreCase = true) } }
+    }
+
+    /** 今のセッションのコンテキストの内訳（Control UI と同じ sessions.usage の contextWeight）。取れなければ null。 */
+    suspend fun loadContextBreakdown(): ContextBreakdown? {
+        val session = state.value.currentSession ?: return null
+        val used = session.totalTokens ?: return null
+        if (!gateway.supports("sessions.usage")) return null
+        return runCatching {
+            val root = gateway.request("sessions.usage", buildJsonObject {
+                put("key", session.key)
+                session.agentId?.let { put("agentId", it) }
+                put("limit", 1)
+                put("includeContextWeight", true)
+            }, timeoutMs = 10_000).asObject()
+            val row = root?.array("sessions")?.mapNotNull { it.asObject() }?.firstOrNull { it.string("key") == session.key }
+            row?.obj("contextWeight")?.let { ContextBreakdownParser.parse(it, used) }
+        }.getOrNull()
     }
 
     private suspend fun loadUsageStatus(): List<ProviderUsage> {
