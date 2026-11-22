@@ -75,8 +75,8 @@ data class SurfaceOpacity(val glass: Float, val blur: Float)
 /** 上部のボタン・入力ピル・タブ・Snackbar など、ふつうの透過面。 */
 val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 
-/** タイトルバー（テーマカラーで色を付ける唯一の面）。色は薄く 20%。 */
-val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.2f, blur = 0.2f)
+/** タイトルバー（テーマカラーで色を付ける唯一の面）。色はごく薄く 5%。 */
+val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.05f, blur = 0.05f)
 
 /** メニュー。文字を選ぶ面なので濃くする。 */
 val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
@@ -119,9 +119,11 @@ fun Modifier.hazeSurface(
         GlassTint.THEME -> accentContainer().container
         GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
     }
+    // 下に敷く面は常に無彩色。テーマカラーは不透明度の分だけ重ねる（敷く面に色を使うと、不透明度に関係なく色が付くため）
+    val base = sheetFieldColor()
     when (LocalSurfaceStyle.current) {
-        SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor)
-        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor)
+        SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor, base)
+        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor, base)
     }
 }
 
@@ -157,6 +159,7 @@ private fun Modifier.glassSurface(
     fixedOpacity: SurfaceOpacity,
     rim: Boolean,
     tintColor: Color,
+    baseColor: Color,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val darkGlass = colors.surface.luminance() < 0.5f
@@ -183,14 +186,14 @@ private fun Modifier.glassSurface(
             }
         }
         // 背景色は不透明な surface を敷く。透明だと、文字のない所で tint が消える
-    }.material3(containerColor = tintColor, tint = glassTint)
+    }.material3(containerColor = baseColor, tint = glassTint)
     this.hazeGlass(input = HazeInput.Sources(hazeState), style = glassStyle)
 }
 
 /** 屈折のないぼかし（Haze Blur）。 */
-private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity, tintColor: Color): Modifier = composed {
-    // 下地は面の色そのもの（タイトルバー以外にテーマカラーを混ぜない）
-    val surface = tintColor
+private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity, tintColor: Color, baseColor: Color): Modifier = composed {
+    // 下地は無彩色の面。色は tint の不透明度の分だけ
+    val surface = baseColor
     val radius = BLUR_RADIUS_MAX * BLUR_RADIUS_FRACTION
     val alpha = fixedOpacity.blur
     val style = remember(surface, tintColor, radius, alpha) {

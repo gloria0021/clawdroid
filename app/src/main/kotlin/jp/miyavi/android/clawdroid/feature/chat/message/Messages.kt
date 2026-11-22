@@ -77,14 +77,17 @@ fun UserMessage(
         if (text.isNotBlank()) {
             // 利用者のメッセージの面はテーマの濃い色（OpenClaw なら赤み）。背景のオフホワイトと見分けやすくする
             val accent = accentContainer()
-            Surface(
-                color = accent.container,
-                contentColor = accent.content,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.widthIn(max = Dimens.maxReadingWidth * USER_BUBBLE_MAX_FRACTION),
-            ) {
-                Box(Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s)) {
-                    MarkdownText(text)
+            // 右寄せで、幅は中身に合わせる。長くても画面（本文の幅）の 8 割まで
+            Box(Modifier.fillMaxWidth(USER_BUBBLE_MAX_FRACTION), contentAlignment = Alignment.CenterEnd) {
+                Surface(
+                    color = accent.container,
+                    contentColor = accent.content,
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    // Markdown の部品は横幅いっぱいに広がるので、利用者の文は素の文字で描く
+                    SelectionContainer {
+                        Text(text, style = bodyTextStyle(), modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s))
+                    }
                 }
             }
         }
