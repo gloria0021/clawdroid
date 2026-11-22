@@ -196,16 +196,27 @@
     <string name="usage_window_week">週間</string>
     <string name="usage_window_day">1日</string>
     <string name="chat_activity_tool">%1$s を実行中</string>
-    <string name="chat_phase_waiting">順番を待っています</string>
-    <string name="chat_phase_workspace">作業場所を準備中</string>
-    <string name="chat_phase_context">文脈を整えています</string>
-    <string name="chat_phase_starting">モデルを起動中</string>
     <string-array name="chat_thinking_phrases">
-        <item>考え中…</item>
-        <item>潮に乗って移動中…</item>
         <item>爪を研いでいます…</item>
-        <item>海図を読んでいます…</item>
-        <item>深く潜っています…</item>
+        <item>潮の流れを読んでいます…</item>
+        <item>脱皮のタイミングを計っています…</item>
+        <item>ハサミでコードを切り揃えています…</item>
+        <item>甲羅の中で考え込んでいます…</item>
+        <item>横歩きで近道を探しています…</item>
+        <item>海底でドキュメントを拾っています…</item>
+        <item>スタックトレースを遡上中…</item>
+        <item>括弧の数を数え直しています…</item>
+        <item>変数名をひねり出しています…</item>
+        <item>コーヒーをトークンに変換中…</item>
+        <item>「なぜか動いた」を調査中…</item>
+        <item>仕様書の行間を読んでいます…</item>
+        <item>未来の自分へコメントを書いています…</item>
+        <item>TODO を見なかったことにしています…</item>
+        <item>ラバーダックに相談中…</item>
+        <item>キャッシュを温め直しています…</item>
+        <item>推論の網を引き上げています…</item>
+        <item>磯の香りでデバッグ中…</item>
+        <item>あと少し…たぶん…</item>
     </string-array>
     <string name="panel_home">ホーム</string>
     <string name="panel_active">アクティブ</string>

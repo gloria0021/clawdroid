@@ -184,16 +184,27 @@
     <string name="usage_window_week">Week</string>
     <string name="usage_window_day">Day</string>
     <string name="chat_activity_tool">Running %1$s</string>
-    <string name="chat_phase_waiting">Waiting for a turn</string>
-    <string name="chat_phase_workspace">Preparing the workspace</string>
-    <string name="chat_phase_context">Preparing context</string>
-    <string name="chat_phase_starting">Starting the model</string>
     <string-array name="chat_thinking_phrases">
-        <item>Thinking…</item>
-        <item>Riding the tide…</item>
         <item>Sharpening claws…</item>
-        <item>Reading the charts…</item>
-        <item>Diving deep…</item>
+        <item>Reading the tide…</item>
+        <item>Timing the next molt…</item>
+        <item>Trimming code with pincers…</item>
+        <item>Thinking inside the shell…</item>
+        <item>Sidestepping to a shortcut…</item>
+        <item>Collecting docs from the seabed…</item>
+        <item>Swimming up the stack trace…</item>
+        <item>Recounting the brackets…</item>
+        <item>Agonizing over a variable name…</item>
+        <item>Converting coffee into tokens…</item>
+        <item>Investigating why it works…</item>
+        <item>Reading between the spec lines…</item>
+        <item>Leaving comments for future me…</item>
+        <item>Pretending not to see the TODO…</item>
+        <item>Consulting the rubber duck…</item>
+        <item>Rewarming the cache…</item>
+        <item>Hauling in the reasoning net…</item>
+        <item>Debugging by the smell of the sea…</item>
+        <item>Almost there… probably…</item>
     </string-array>
     <string name="panel_home">Home</string>
     <string name="panel_active">Active</string>

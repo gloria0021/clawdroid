@@ -48,11 +48,13 @@ fun ThinkingIndicator(startedAt: Long?, activity: RunActivity?, modifier: Modifi
     }
     val elapsed = ((now - (startedAt ?: now)) / 1_000).coerceAtLeast(0)
     val phrases = stringArrayResource(R.array.chat_thinking_phrases)
-    val phraseIndex = ((elapsed / PHRASE_SECONDS) % phrases.size).toInt()
+    // 実行ごとに始まりのネタを変え、数秒ごとに次のネタへ（同じ実行のあいだは順番が変わらない）
+    val offset = remember(startedAt) { (startedAt ?: 0L).mod(phrases.size.toLong()).toInt() }
+    val phraseIndex = ((elapsed / PHRASE_SECONDS + offset) % phrases.size).toInt()
+    // ツールの実行中だけは何をしているかを出す。それ以外（待ち・準備・考え中）はネタ
     val label = when (activity) {
         is RunActivity.Tool -> stringResource(R.string.chat_activity_tool, activity.name)
-        is RunActivity.Phase -> phaseLabel(activity.phase) ?: phrases[phraseIndex]
-        null -> phrases[phraseIndex]
+        else -> phrases[phraseIndex]
     }
     Row(
         modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
@@ -89,17 +91,6 @@ private fun formatElapsed(seconds: Long): String = when {
     else -> "%dh %02dm".format(seconds / 3_600, (seconds % 3_600) / 60)
 }
 
-/** Gateway の status の phase（ref-schema の ChatRunStartupPhase）を言葉にする。分からないものは null。 */
-@Composable
-private fun phaseLabel(phase: String): String? = when (phase) {
-    "waiting_for_state", "waiting_for_model" -> stringResource(R.string.chat_phase_waiting)
-    "preparing_workspace", "naming_worktree", "preparing_worktree_base", "creating_worktree", "running_setup", "provisioning_environment" ->
-        stringResource(R.string.chat_phase_workspace)
-    "preparing_context", "memory_flushing" -> stringResource(R.string.chat_phase_context)
-    "starting_model" -> stringResource(R.string.chat_phase_starting)
-    else -> null
-}
-
 private const val TICK_MS = 1_000L
-/** 言い回しを入れ替える間隔（秒）。 */
-private const val PHRASE_SECONDS = 6L
+/** ネタを入れ替える間隔（秒）。 */
+private const val PHRASE_SECONDS = 5L
