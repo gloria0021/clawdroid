@@ -128,7 +128,7 @@ private fun SettingIconButton(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
-                if (showValue) Text(value, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         // 高さの上限を決めて、どのメニューもボタンの下に出す（高すぎるメニューは画面の中央に回されるため）
@@ -149,10 +149,16 @@ private fun SettingIconButton(
                     DropdownMenuItem(
                         text = {
                             // 上下に 12dp。1 行のエフォートと 2 行（名前と説明）のモデル・権限で、行の上下の余白をそろえる
-                            Column(Modifier.padding(vertical = Spacing.s), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                Text(option.name, style = MaterialTheme.typography.bodySmall)
+                            // 実行権限のメニューだけ文字を 1 段階小さく（説明文があって長いため）
+                            val compact = setting == SessionSetting.PERMISSIONS
+                            Column(Modifier.padding(vertical = if (compact) Spacing.s else Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Text(option.name, style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge)
                                 option.description?.let {
-                                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        it,
+                                        style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             }
                         },

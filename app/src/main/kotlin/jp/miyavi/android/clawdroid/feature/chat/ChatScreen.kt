@@ -1,5 +1,10 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import jp.miyavi.android.clawdroid.core.designsystem.GlassTint
+import jp.miyavi.android.clawdroid.core.designsystem.TITLE_BAR_OPACITY
+import jp.miyavi.android.clawdroid.core.designsystem.hazeSurface
 import jp.miyavi.android.clawdroid.feature.chat.message.ThinkingIndicator
 import jp.miyavi.android.clawdroid.core.data.LocalInboundImages
 import jp.miyavi.android.clawdroid.core.data.InboundImageSource
@@ -347,8 +352,8 @@ fun ChatContent(
                     }
                 },
                 bottomBar = {
-                    // 入力欄の後ろは塗らない。会話が下まで流れ、入力欄（白いガラス）の周りから透けて見える
-                    Box(Modifier.fillMaxWidth()) {
+                    // 入力欄の後ろの帯はタイトルバーと同じ透過効果。会話が入力欄の裏まで流れ、帯から透けて見える
+                    Box(Modifier.fillMaxWidth().hazeSurface(hazeState, RoundedCornerShape(0.dp), TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME)) {
                         Box(
                             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).imePadding(),
                             contentAlignment = Alignment.Center,
