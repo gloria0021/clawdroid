@@ -176,31 +176,74 @@ class SessionsRepository(
 
     suspend fun rename(session: SessionSummary, label: String) = patch(session) { put("label", label) }
     /** アーカイブ・解除は「セッションの寿命」の変更で、Gateway は expectedSessionId を必須にしている（別の実体を誤って動かさないため）。 */
-    suspend fun setArchived(session: SessionSummary, archived: Boolean) = patch(session) {
-        put("archived", archived)
-        session.sessionId?.let { put("expectedSessionId", it) }
+    suspend fun setArchived(session: SessionSummary, archived: Boolean) {
+        // 先に手元の一覧で動かす（行がもう一方の区切りへ移る動きをすぐ見せる）。失敗したら取り直して戻す
+        moveLocally(session, archived)
+        try {
+            patch(session) {
+                put("archived", archived)
+                session.sessionId?.let { put("expectedSessionId", it) }
+            }
+        } catch (e: Exception) {
+            session.agentId?.let { refresh(it) }
+            throw e
+        }
     }
+
+    /** 手元の一覧で、行をアクティブ ⇄ アーカイブ済みへ移す（更新時刻の順に差し込む）。 */
+    private fun moveLocally(session: SessionSummary, archived: Boolean) {
+        val agentId = session.agentId ?: return
+        val moved = session.copy(archived = archived)
+        _sessions.update { all ->
+            val current = all[agentId] ?: return@update all
+            val active = current.sessions.filterNot { it.key == session.key }
+            val archivedRows = current.archived.filterNot { it.key == session.key }
+            all + (agentId to if (archived) {
+                current.copy(sessions = active, archived = (archivedRows + moved).sortedByDescending { it.updatedAt ?: 0 })
+            } else {
+                current.copy(sessions = (active + moved).sortedByDescending { it.updatedAt ?: 0 }, archived = archivedRows)
+            })
+        }
+    }
+
+    /** 手元の一覧から行を外す。 */
+    private fun removeLocally(session: SessionSummary) {
+        val agentId = session.agentId ?: return
+        _sessions.update { all ->
+            val current = all[agentId] ?: return@update all
+            all + (agentId to current.copy(
+                sessions = current.sessions.filterNot { it.key == session.key },
+                archived = current.archived.filterNot { it.key == session.key },
+            ))
+        }
+    }
+
     /**
      * セッションを削除する（会話の記録も消す）。アーカイブ済みならそのまま、アクティブならアーカイブしてから消す
      * （Gateway は archivedOnly の削除を operator.write に許し、それ以外は operator.admin を求めるため、公式アプリと同じ手順にする）。
      */
     suspend fun delete(session: SessionSummary) {
-        if (!session.archived) {
-            gateway.request("sessions.patch", buildJsonObject {
+        // 先に一覧から外す（行が消える動きをすぐ見せる）。失敗したら取り直して戻す
+        removeLocally(session)
+        try {
+            if (!session.archived) {
+                gateway.request("sessions.patch", buildJsonObject {
+                    put("key", session.key)
+                    session.agentId?.let { put("agentId", it) }
+                    put("archived", true)
+                    session.sessionId?.let { put("expectedSessionId", it) }
+                })
+            }
+            gateway.request("sessions.delete", buildJsonObject {
                 put("key", session.key)
                 session.agentId?.let { put("agentId", it) }
-                put("archived", true)
+                put("deleteTranscript", true)
+                put("archivedOnly", true)
                 session.sessionId?.let { put("expectedSessionId", it) }
             })
+        } finally {
+            session.agentId?.let { refresh(it) }
         }
-        gateway.request("sessions.delete", buildJsonObject {
-            put("key", session.key)
-            session.agentId?.let { put("agentId", it) }
-            put("deleteTranscript", true)
-            put("archivedOnly", true)
-            session.sessionId?.let { put("expectedSessionId", it) }
-        })
-        session.agentId?.let { refresh(it) }
     }
 
     suspend fun markRead(session: SessionSummary) = patch(session) { put("unread", false) }

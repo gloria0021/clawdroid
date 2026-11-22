@@ -247,7 +247,8 @@ private fun SessionList(
                 item(key = "header-archived", contentType = "header") {
                     ListHeader(R.string.panel_archived, state.archived.size, motionItem())
                 }
-                items(state.archived, key = { "archived-${it.key}" }) { session ->
+                // 区切りをまたいでも同じ key にして、行が消えて現れるのではなく「移動」として動くようにする
+                items(state.archived, key = { it.key }) { session ->
                     SessionItem(
                         session = session,
                         selected = session.key == selectedSessionKey,
