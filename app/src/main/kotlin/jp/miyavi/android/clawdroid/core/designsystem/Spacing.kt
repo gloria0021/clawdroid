@@ -33,6 +33,8 @@ object Dimens {
     val smallIcon = 18.dp
     /** 設定のメニューの最大幅。 */
     val settingMenuMaxWidth = 320.dp
+    /** 設定のメニューの最大の高さ（超えるとメニューの中でスクロール）。 */
+    val settingMenuMaxHeight = 320.dp
     val usageBarHeight = 8.dp
     /** 添付画像を読み込むあいだの面の大きさ。 */
     val imagePlaceholder = 160.dp

@@ -36,6 +36,7 @@ import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
+import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 
 /** 1 つの選択肢。`value` が null なら「デフォルト」（上書きを外す）。 */
 internal data class SettingOption(
@@ -115,8 +116,9 @@ private fun SettingIconButton(
             onClick = { onOpen(); open = true },
             enabled = enabled,
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            // テーマの強い色（利用者のメッセージ・モデルのピルと同じ）
+            color = accentContainer().container,
+            contentColor = accentContainer().content,
             modifier = (if (showValue) Modifier.fillMaxWidth() else Modifier.widthIn(min = Dimens.minTouchTarget))
                 .heightIn(min = Dimens.minTouchTarget).semantics { contentDescription = cd },
         ) {
@@ -126,10 +128,15 @@ private fun SettingIconButton(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
-                if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showValue) Text(value, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(max = Dimens.settingMenuMaxWidth)) {
+        // 高さの上限を決めて、どのメニューもボタンの下に出す（高すぎるメニューは画面の中央に回されるため）
+        GlassDropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.widthIn(max = Dimens.settingMenuMaxWidth).heightIn(max = Dimens.settingMenuMaxHeight),
+        ) {
             when {
                 options == null -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(Spacing.m))
                 options.isEmpty() -> Text(
@@ -142,10 +149,10 @@ private fun SettingIconButton(
                     DropdownMenuItem(
                         text = {
                             // 上下に 12dp。1 行のエフォートと 2 行（名前と説明）のモデル・権限で、行の上下の余白をそろえる
-                            Column(Modifier.padding(vertical = Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                Text(option.name, style = MaterialTheme.typography.bodyLarge)
+                            Column(Modifier.padding(vertical = Spacing.s), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Text(option.name, style = MaterialTheme.typography.bodySmall)
                                 option.description?.let {
-                                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         },

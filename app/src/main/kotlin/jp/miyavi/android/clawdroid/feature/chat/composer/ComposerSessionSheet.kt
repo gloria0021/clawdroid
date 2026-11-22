@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -158,11 +160,19 @@ private fun Usage(session: SessionSummary?, providers: List<ProviderUsage>?) {
                     listOfNotNull(provider.name, provider.plan).joinToString(" · "),
                     style = MaterialTheme.typography.labelLarge,
                 )
-                provider.windows.forEach { window ->
-                    val reset = window.resetAt?.let {
-                        stringResource(R.string.chat_usage_reset, (if (DateUtils.isToday(it)) timeOnly else dateTime).format(Date(it)))
+                // 枠（5時間・週間など）は 1 行に 2 列で並べる
+                provider.windows.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.l)) {
+                        pair.forEach { window ->
+                            val reset = window.resetAt?.let {
+                                stringResource(R.string.chat_usage_reset, (if (DateUtils.isToday(it)) timeOnly else dateTime).format(Date(it)))
+                            }
+                            Box(Modifier.weight(1f)) {
+                                UsageMeter(window.usedFraction, windowLabel(window.label), percent.format(window.usedFraction), reset)
+                            }
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    UsageMeter(window.usedFraction, windowLabel(window.label), percent.format(window.usedFraction), reset)
                 }
             }
         }
