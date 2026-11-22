@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
+import androidx.compose.ui.draw.shadow
 import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.core.data.rememberInboundImage
 import jp.miyavi.android.clawdroid.core.data.isInboundMediaUrl
@@ -304,6 +305,8 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
     val imageModifier = modifier
         .widthIn(max = Dimens.messageImageMax)
         .heightIn(max = Dimens.messageImageMax)
+        // 背景と同化しないよう、少し浮かせる（入力欄と同じく影の例外。マスター指定）
+        .shadow(Dimens.imageElevation, shape)
         .clip(shape)
         .background(bodyContainerColor())
         .clickable { onOpen(image) }

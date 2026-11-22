@@ -25,6 +25,8 @@ object Dimens {
     val composerMaxHeight = 160.dp
     /** 入力欄を浮かせる影の高さ。 */
     val composerElevation = 6.dp
+    /** 会話の中の画像を浮かせる影の高さ。 */
+    val imageElevation = 3.dp
     val tabPillHeight = 32.dp
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
