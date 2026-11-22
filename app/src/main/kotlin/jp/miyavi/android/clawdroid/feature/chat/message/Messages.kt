@@ -74,9 +74,10 @@ fun UserMessage(
         message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
         if (text.isNotBlank()) {
+            // 利用者のメッセージの面はテーマの濃い色（OpenClaw なら赤み）。背景のオフホワイトと見分けやすくする
             Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.widthIn(max = Dimens.maxReadingWidth * USER_BUBBLE_MAX_FRACTION),
             ) {

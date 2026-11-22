@@ -350,3 +350,26 @@ internal object Parse {
     const val TOOL_DETAIL_MAX = 600
     const val TOOL_RESULT_MAX = 2_000
 }
+
+/**
+ * 画面に出す短いモデル名。`anthropic/claude-opus-5-5` → `Opus 5.5`、`openai/gpt-5.5` → `GPT 5.5`。
+ * 名前の読み取りに失敗したら、プロバイダを除いた id をそのまま返す。
+ */
+fun shortModelName(reference: String): String {
+    val id = reference.substringAfterLast('/').trim()
+    val words = id.removePrefix("claude-").split('-').filter(String::isNotBlank)
+    if (words.isEmpty()) return id
+    val nameWords = words.takeWhile { w -> w.firstOrNull()?.isDigit() != true }
+    val version = words.drop(nameWords.size).takeWhile { w -> w.all { it.isDigit() || it == '.' } }
+    if (nameWords.isEmpty()) return id
+    val rest = words.drop(nameWords.size + version.size)
+    fun word(w: String) = if (w.lowercase() in MODEL_ACRONYMS) w.uppercase() else w.replaceFirstChar(Char::uppercase)
+    return listOfNotNull(
+        nameWords.joinToString(" ", transform = ::word),
+        version.takeIf { it.isNotEmpty() }?.joinToString("."),
+        rest.takeIf { it.isNotEmpty() }?.joinToString(" ", transform = ::word),
+    ).joinToString(" ")
+}
+
+/** 大文字で書くモデル名の略語。 */
+private val MODEL_ACRONYMS = setOf("gpt", "glm", "oss")

@@ -89,8 +89,9 @@ private const val BLUR_RADIUS_FRACTION = 0.3f
 private val BLUR_RADIUS_MAX = 48.dp
 
 /**
- * 透過面の色付け。テーマカラーで色を付けるのはタイトルバーだけ（マスター指定 2026-11-22）。
- * それ以外は背景色、入力欄は読み書きの面の色（ライトで白）。
+ * 透過面の色付け。テーマカラーで色を付けてよいのは AppTitleBar だけ（AGENTS.md 2.10、マスター指定）。
+ * それ以外はすべて無彩色の面の色（ライト = surfaceContainerLowest、ダーク = surfaceContainerHighest）。
+ * `surface` は背景をテーマカラーへ寄せてあるので、ガラスの色には使わない。
  */
 enum class GlassTint { THEME, NEUTRAL, FIELD }
 
@@ -112,8 +113,7 @@ fun Modifier.hazeSurface(
     val colors = MaterialTheme.colorScheme
     val tintColor = when (tint) {
         GlassTint.THEME -> colors.primaryContainer
-        GlassTint.NEUTRAL -> colors.surface
-        GlassTint.FIELD -> sheetFieldColor()
+        GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
     }
     when (LocalSurfaceStyle.current) {
         SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor)
@@ -179,13 +179,14 @@ private fun Modifier.glassSurface(
             }
         }
         // 背景色は不透明な surface を敷く。透明だと、文字のない所で tint が消える
-    }.material3(containerColor = colors.surface, tint = glassTint)
+    }.material3(containerColor = tintColor, tint = glassTint)
     this.hazeGlass(input = HazeInput.Sources(hazeState), style = glassStyle)
 }
 
 /** 屈折のないぼかし（Haze Blur）。 */
 private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity, tintColor: Color): Modifier = composed {
-    val surface = MaterialTheme.colorScheme.surface
+    // 下地は面の色そのもの（タイトルバー以外にテーマカラーを混ぜない）
+    val surface = tintColor
     val radius = BLUR_RADIUS_MAX * BLUR_RADIUS_FRACTION
     val alpha = fixedOpacity.blur
     val style = remember(surface, tintColor, radius, alpha) {

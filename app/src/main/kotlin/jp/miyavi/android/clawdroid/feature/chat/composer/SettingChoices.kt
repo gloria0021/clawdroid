@@ -32,6 +32,7 @@ import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ModelCatalog
 import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
+import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
@@ -43,6 +44,7 @@ internal data class SettingOption(
     val value: String?,
     val selected: Boolean,
     val enabled: Boolean = true,
+    val icon: Int? = null,
 )
 
 /**
@@ -64,12 +66,13 @@ internal fun SettingIconRow(
     modifier: Modifier = Modifier,
 ) {
     val defaultLabel = stringResource(R.string.chat_setting_default)
-    val permissionLabel = stringResource((PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default).label)
+    val permissionChoice = PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default
+    val permissionLabel = stringResource(permissionChoice.label)
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
         listOf(
-            Triple(SessionSetting.MODEL, R.drawable.ic_huge_model, model?.substringAfterLast('/') ?: defaultLabel),
+            Triple(SessionSetting.MODEL, R.drawable.ic_huge_model, model?.let(::shortModelName) ?: defaultLabel),
             Triple(SessionSetting.EFFORT, R.drawable.ic_huge_effort, effort ?: defaultLabel),
-            Triple(SessionSetting.PERMISSIONS, R.drawable.ic_huge_permission, permissionLabel),
+            Triple(SessionSetting.PERMISSIONS, permissionChoice.icon, permissionLabel),
         ).forEach { (setting, icon, value) ->
             val enabled = when (setting) {
                 SessionSetting.MODEL -> availability.model
@@ -84,7 +87,9 @@ internal fun SettingIconRow(
                 options = if (agent == null) null else settingOptions(setting, agent, session, draftOptions, canSelectFull, catalog),
                 onOpen = { if (setting != SessionSetting.PERMISSIONS) onNeedCatalog() },
                 onSelect = { onSelect(setting, it) },
-                modifier = Modifier.weight(1f),
+                // 実行権限はアイコンだけ（ラベルは読み上げとメニューで分かる）
+                showValue = setting != SessionSetting.PERMISSIONS,
+                modifier = if (setting == SessionSetting.PERMISSIONS) Modifier else Modifier.weight(1f),
             )
         }
     }
@@ -99,6 +104,7 @@ private fun SettingIconButton(
     options: List<SettingOption>?,
     onOpen: () -> Unit,
     onSelect: (String?) -> Unit,
+    showValue: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -111,15 +117,16 @@ private fun SettingIconButton(
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.fillMaxWidth().heightIn(min = Dimens.minTouchTarget).semantics { contentDescription = cd },
+            modifier = (if (showValue) Modifier.fillMaxWidth() else Modifier.widthIn(min = Dimens.minTouchTarget))
+                .heightIn(min = Dimens.minTouchTarget).semantics { contentDescription = cd },
         ) {
             Row(
                 Modifier.padding(horizontal = Spacing.m),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s),
             ) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
-                Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(max = Dimens.settingMenuMaxWidth)) {
@@ -141,6 +148,7 @@ private fun SettingIconButton(
                                 }
                             }
                         },
+                        leadingIcon = option.icon?.let { icon -> { Icon(painterResource(icon), contentDescription = null) } },
                         trailingIcon = if (option.selected) ({ Icon(painterResource(R.drawable.ic_huge_check), contentDescription = null) }) else null,
                         enabled = option.enabled,
                         onClick = {
@@ -182,6 +190,7 @@ internal fun settingOptions(
                     value = choice.value,
                     selected = permission == choice.value,
                     enabled = choice != PermissionChoice.Full || canSelectFull,
+                    icon = choice.icon,
                 )
             }
         }
@@ -213,10 +222,11 @@ private fun SessionSetting.title(): Int = when (this) {
     SessionSetting.PERMISSIONS -> R.string.chat_setting_permissions
 }
 
-internal enum class PermissionChoice(val value: String?, val label: Int, val description: Int) {
-    Default(null, R.string.chat_setting_default, R.string.chat_permission_default_description),
-    ReadOnly("read-only", R.string.chat_permission_readonly, R.string.chat_permission_readonly_description),
-    Guarded("guarded", R.string.chat_permission_guarded, R.string.chat_permission_guarded_description),
-    Workspace("workspace", R.string.chat_permission_workspace, R.string.chat_permission_workspace_description),
-    Full("full", R.string.chat_permission_full, R.string.chat_permission_full_description),
+/** 実行権限。アイコンだけで見分けられるよう、段階ごとに別のアイコンを持つ。 */
+internal enum class PermissionChoice(val value: String?, val label: Int, val description: Int, val icon: Int) {
+    Default(null, R.string.chat_setting_default, R.string.chat_permission_default_description, R.drawable.ic_huge_perm_default),
+    ReadOnly("read-only", R.string.chat_permission_readonly, R.string.chat_permission_readonly_description, R.drawable.ic_huge_perm_readonly),
+    Guarded("guarded", R.string.chat_permission_guarded, R.string.chat_permission_guarded_description, R.drawable.ic_huge_perm_guarded),
+    Workspace("workspace", R.string.chat_permission_workspace, R.string.chat_permission_workspace_description, R.drawable.ic_huge_perm_workspace),
+    Full("full", R.string.chat_permission_full, R.string.chat_permission_full_description, R.drawable.ic_huge_perm_full),
 }

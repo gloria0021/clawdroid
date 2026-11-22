@@ -183,4 +183,16 @@
     <string name="usage_window_5h">5 hours</string>
     <string name="usage_window_week">Week</string>
     <string name="usage_window_day">Day</string>
+    <string name="chat_activity_tool">Running %1$s</string>
+    <string name="chat_phase_waiting">Waiting for a turn</string>
+    <string name="chat_phase_workspace">Preparing the workspace</string>
+    <string name="chat_phase_context">Preparing context</string>
+    <string name="chat_phase_starting">Starting the model</string>
+    <string-array name="chat_thinking_phrases">
+        <item>Thinking…</item>
+        <item>Riding the tide…</item>
+        <item>Sharpening claws…</item>
+        <item>Reading the charts…</item>
+        <item>Diving deep…</item>
+    </string-array>
 </resources>

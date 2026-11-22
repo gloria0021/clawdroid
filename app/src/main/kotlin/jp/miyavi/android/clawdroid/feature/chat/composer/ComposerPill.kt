@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import dev.chrisbanes.haze.HazeState
 import java.text.NumberFormat
 import jp.miyavi.android.clawdroid.R
+import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.FIELD_OPACITY
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
@@ -273,7 +274,7 @@ private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Un
         motion.defaultEffectsSpec(),
         label = "modelPillContent",
     )
-    val name = model?.substringAfterLast('/') ?: stringResource(R.string.chat_setting_default)
+    val name = model?.let(::shortModelName) ?: stringResource(R.string.chat_setting_default)
     val percent = contextFraction?.let { NumberFormat.getPercentInstance().format(it) }
     val cd = if (percent != null) stringResource(R.string.chat_model_pill_cd, name, percent) else name
     Surface(

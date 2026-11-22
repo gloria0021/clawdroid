@@ -34,7 +34,17 @@ data class ChatState(
     val error: String? = null,
     /** まだ会話に取り込まれていない送信（steer で受け付け待ち）。キャンセルできる。 */
     val pending: List<PendingInput> = emptyList(),
+    /** 今の実行が始まった時刻（考え中の経過時間に使う）。実行していなければ null。 */
+    val runStartedAt: Long? = null,
+    /** 今の実行の段階（status の phase、または実行中のツール名）。 */
+    val activity: RunActivity? = null,
 )
+
+/** 考え中の表示に出す、今していること。 */
+sealed interface RunActivity {
+    data class Phase(val phase: String) : RunActivity
+    data class Tool(val name: String) : RunActivity
+}
 
 /**
  * 受け付け待ちの送信。`local` は応答（ack）を待っている手元の送信、そうでなければ Gateway の pendingInputs（state = queued）。
@@ -133,10 +143,21 @@ class ChatSession(
                 // 履歴に取り込まれた送信と、Gateway が受け付け待ちにしている送信は手元の一覧から外す
                 val known = messages.mapNotNull { it.runId }.toSet() + queued.map { it.runId }
                 val localPending = current.pending.filter { it.local && it.runId !in known }
+                val running = inFlight != null || sessionInfo?.running == true
+                // 実行の始まりは、最後の利用者のメッセージの時刻（無ければ今）
+                val startedAt = when {
+                    !running -> null
+                    current.runStartedAt != null -> current.runStartedAt
+                    else -> messages.lastOrNull { it.role == ChatMessage.Role.USER }?.timestamp?.takeIf { ts ->
+                        messages.none { it.role == ChatMessage.Role.ASSISTANT && (it.timestamp ?: 0) > ts && it.runId == null }
+                    } ?: System.currentTimeMillis()
+                }
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
                     messages = messages,
                     pending = localPending + queued,
+                    runStartedAt = startedAt,
+                    activity = if (running) current.activity else null,
                     live = live,
                     running = inFlight != null || sessionInfo?.running == true,
                     loading = false,
@@ -162,6 +183,19 @@ class ChatSession(
         when (event.name) {
             "chat" -> onChatEvent(payload)
             "session.message" -> scheduleRefresh()
+            // ツールの実行の途中経過。今のツール名を出し、確定した行は履歴から取り直す
+            "session.tool" -> {
+                val data = payload.obj("data")
+                val name = listOf("name", "toolName", "tool").firstNotNullOfOrNull { data?.string(it) ?: payload.string(it) }
+                _state.update {
+                    it.copy(
+                        running = true,
+                        runStartedAt = it.runStartedAt ?: System.currentTimeMillis(),
+                        activity = name?.let(RunActivity::Tool) ?: it.activity,
+                    )
+                }
+                scheduleRefresh()
+            }
             "sessions.changed" -> {
                 val row = Parse.session(payload.obj("session")) ?: return
                 _state.update { it.copy(running = row.running || it.live != null) }
@@ -173,7 +207,13 @@ class ChatSession(
     private fun onChatEvent(payload: JsonObject) {
         val runId = payload.string("runId") ?: return
         when (payload.string("state")) {
-            "status" -> _state.update { it.copy(running = true) }
+            "status" -> _state.update {
+                it.copy(
+                    running = true,
+                    runStartedAt = it.runStartedAt ?: System.currentTimeMillis(),
+                    activity = payload.string("phase")?.let(RunActivity::Phase) ?: it.activity,
+                )
+            }
             "delta" -> _state.update { current ->
                 val snapshot = (payload["message"] as? JsonObject)?.let { Parse.contentParts(it["content"]) }
                     ?.filterIsInstance<MessagePart.Text>()?.joinToString("\n\n") { it.markdown }
@@ -184,12 +224,19 @@ class ChatSession(
                     payload.bool("replace") == true -> deltaText
                     else -> base + deltaText
                 }
-                current.copy(live = LiveRun(runId, text), running = true)
+                current.copy(
+                    live = LiveRun(runId, text),
+                    running = true,
+                    runStartedAt = current.runStartedAt ?: System.currentTimeMillis(),
+                    activity = null,
+                )
             }
             "final", "aborted", "error" -> {
                 _state.update {
                     it.copy(
                         running = false,
+                        runStartedAt = null,
+                        activity = null,
                         error = if (payload.string("state") == "error") payload.string("errorMessage") else it.error,
                     )
                 }
@@ -222,7 +269,7 @@ class ChatSession(
         )
         _state.update {
             if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true), error = null)
-            else it.copy(messages = it.messages + optimistic, running = true, error = null)
+            else it.copy(messages = it.messages + optimistic, running = true, runStartedAt = System.currentTimeMillis(), activity = null, error = null)
         }
         try {
             gateway.request("chat.send", buildJsonObject {

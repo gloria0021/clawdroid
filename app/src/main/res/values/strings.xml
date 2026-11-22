@@ -195,4 +195,16 @@
     <string name="usage_window_5h">5時間</string>
     <string name="usage_window_week">週間</string>
     <string name="usage_window_day">1日</string>
+    <string name="chat_activity_tool">%1$s を実行中</string>
+    <string name="chat_phase_waiting">順番を待っています</string>
+    <string name="chat_phase_workspace">作業場所を準備中</string>
+    <string name="chat_phase_context">文脈を整えています</string>
+    <string name="chat_phase_starting">モデルを起動中</string>
+    <string-array name="chat_thinking_phrases">
+        <item>考え中…</item>
+        <item>潮に乗って移動中…</item>
+        <item>爪を研いでいます…</item>
+        <item>海図を読んでいます…</item>
+        <item>深く潜っています…</item>
+    </string-array>
 </resources>

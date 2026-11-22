@@ -45,6 +45,13 @@ val DefaultCustomSeed = Color(0xFFFFFFFF)
 private const val TINT_WEIGHT_LIGHT = 0.18f
 private const val TINT_WEIGHT_DARK = 0.22f
 
+/**
+ * OpenClaw の背景の寄せ方（Gerbil の Suna と同じ考え方）。全体を赤くせず、背景は赤みのある落ち着いたオフホワイトにとどめ、
+ * 赤はアクセント（primary）と利用者のメッセージの面（primaryContainer）に回す。
+ */
+private const val OPENCLAW_TINT_WEIGHT_LIGHT = 0.06f
+private const val OPENCLAW_TINT_WEIGHT_DARK = 0.10f
+
 /** 補助の色に使うコントラスト（0 = 標準、0.5 = 中、1 = 高）。 */
 internal const val CUSTOM_SECONDARY_CONTRAST = 0.5
 
@@ -72,7 +79,12 @@ fun ClawdroidTheme(
 ) {
     val dark = settings.appearance.isDark(isSystemInDarkTheme())
     val base = baseScheme(settings.theme, settings.customSeedArgb, dark)
-    val scheme = remember(base, dark) { tintedScheme(base, dark) }
+    val weight = when {
+        settings.theme == AppTheme.OPENCLAW -> if (dark) OPENCLAW_TINT_WEIGHT_DARK else OPENCLAW_TINT_WEIGHT_LIGHT
+        dark -> TINT_WEIGHT_DARK
+        else -> TINT_WEIGHT_LIGHT
+    }
+    val scheme = remember(base, dark, weight) { tintedScheme(base, dark, weight) }
     CompositionLocalProvider(LocalSurfaceStyle provides settings.surfaceStyle) {
         MaterialTheme(
             colorScheme = scheme,
@@ -112,8 +124,11 @@ private fun baseScheme(theme: AppTheme, customSeedArgb: Int?, dark: Boolean): Co
 /**
  * 背景を primaryContainer へ少し寄せ、リンクの色を背景に対して十分なコントラストにする（Gerbil と同じ処理）。
  */
-internal fun tintedScheme(base: ColorScheme, dark: Boolean): ColorScheme {
-    val weight = if (dark) TINT_WEIGHT_DARK else TINT_WEIGHT_LIGHT
+internal fun tintedScheme(
+    base: ColorScheme,
+    dark: Boolean,
+    weight: Float = if (dark) TINT_WEIGHT_DARK else TINT_WEIGHT_LIGHT,
+): ColorScheme {
     val background = lerp(base.surface, base.primaryContainer, weight)
     return base.copy(
         surface = background,

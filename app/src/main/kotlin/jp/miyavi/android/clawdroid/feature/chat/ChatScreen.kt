@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import jp.miyavi.android.clawdroid.feature.chat.message.ThinkingIndicator
 import jp.miyavi.android.clawdroid.core.data.LocalInboundImages
 import jp.miyavi.android.clawdroid.core.data.InboundImageSource
 import jp.miyavi.android.clawdroid.core.data.InboundImageLoader
@@ -620,9 +621,19 @@ private fun MessageList(
                 item(key = "live-${live.runId}") {
                     LiveAssistantMessage(live.text, agent, Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth())
                 }
-            } else if (chat.running) {
-                item(key = "running") {
-                    Box(Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()) { LoadingIndicator(Modifier.size(Dimens.minTouchTarget)) }
+            }
+            // 実行中は、応答が流れていてもいなくても最後に考え中の表示（経過時間と今していること）
+            if (chat.running) {
+                item(key = "thinking") {
+                    ThinkingIndicator(
+                        startedAt = chat.runStartedAt,
+                        activity = chat.activity,
+                        modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth().animateItem(
+                            fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                            placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                            fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
+                        ),
+                    )
                 }
             }
         }

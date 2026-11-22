@@ -202,7 +202,7 @@
 - 透かし方は **ガラス**（既定。`haze-glass` ＋ `haze-glass-material3`）/ **ぼかし**（`haze-blur`）から選べるようにする
 - 実装は1ファイルの共通部品に集める（`Modifier.hazeSurface()` / `Modifier.sheetHazeSurface()` / 共通の TopAppBar）。Haze の API を画面から直接呼ばない
 - 透かす元の内容（リスト等）に `Modifier.hazeSource(hazeState)` を付け、`HazeState` は画面ごとに1つ持つ
-- 面の色は `colorScheme` から取る。テーマカラー（`primaryContainer`）で色を付けるのはタイトルバーだけ。入力欄は読み書きの面の色（ライト = `surfaceContainerLowest`、ダーク = `surfaceContainerHighest`）、それ以外は背景色（`surface`）。ぼかしの下地は背景色。文字のコントラストが WCAG AA を割らないようにする
+- **透過効果でテーマカラー（`primaryContainer`）の色を付けてよいのは AppTitleBar だけ**。それ以外のガラス風の面（入力欄・ピル・シート・メニュー・Snackbar・浮くボタン）は、すべて無彩色の面の色（ライト = `surfaceContainerLowest`、ダーク = `surfaceContainerHighest`）で透かす。`surface` は背景をテーマカラーへ寄せてあるので、ガラスの色・下地に使わない。ぼかしの下地も同じ面の色。文字のコントラストが WCAG AA を割らないようにする
 - 横いっぱいの帯（タイトルバー）は屈折させない。縁の屈折が端で下の内容を引き込み、透けて見えるため
 - ガラス風の面だけは、Haze が作る影・グラデーション・屈折を許可する。それ以外に影・グラデーションを足さない
 
@@ -220,6 +220,7 @@
 - 色・文字サイズ・余白の直書き
 - 利用者向け文言の直書き（`strings.xml` に置く）
 - `Card`、純黒の背景、ガラス風の面以外の影・グラデーション
+- AppTitleBar 以外の透過効果にテーマカラーで色を付けること
 - 異なるアイコンのスタイルを混ぜること、TopAppBar にアイコンを3つ以上置くこと
 
 ## 4. 見た目を変えたときの確認
