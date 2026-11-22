@@ -1,5 +1,8 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import jp.miyavi.android.clawdroid.core.data.PendingInput
+import androidx.compose.runtime.key
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
@@ -80,6 +83,8 @@ fun ComposerPill(
     model: String?,
     contextFraction: Float?,
     onOpenSession: () -> Unit,
+    pending: List<PendingInput>,
+    onCancelPending: (String) -> Unit,
     onTextChange: (String) -> Unit,
     onAttach: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
@@ -110,6 +115,16 @@ fun ComposerPill(
                                 modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape),
                             )
                         }
+                    }
+                }
+            }
+        }
+        // 受け付け待ちの送信（steer）。入力欄の上に積み、会話に取り込まれたら消える。取り消しはゴミ箱
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.padding(bottom = Spacing.xs)) {
+            pending.forEach { input ->
+                key(input.runId) {
+                    AnimatedVisibility(visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }, enter = expandEnter(), exit = shrinkExit()) {
+                        PendingInputRow(hazeState, input, onCancel = { onCancelPending(input.runId) })
                     }
                 }
             }
@@ -178,6 +193,36 @@ fun ComposerPill(
                         Icon(painterResource(R.drawable.ic_huge_send), contentDescription = stringResource(R.string.chat_send_cd))
                     }
                 }
+            }
+        }
+    }
+}
+
+/** 受け付け待ちの 1 行。ガラスの面に、待ちの目印・本文（1 行）・取り消し。 */
+@Composable
+private fun PendingInputRow(hazeState: HazeState, input: PendingInput, onCancel: () -> Unit) {
+    GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_huge_queue),
+                contentDescription = stringResource(R.string.chat_pending_label),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Spacing.l),
+            )
+            Text(
+                input.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onCancel) {
+                Icon(painterResource(R.drawable.ic_huge_delete), contentDescription = stringResource(R.string.chat_pending_cancel_cd))
             }
         }
     }

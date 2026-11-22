@@ -1,6 +1,5 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
-import jp.miyavi.android.clawdroid.core.data.PendingInput
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import android.content.ClipData
@@ -338,6 +337,8 @@ fun ChatContent(
                                 model = model,
                                 contextFraction = state.currentSession?.contextFraction,
                                 onOpenSession = { showSessionSheet = true },
+                                pending = state.chat?.pending.orEmpty(),
+                                onCancelPending = actions.cancelPending,
                                 onTextChange = actions.textChange,
                                 onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                 onRemoveImage = actions.removeImage,
@@ -374,7 +375,6 @@ fun ChatContent(
                             onOpenImage = { openedImage = it },
                             onOpenVideo = { openedVideo = it },
                             onRetry = actions.retryHistory,
-                            onCancelPending = actions.cancelPending,
                             // タイトルバーの折りたたみは会話の一覧のスクロールだけに付いていく（入力欄のスクロールは届かない）
                             modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection).hazeSource(hazeState),
                         )
@@ -501,7 +501,6 @@ private fun MessageList(
     onOpenImage: (MessagePart.Image) -> Unit,
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
-    onCancelPending: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val chat = state.chat
@@ -607,41 +606,9 @@ private fun MessageList(
                     Box(Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()) { LoadingIndicator(Modifier.size(Dimens.minTouchTarget)) }
                 }
             }
-            // まだ会話に取り込まれていない送信（steer の受け付け待ち）。取り消せる
-            items(pending, key = { "pending-${it.runId}" }) { input ->
-                PendingInputRow(input, onCancel = { onCancelPending(input.runId) }, modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth().animateItem(
-                    fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-                    placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                    fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
-                ))
-            }
         }
     }
 }
-
-/** 受け付け待ちの送信。右寄せの淡い面に本文と「受け付け待ち」、横に取り消し。 */
-@Composable
-private fun PendingInputRow(input: PendingInput, onCancel: () -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onCancel) {
-            Icon(painterResource(R.drawable.ic_huge_close), contentDescription = stringResource(R.string.chat_pending_cancel_cd))
-        }
-        Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = PENDING_ALPHA),
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.weight(1f, fill = false),
-        ) {
-            Column(Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s)) {
-                Text(input.text, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                Text(stringResource(R.string.chat_pending_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-/** 受け付け待ちの面の不透明度（確定したメッセージより控えめに。AGENTS.md 2.2: 無効・折りたたみは 0.6 まで）。 */
-private const val PENDING_ALPHA = 0.6f
 
 /** 上へスクロールしているときだけ出る「最新へ」のボタン。 */
 @Composable
