@@ -230,7 +230,11 @@ internal object Parse {
             role = role,
             parts = parts,
             timestamp = obj.long("timestamp"),
-            runId = (meta?.string("runId") ?: obj.string("runId"))?.removeSuffix(":user"),
+            // 利用者のメッセージは送信の idempotencyKey が run の識別（受け付け待ちとの突き合わせに使う）
+            runId = (
+                meta?.string("runId")
+                    ?: if (role == ChatMessage.Role.USER) meta?.string("idempotencyKey") ?: obj.string("idempotencyKey") else obj.string("runId")
+                )?.removeSuffix(":user"),
             isError = obj.bool("isError") == true || obj.string("stopReason") in setOf("error", "aborted"),
             truncated = meta?.bool("truncated") == true,
         )

@@ -139,7 +139,8 @@ private fun Modifier.glassSurface(
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val darkGlass = colors.surface.luminance() < 0.5f
-    val glassTint = colors.surface.copy(alpha = fixedOpacity.glass)
+    // ガラスの色はテーマカラー（AGENTS.md 2.10）。primaryContainer はライトで淡く・ダークで濃いので、onSurface の文字の読みやすさを保てる
+    val glassTint = colors.primaryContainer.copy(alpha = fixedOpacity.glass)
     val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else if (darkGlass) 0.28f else 0.16f)
     val glassStyle = remember(shape, rimShadow, rim) {
         GlassStyle.clear.then {
@@ -167,13 +168,15 @@ private fun Modifier.glassSurface(
 /** 屈折のないぼかし（Haze Blur）。 */
 private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity): Modifier = composed {
     val surface = MaterialTheme.colorScheme.surface
+    val theme = MaterialTheme.colorScheme.primaryContainer
     val radius = BLUR_RADIUS_MAX * BLUR_RADIUS_FRACTION
     val alpha = fixedOpacity.blur
-    val style = remember(surface, radius, alpha) {
+    val style = remember(surface, theme, radius, alpha) {
         HazeBlurStyle {
             blurRadius(radius)
+            // 下地は背景色、色付けはテーマカラー（AGENTS.md 2.10）
             backgroundColor(surface)
-            colorEffects(listOf(HazeColorEffect.tint(surface.copy(alpha = alpha))))
+            colorEffects(listOf(HazeColorEffect.tint(theme.copy(alpha = alpha))))
         }
     }
     hazeBlur(input = HazeInput.Sources(hazeState), style = style)

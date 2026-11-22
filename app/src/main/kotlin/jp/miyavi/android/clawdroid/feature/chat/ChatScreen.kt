@@ -1,5 +1,8 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import jp.miyavi.android.clawdroid.core.data.PendingInput
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import android.content.ClipData
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -154,6 +157,7 @@ fun ChatScreen(viewModel: ChatViewModel, navigation: ChatNavigation, timeLabel: 
             send = viewModel::send,
             stop = viewModel::abort,
             retryHistory = viewModel::retryHistory,
+            cancelPending = viewModel::cancelPending,
             loadUsage = viewModel::loadProviderUsage,
             loadModels = viewModel::loadModelCatalog,
             updateSetting = viewModel::updateSessionSetting,
@@ -177,6 +181,7 @@ data class ChatActions(
     val send: () -> Unit,
     val stop: () -> Unit,
     val retryHistory: () -> Unit,
+    val cancelPending: (String) -> Unit,
     val loadUsage: suspend () -> List<ProviderUsage>,
     val loadModels: suspend (String, String?) -> ModelCatalog?,
     val updateSetting: (SessionSetting, String?) -> Unit,
@@ -300,7 +305,6 @@ fun ChatContent(
                 snapAnimationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
             )
             Scaffold(
-                modifier = Modifier.nestedScroll(titleBarScroll.nestedScrollConnection),
                 containerColor = MaterialTheme.colorScheme.surface,
                 topBar = {
                     Column {
@@ -370,7 +374,9 @@ fun ChatContent(
                             onOpenImage = { openedImage = it },
                             onOpenVideo = { openedVideo = it },
                             onRetry = actions.retryHistory,
-                            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                            onCancelPending = actions.cancelPending,
+                            // タイトルバーの折りたたみは会話の一覧のスクロールだけに付いていく（入力欄のスクロールは届かない）
+                            modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection).hazeSource(hazeState),
                         )
                     }
                     Box(Modifier.align(Alignment.BottomCenter)) { ScrollToBottomButton(listState, hazeState) }
@@ -495,6 +501,7 @@ private fun MessageList(
     onOpenImage: (MessagePart.Image) -> Unit,
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
+    onCancelPending: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val chat = state.chat
@@ -518,14 +525,27 @@ private fun MessageList(
             if (tools.isNotEmpty()) add(tools)
         }
     }
-    // 新しい行が増えたとき、一番下にいたなら一番下に付いていく（上を読んでいる最中は動かさない）
-    val atBottom by remember { androidx.compose.runtime.derivedStateOf { !listState.canScrollForward } }
     val live = chat?.live
-    LaunchedEffect(messages.size, live?.text?.length, state.currentSessionKey) {
-        if (atBottom || listState.layoutInfo.totalItemsCount == 0) {
-            val last = listState.layoutInfo.totalItemsCount - 1
-            if (last >= 0) listState.scrollToItem(last, Int.MAX_VALUE / 2)
+    val pending = chat?.pending.orEmpty()
+    // 一番下に付いていくか。利用者がスクロールを終えたときに「一番下にいるか」で決め直す（上を読んでいる最中は動かさない）
+    var stickToBottom by remember(state.currentSessionKey) { mutableStateOf(true) }
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(listState, state.currentSessionKey) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) stickToBottom = !listState.canScrollForward
         }
+    }
+    suspend fun followBottom() {
+        if (!stickToBottom || dragged) return
+        withFrameNanos { } // 新しい行の配置を待つ
+        val last = listState.layoutInfo.totalItemsCount - 1
+        if (last >= 0) listState.scrollToItem(last, Int.MAX_VALUE / 2)
+    }
+    // 中身が増えた・応答が伸びた・受け付け待ちが変わったとき
+    LaunchedEffect(rows.size, live?.text?.length, pending.size, chat?.running, state.currentSessionKey) { followBottom() }
+    // 入力欄が伸びる・キーボードが出るなどで表示の高さが変わったとき（会話の表示は縮み、最新の行を見せたままにする）
+    LaunchedEffect(listState, state.currentSessionKey) {
+        snapshotFlow { listState.layoutInfo.viewportSize.height }.distinctUntilChanged().collect { followBottom() }
     }
     when {
         state.currentSessionKey == null || (chat != null && !chat.loading && messages.isEmpty() && live == null) -> {
@@ -587,9 +607,41 @@ private fun MessageList(
                     Box(Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()) { LoadingIndicator(Modifier.size(Dimens.minTouchTarget)) }
                 }
             }
+            // まだ会話に取り込まれていない送信（steer の受け付け待ち）。取り消せる
+            items(pending, key = { "pending-${it.runId}" }) { input ->
+                PendingInputRow(input, onCancel = { onCancelPending(input.runId) }, modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth().animateItem(
+                    fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                    placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                    fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
+                ))
+            }
         }
     }
 }
+
+/** 受け付け待ちの送信。右寄せの淡い面に本文と「受け付け待ち」、横に取り消し。 */
+@Composable
+private fun PendingInputRow(input: PendingInput, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onCancel) {
+            Icon(painterResource(R.drawable.ic_huge_close), contentDescription = stringResource(R.string.chat_pending_cancel_cd))
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = PENDING_ALPHA),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.weight(1f, fill = false),
+        ) {
+            Column(Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s)) {
+                Text(input.text, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.chat_pending_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** 受け付け待ちの面の不透明度（確定したメッセージより控えめに。AGENTS.md 2.2: 無効・折りたたみは 0.6 まで）。 */
+private const val PENDING_ALPHA = 0.6f
 
 /** 上へスクロールしているときだけ出る「最新へ」のボタン。 */
 @Composable

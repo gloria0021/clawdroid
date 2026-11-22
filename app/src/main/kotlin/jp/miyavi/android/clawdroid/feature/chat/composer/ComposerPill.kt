@@ -37,7 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,7 +67,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.rememberBase64Bitmap
 /**
  * 画面下部に浮くガラスの入力欄（AGENTS.md 2.7）。上に入力、下の行に 添付 ｜ モデルのピル ｜ 送信。
  * モデルのピルはコンテキストの消費で色が変わり、押すとセッションのシート（設定と使用量）を開く。
- * 入力が空のあいだは送信の位置に音声入力、生成中は停止を出す（FR-022・029）。
+ * 入力が空のあいだは送信の位置に音声入力（生成中は停止）。生成中でも入力があれば送れる（FR-022・029）。
  */
 @Composable
 fun ComposerPill(
@@ -114,6 +119,7 @@ fun ComposerPill(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = Dimens.composerMaxHeight)
+                    .nestedScroll(ConsumeRemainingScroll)
                     .padding(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = Spacing.xs),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -150,7 +156,8 @@ fun ComposerPill(
                 ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
                 when {
-                    running -> FilledIconButton(onClick = onStop) {
+                    // 実行中でも入力があれば送れる（steer で差し込む）。入力が空のときだけ停止を出す
+                    running && !canSend -> FilledIconButton(onClick = onStop) {
                         Icon(painterResource(R.drawable.ic_huge_stop), contentDescription = stringResource(R.string.chat_stop_cd))
                     }
                     !canSend && voice.available -> {
@@ -174,6 +181,12 @@ fun ComposerPill(
             }
         }
     }
+}
+
+/** 入力欄の中で余ったスクロールを外へ渡さない（長文のスクロールで会話が動かないように）。 */
+private object ConsumeRemainingScroll : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = available
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = available
 }
 
 /** コンテキストの消費の段階。 */

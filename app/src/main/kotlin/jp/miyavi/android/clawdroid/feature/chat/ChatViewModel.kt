@@ -308,19 +308,23 @@ class ChatViewModel(
         c.copy(text = if (c.text.isBlank()) text else c.text.trimEnd() + " " + text)
     }
 
+    /**
+     * 送信。前の送信の応答を待たずに次々送れる（実行中は steer で差し込む）。入力欄はすぐ空にする。
+     */
     fun send() {
         val composer = _composer.value
         val text = composer.text.trim()
-        if (composer.sending || composer.updatingSettings || (text.isEmpty() && composer.images.isEmpty())) return
+        if (composer.updatingSettings || (text.isEmpty() && composer.images.isEmpty())) return
         val agentId = selectedAgentId.value ?: return
         val idempotencyKey = GatewayClient.newIdempotencyKey()
         val draft = draftKey()
-        _composer.value = ComposerState(sending = true)
+        val chat = currentChat.value
+        // 新規チャットは最初の 1 通でセッションを作るので、作り終わるまでは次を送らない
+        if (chat == null && composer.sending) return
+        _composer.value = ComposerState(sending = chat == null, sessionOptions = if (chat == null) composer.sessionOptions else emptyMap())
         viewModelScope.launch {
             try {
-                val chat = currentChat.value
                 if (chat == null) {
-                    // 新規チャット: 最初のメッセージと一緒にセッションを作る（US3）
                     val key = sessions.create(
                         agentId, cwd = null, message = text, idempotencyKey = idempotencyKey,
                         options = composer.sessionOptions,
@@ -335,11 +339,19 @@ class ChatViewModel(
                 drafts.delete(draft)
                 _composer.update { it.copy(sending = false) }
             } catch (e: Exception) {
-                // 失敗したら入力を戻す
-                _composer.value = composer.copy(sending = false)
+                // 失敗したら、入力欄が空のときだけ戻す（あとから書いた文を上書きしない）
+                _composer.update { current ->
+                    if (current.text.isBlank() && current.images.isEmpty()) composer.copy(sending = false) else current.copy(sending = false)
+                }
                 _events.tryEmit(ChatEvent.SendFailed)
             }
         }
+    }
+
+    /** 受け付け待ちの送信を取り消す。 */
+    fun cancelPending(runId: String) {
+        val chat = currentChat.value ?: return
+        viewModelScope.launch { runCatching { chat.cancelPending(runId) }.onFailure { _events.tryEmit(ChatEvent.Error(it.message)) } }
     }
 
     fun abort() {

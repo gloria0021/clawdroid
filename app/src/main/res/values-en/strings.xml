@@ -178,4 +178,6 @@
     <string name="chat_permission_full_description">Run without routine approval prompts, subject to host and tool policy.</string>
     <string name="chat_permission_button">Execution permissions (%1$s)</string>
     <string name="chat_model_pill_cd">%1$s, %2$s of context used. Opens settings and usage</string>
+    <string name="chat_pending_label">Waiting to be picked up</string>
+    <string name="chat_pending_cancel_cd">Cancel this message</string>
 </resources>

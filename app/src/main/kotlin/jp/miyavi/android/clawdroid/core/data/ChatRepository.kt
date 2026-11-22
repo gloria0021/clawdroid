@@ -32,7 +32,15 @@ data class ChatState(
     val running: Boolean = false,
     val loading: Boolean = true,
     val error: String? = null,
+    /** まだ会話に取り込まれていない送信（steer で受け付け待ち）。キャンセルできる。 */
+    val pending: List<PendingInput> = emptyList(),
 )
+
+/**
+ * 受け付け待ちの送信。`local` は応答（ack）を待っている手元の送信、そうでなければ Gateway の pendingInputs（state = queued）。
+ * `runId` は chat.send の idempotencyKey と同じで、キャンセル（chat.abort + discardPendingInput）に使う。
+ */
+data class PendingInput(val runId: String, val text: String, val local: Boolean)
 
 /** 送る画像（Base64 にしたもの）。 */
 data class OutgoingImage(val mimeType: String, val base64: String, val fileName: String?)
@@ -106,6 +114,15 @@ class ChatSession(
                 .filter { it.parts.isNotEmpty() }
             val inFlight = root?.obj("inFlightRun")
             val sessionInfo = Parse.session(root?.obj("sessionInfo"))
+            val queued = root?.obj("pendingInputs")?.array("items").orEmpty().mapNotNull { el ->
+                val item = el as? JsonObject ?: return@mapNotNull null
+                val runId = item.string("runId")?.removeSuffix(":user") ?: return@mapNotNull null
+                if (item.string("state") != "queued") return@mapNotNull null
+                val text = (item["message"] as? JsonObject)?.let { Parse.contentParts(it["content"]) }
+                    ?.filterIsInstance<MessagePart.Text>()?.joinToString("\n") { it.markdown }
+                    ?: (item["message"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                PendingInput(runId, text.orEmpty(), local = false)
+            }
             _state.update { current ->
                 // 生成中の応答は、手元の delta の方が新しければそれを残す
                 val live = inFlight?.string("runId")?.let { runId ->
@@ -113,9 +130,13 @@ class ChatSession(
                     val local = current.live?.takeIf { it.runId == runId }?.text.orEmpty()
                     LiveRun(runId, if (local.length > fetched.length) local else fetched)
                 }
+                // 履歴に取り込まれた送信と、Gateway が受け付け待ちにしている送信は手元の一覧から外す
+                val known = messages.mapNotNull { it.runId }.toSet() + queued.map { it.runId }
+                val localPending = current.pending.filter { it.local && it.runId !in known }
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
                     messages = messages,
+                    pending = localPending + queued,
                     live = live,
                     running = inFlight != null || sessionInfo?.running == true,
                     loading = false,
@@ -180,8 +201,13 @@ class ChatSession(
         }
     }
 
-    /** 送信。利用者のメッセージはすぐ会話に加え（FR-021）、確定は履歴の取り直しで行う。 */
+    /**
+     * 送信。待たずに次々送れる（steer: 実行中なら今の実行に差し込み、止まっていれば新しく始める）。
+     * 実行中に送ったものは「受け付け待ち」に出し、会話に取り込まれるまでキャンセルできる。
+     * 止まっているときは利用者のメッセージをすぐ会話に加える（FR-021）。確定は履歴の取り直しで行う。
+     */
     suspend fun send(text: String, images: List<OutgoingImage>, idempotencyKey: String) {
+        val queuedBehindRun = _state.value.running
         val optimistic = ChatMessage(
             id = "local-$idempotencyKey",
             role = ChatMessage.Role.USER,
@@ -190,17 +216,21 @@ class ChatSession(
                 images.forEach { add(MessagePart.Image(null, it.base64, it.mimeType)) }
             },
             timestamp = System.currentTimeMillis(),
-            runId = null,
+            runId = idempotencyKey,
             isError = false,
             truncated = false,
         )
-        _state.update { it.copy(messages = it.messages + optimistic, running = true, error = null) }
+        _state.update {
+            if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true), error = null)
+            else it.copy(messages = it.messages + optimistic, running = true, error = null)
+        }
         try {
             gateway.request("chat.send", buildJsonObject {
                 put("sessionKey", sessionKey)
                 put("agentId", agentId)
                 put("message", text)
                 put("idempotencyKey", idempotencyKey)
+                put("queueMode", "steer")
                 if (images.isNotEmpty()) {
                     put("attachments", buildJsonArray {
                         images.forEach { img ->
@@ -214,9 +244,32 @@ class ChatSession(
                     })
                 }
             })
+            if (queuedBehindRun) scheduleRefresh()
         } catch (e: Exception) {
-            _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == optimistic.id }, running = false, error = e.message) }
+            _state.update { s ->
+                s.copy(
+                    messages = s.messages.filterNot { it.id == optimistic.id },
+                    pending = s.pending.filterNot { it.runId == idempotencyKey },
+                    running = if (queuedBehindRun) s.running else false,
+                    error = e.message,
+                )
+            }
             throw e
+        }
+    }
+
+    /** 受け付け待ちの送信を取り消す（Control UI と同じく chat.abort に discardPendingInput を付ける）。 */
+    suspend fun cancelPending(runId: String) {
+        _state.update { s -> s.copy(pending = s.pending.filterNot { it.runId == runId }) }
+        try {
+            gateway.request("chat.abort", buildJsonObject {
+                put("sessionKey", sessionKey)
+                put("agentId", agentId)
+                put("runId", runId)
+                put("discardPendingInput", true)
+            })
+        } finally {
+            refreshHistory()
         }
     }
 

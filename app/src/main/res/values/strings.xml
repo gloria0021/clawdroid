@@ -190,4 +190,6 @@
     <string name="chat_permission_full_description">通常の承認を省略します。ホストとツールのポリシーは適用されます。</string>
     <string name="chat_permission_button">実行権限（%1$s）</string>
     <string name="chat_model_pill_cd">%1$s、コンテキスト %2$s 使用。押すと設定と使用量を開きます</string>
+    <string name="chat_pending_label">受け付け待ち</string>
+    <string name="chat_pending_cancel_cd">この送信を取り消す</string>
 </resources>
