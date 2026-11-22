@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.lerp
 import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
@@ -136,7 +137,13 @@ fun ComposerPill(
             }
         }
         // 入力欄は白い面（色付けしない）
-        GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth(), fixedOpacity = FIELD_OPACITY, tint = GlassTint.FIELD) {
+        GlassPanel(
+            hazeState = hazeState,
+            // 影で少し浮かせて立体に（マスター指定。AGENTS.md 2.5 の例外）
+            modifier = Modifier.fillMaxWidth().shadow(Dimens.composerElevation, MaterialTheme.shapes.extraLarge),
+            fixedOpacity = FIELD_OPACITY,
+            tint = GlassTint.FIELD,
+        ) {
             Box(
                 Modifier
                     .fillMaxWidth()

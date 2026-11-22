@@ -23,6 +23,8 @@ object Dimens {
     val composerMaxWidth = 720.dp
     /** 入力欄が伸びる上限の行数ぶんの高さ。 */
     val composerMaxHeight = 160.dp
+    /** 入力欄を浮かせる影の高さ。 */
+    val composerElevation = 6.dp
     val tabPillHeight = 32.dp
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
