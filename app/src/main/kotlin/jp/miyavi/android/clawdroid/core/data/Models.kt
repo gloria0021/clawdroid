@@ -423,7 +423,8 @@ fun providerBrand(ids: List<String>, name: String?): ProviderBrand? {
         any("deepseek") -> ProviderBrand.DEEPSEEK
         any("xai", "grok") -> ProviderBrand.GROK
         any("mistral") -> ProviderBrand.MISTRAL
-        any("meta", "llama") -> ProviderBrand.META
+        // ollama は llama を含むので、llama は先頭一致だけ
+        any("meta") || keys.any { it.startsWith("llama") } -> ProviderBrand.META
         any("perplexity") -> ProviderBrand.PERPLEXITY
         any("qwen", "alibaba", "dashscope") -> ProviderBrand.QWEN
         else -> null
