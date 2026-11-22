@@ -3,40 +3,40 @@ package jp.miyavi.android.clawdroid.feature.chat.sidebar
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,108 +52,123 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.SessionListState
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
+import jp.miyavi.android.clawdroid.core.designsystem.GlassPill
+import jp.miyavi.android.clawdroid.core.designsystem.PillTabs
+import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.motionItem
 import kotlinx.coroutines.launch
 
 /**
- * サイドバー。上部にエージェントのタブ、その下にエージェントごとのセッション一覧（Pager の 1 ページ＝1 エージェント）。
- * タブの選択面と一覧が同じ位置の値（PagerState）に追従するので、タップでもスワイプでも同じ動きになる（research R7）。
+ * 全画面のサイドパネル（Gemini 型）。上から 新しいセッション・自動化・セッション履歴。
+ * 下部にエージェントの数だけピル型のタブが浮き、切り替えるとセッション履歴が切り替わる（FR-010・011）。
+ * 履歴は Pager の 1 ページ＝1 エージェントで、タブの選択面とページが同じ値（PagerState）に追従する。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SidebarContent(
+fun SidePanel(
     agents: List<Agent>,
     pagerState: PagerState,
     sessionsByAgent: Map<String, SessionListState>,
     selectedSessionKey: String?,
     timeLabel: (Long) -> String,
+    onClose: () -> Unit,
+    onNewSession: () -> Unit,
     onSelectSession: (SessionSummary) -> Unit,
     onRename: (SessionSummary, String) -> Unit,
     onArchive: (SessionSummary, Boolean) -> Unit,
     onOpenAutomations: () -> Unit,
-    onOpenTerminal: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    Column(modifier.fillMaxHeight().windowInsetsPadding(WindowInsets.statusBars)) {
-        if (agents.isNotEmpty()) {
-            PrimaryScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage.coerceIn(0, agents.lastIndex),
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                edgePadding = Spacing.l,
-                divider = {},
-                indicator = {
-                    // 下線の代わりに、選んだタブの文字の後ろへピル（secondaryContainer）を敷き、ページの位置に合わせて滑らせる
-                    Box(
-                        Modifier
-                            .tabIndicatorOffset(pagerState.currentPage.coerceIn(0, agents.lastIndex), matchContentSize = false)
-                            .fillMaxHeight()
-                            .wrapContentHeight(Alignment.CenterVertically)
-                            .padding(horizontal = Spacing.xs)
-                            .height(Dimens.tabPillHeight)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+    val hazeState = rememberHazeState()
+    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    ProvideScreenHaze(hazeState) {
+        Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                Column(Modifier.fillMaxSize().widthIn(max = Dimens.maxReadingWidth).windowInsetsPadding(WindowInsets.statusBars)) {
+                    // 見出しの行: アプリ名と、設定・閉じる（アイコンは 2 つまで。AGENTS.md 2.6）
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.xs, top = Spacing.s),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(painterResource(R.drawable.ic_huge_settings), contentDescription = stringResource(R.string.sidebar_settings))
+                        }
+                        IconButton(onClick = onClose) {
+                            Icon(painterResource(R.drawable.ic_huge_close), contentDescription = stringResource(R.string.panel_close_cd))
+                        }
+                    }
+                    PanelAction(R.drawable.ic_huge_new_chat, R.string.panel_new_session, onNewSession)
+                    PanelAction(R.drawable.ic_huge_automation, R.string.sidebar_automations, onOpenAutomations)
+                    Text(
+                        stringResource(R.string.panel_history),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = Spacing.l, top = Spacing.l, bottom = Spacing.xs).semantics { heading() },
                     )
-                },
-            ) {
-                agents.forEachIndexed { index, agent ->
-                    val selected = pagerState.currentPage == index
-                    Tab(
-                        selected = selected,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                        selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        text = {
-                            Text(
-                                listOfNotNull(agent.emoji, agent.name).joinToString(" "),
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f).fillMaxWidth().hazeSource(hazeState),
+                        key = { agents.getOrNull(it)?.id ?: it },
+                        beyondViewportPageCount = 1,
+                    ) { page ->
+                        val agent = agents.getOrNull(page) ?: return@HorizontalPager
+                        SessionList(
+                            state = sessionsByAgent[agent.id] ?: SessionListState(),
+                            selectedSessionKey = selectedSessionKey,
+                            timeLabel = timeLabel,
+                            contentPadding = PaddingValues(bottom = bottomInset + Dimens.minTouchTarget + Spacing.xxl),
+                            onSelect = onSelectSession,
+                            onRename = onRename,
+                            onArchive = onArchive,
+                        )
+                    }
+                }
+                // 下部に浮くエージェントのピル型タブ（AGENTS.md 2.7: 画面下部に浮くガラス風のピル型タブ）
+                if (agents.size > 1) {
+                    GlassPill(
+                        hazeState = hazeState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .padding(horizontal = Spacing.l, vertical = Spacing.l),
+                    ) {
+                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            PillTabs(
+                                tabs = agents.map { it.id },
+                                selected = agents.getOrNull(pagerState.currentPage)?.id ?: agents.first().id,
+                                onSelect = { id ->
+                                    val index = agents.indexOfFirst { it.id == id }
+                                    if (index >= 0) scope.launch { pagerState.animateScrollToPage(index) }
+                                },
+                                label = { id -> agents.first { it.id == id }.let { a -> listOfNotNull(a.emoji, a.name).joinToString(" ") } },
+                                tabHorizontalPadding = Spacing.l,
                             )
-                        },
-                    )
+                        }
+                    }
                 }
             }
-        }
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            key = { agents.getOrNull(it)?.id ?: it },
-            beyondViewportPageCount = 1,
-        ) { page ->
-            val agent = agents.getOrNull(page) ?: return@HorizontalPager
-            SessionList(
-                state = sessionsByAgent[agent.id] ?: SessionListState(),
-                selectedSessionKey = selectedSessionKey,
-                timeLabel = timeLabel,
-                onSelect = onSelectSession,
-                onRename = onRename,
-                onArchive = onArchive,
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-            SidebarAction(R.drawable.ic_huge_automation, R.string.sidebar_automations, onOpenAutomations)
-            SidebarAction(R.drawable.ic_huge_terminal, R.string.sidebar_terminal, onOpenTerminal)
-            SidebarAction(R.drawable.ic_huge_settings, R.string.sidebar_settings, onOpenSettings)
         }
     }
 }
 
 @Composable
-private fun SidebarAction(icon: Int, label: Int, onClick: () -> Unit) {
+private fun PanelAction(icon: Int, label: Int, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(stringResource(label), style = MaterialTheme.typography.titleSmall) },
+        headlineContent = { Text(stringResource(label), style = MaterialTheme.typography.titleMedium) },
         leadingContent = { Icon(painterResource(icon), contentDescription = null) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.combinedClickable(onClick = onClick),
@@ -166,6 +181,7 @@ private fun SessionList(
     state: SessionListState,
     selectedSessionKey: String?,
     timeLabel: (Long) -> String,
+    contentPadding: PaddingValues,
     onSelect: (SessionSummary) -> Unit,
     onRename: (SessionSummary, String) -> Unit,
     onArchive: (SessionSummary, Boolean) -> Unit,
@@ -186,7 +202,7 @@ private fun SessionList(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        else -> LazyColumn(Modifier.fillMaxSize()) {
+        else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             items(state.sessions, key = { it.key }) { session ->
                 SessionItem(
                     session = session,

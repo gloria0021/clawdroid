@@ -148,4 +148,7 @@
     <string name="files_title">ファイル</string>
     <string name="terminal_title">ターミナル</string>
     <string name="automations_title">自動化</string>
+    <string name="panel_new_session">新しいセッション</string>
+    <string name="panel_history">セッション履歴</string>
+    <string name="panel_close_cd">パネルを閉じる</string>
 </resources>

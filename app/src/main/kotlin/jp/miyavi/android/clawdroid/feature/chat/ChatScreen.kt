@@ -42,7 +42,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
@@ -91,7 +90,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
 import jp.miyavi.android.clawdroid.feature.chat.message.LiveAssistantMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.ToolResultMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.UserMessage
-import jp.miyavi.android.clawdroid.feature.chat.sidebar.SidebarContent
+import jp.miyavi.android.clawdroid.feature.chat.sidebar.SidePanel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -217,28 +216,27 @@ fun ChatContent(
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet(
-                    drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    windowInsets = WindowInsets(0.dp),
-                    modifier = Modifier.widthIn(max = Dimens.sidebarWidth),
-                ) {
-                    SidebarContent(
-                        agents = agents,
-                        pagerState = pagerState,
-                        sessionsByAgent = state.sessionsByAgent,
-                        selectedSessionKey = state.currentSessionKey,
-                        timeLabel = timeLabel,
-                        onSelectSession = { session ->
-                            actions.selectSession(session)
-                            scope.launch { drawerState.close() }
-                        },
-                        onRename = actions.rename,
-                        onArchive = actions.archive,
-                        onOpenAutomations = { scope.launch { drawerState.close() }; navigation.openAutomations() },
-                        onOpenTerminal = { scope.launch { drawerState.close() }; navigation.openTerminal(state.currentSessionKey) },
-                        onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
-                    )
-                }
+                // 全画面のサイドパネル（Gemini 型）。開くと画面いっぱいまで広がる
+                SidePanel(
+                    agents = agents,
+                    pagerState = pagerState,
+                    sessionsByAgent = state.sessionsByAgent,
+                    selectedSessionKey = state.currentSessionKey,
+                    timeLabel = timeLabel,
+                    onClose = { scope.launch { drawerState.close() } },
+                    onNewSession = {
+                        actions.newChat()
+                        scope.launch { drawerState.close() }
+                    },
+                    onSelectSession = { session ->
+                        actions.selectSession(session)
+                        scope.launch { drawerState.close() }
+                    },
+                    onRename = actions.rename,
+                    onArchive = actions.archive,
+                    onOpenAutomations = { scope.launch { drawerState.close() }; navigation.openAutomations() },
+                    onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
+                )
             },
         ) {
             Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {

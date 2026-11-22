@@ -135,4 +135,7 @@
     <string name="files_title">Files</string>
     <string name="terminal_title">Terminal</string>
     <string name="automations_title">Automations</string>
+    <string name="panel_new_session">New session</string>
+    <string name="panel_history">Session history</string>
+    <string name="panel_close_cd">Close panel</string>
 </resources>
