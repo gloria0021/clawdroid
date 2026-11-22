@@ -82,7 +82,13 @@ data class ModelCatalog(val models: List<ModelChoice> = emptyList(), val canRese
     }
 }
 
-data class ProviderUsage(val name: String, val windows: List<UsageWindow>, val plan: String? = null)
+data class ProviderUsage(
+    val name: String,
+    val windows: List<UsageWindow>,
+    val plan: String? = null,
+    /** この使用量に当たるプロバイダの id（CLI の別名を含む。例: claude-cli と anthropic）。 */
+    val ids: List<String> = emptyList(),
+)
 data class UsageWindow(val label: String, val usedFraction: Float, val resetAt: Long?)
 
 data class ChatMessage(
@@ -195,6 +201,35 @@ internal object Parse {
 
     private fun canonicalModel(id: String, provider: String?): String =
         if (provider == null || id.startsWith("$provider/")) id else "$provider/$id"
+
+    /**
+     * `models.authStatus` の各プロバイダの `usage`（Control UI の入力欄の使用量と同じ出どころ）。
+     * Claude Code CLI（claude-cli）などの CLI の認証もここに入り、`usage.status` には出ない。
+     * 同じ中身（名前・窓）の行は 1 つにまとめ、id を合わせて持つ。
+     */
+    fun authStatusUsage(obj: JsonObject): List<ProviderUsage> {
+        val groups = LinkedHashMap<String, ProviderUsage>()
+        obj.array("providers").forEach { entry ->
+            val provider = entry.asObject() ?: return@forEach
+            val usage = provider.obj("usage") ?: return@forEach
+            val windows = usageWindows(usage)
+            if (windows.isEmpty()) return@forEach
+            val ids = listOfNotNull(provider.string("provider"), usage.string("providerId")).distinct()
+            val name = provider.string("displayName") ?: usage.string("displayName") ?: ids.firstOrNull() ?: return@forEach
+            val identity = name + windows.joinToString { "${it.label}:${it.usedFraction}" }
+            val existing = groups[identity]
+            groups[identity] = existing?.copy(ids = (existing.ids + ids).distinct())
+                ?: ProviderUsage(name, windows, usage.string("plan")?.takeIf(String::isNotBlank), ids)
+        }
+        return groups.values.toList()
+    }
+
+    private fun usageWindows(usage: JsonObject): List<UsageWindow> = usage.array("windows").mapNotNull { entryWindow ->
+        val window = entryWindow.asObject() ?: return@mapNotNull null
+        val label = window.string("label") ?: return@mapNotNull null
+        val percent = (window["usedPercent"] as? JsonPrimitive)?.doubleOrNull?.takeIf { it.isFinite() } ?: return@mapNotNull null
+        UsageWindow(label, (percent / 100).coerceIn(0.0, 1.0).toFloat(), window.long("resetAt"))
+    }
 
     fun providerUsage(obj: JsonObject): List<ProviderUsage> =
         obj.array("providers").mapNotNull { entry ->

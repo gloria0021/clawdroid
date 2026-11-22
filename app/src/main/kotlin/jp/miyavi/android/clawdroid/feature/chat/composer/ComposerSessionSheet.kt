@@ -211,7 +211,7 @@ private fun Overview(
                     val reset = window.resetAt?.let {
                         stringResource(R.string.chat_usage_reset, (if (DateUtils.isToday(it)) timeOnly else dateTime).format(Date(it)))
                     }
-                    UsageMeter(window.usedFraction, window.label, percent.format(window.usedFraction), reset)
+                    UsageMeter(window.usedFraction, windowLabel(window.label), percent.format(window.usedFraction), reset)
                 }
             }
         }
@@ -271,6 +271,15 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, detai
         )
         detail?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant) }
     }
+}
+
+/** Gateway の窓の名前（5h・Week など）を、分かるものだけ訳す。 */
+@Composable
+private fun windowLabel(label: String): String = when (label.trim().lowercase()) {
+    "5h", "5 hours", "5-hour" -> stringResource(R.string.usage_window_5h)
+    "week", "weekly", "7d" -> stringResource(R.string.usage_window_week)
+    "day", "daily", "24h" -> stringResource(R.string.usage_window_day)
+    else -> label
 }
 
 private fun SessionSetting.label(): Int = when (this) {

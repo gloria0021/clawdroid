@@ -229,20 +229,36 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * プロバイダの使用枠。Control UI と同じく `models.authStatus` から取る（Claude Code CLI の枠もここに出る）。
+     * 使えない Gateway では `usage.status` に戻す。今のセッションのプロバイダを先頭にする。
+     */
     suspend fun loadProviderUsage(): List<ProviderUsage> {
-        if (!gateway.supports("usage.status")) return emptyList()
-        try {
-            repeat(4) { attempt ->
-                if (attempt > 0) delay(1_000)
-                val usage = gateway.request("usage.status", timeoutMs = 5_000).asObject() ?: return emptyList()
-                if (usage.bool("refreshing") != true || attempt == 3) return Parse.providerUsage(usage)
+        val usage = try {
+            when {
+                gateway.supports("models.authStatus") -> Parse.authStatusUsage(
+                    gateway.request("models.authStatus", timeoutMs = 10_000).asObject() ?: return emptyList(),
+                )
+                gateway.supports("usage.status") -> loadUsageStatus()
+                else -> emptyList()
             }
         } catch (_: TimeoutCancellationException) {
-            return emptyList()
+            emptyList()
         } catch (_: GatewayNotConnectedException) {
-            return emptyList()
+            emptyList()
         } catch (_: GatewayRpcException) {
-            return emptyList()
+            if (gateway.supports("usage.status")) runCatching { loadUsageStatus() }.getOrDefault(emptyList()) else emptyList()
+        }
+        val provider = state.value.currentSession?.model?.substringBefore('/', "")?.lowercase()
+            ?: state.value.selectedAgent?.defaultModel?.substringBefore('/', "")?.lowercase()
+        return usage.sortedByDescending { p -> provider != null && provider.isNotEmpty() && p.ids.any { it.equals(provider, ignoreCase = true) } }
+    }
+
+    private suspend fun loadUsageStatus(): List<ProviderUsage> {
+        repeat(4) { attempt ->
+            if (attempt > 0) delay(1_000)
+            val usage = gateway.request("usage.status", timeoutMs = 5_000).asObject() ?: return emptyList()
+            if (usage.bool("refreshing") != true || attempt == 3) return Parse.providerUsage(usage)
         }
         return emptyList()
     }
