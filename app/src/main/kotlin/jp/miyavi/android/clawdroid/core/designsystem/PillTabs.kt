@@ -48,7 +48,9 @@ fun <T> PillTabs(
     content: @Composable (T) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
-    val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+    // 選択の面はテーマの強い色（OpenClaw ではくすんだ赤）
+    val accent = accentContainer()
+    val indicatorColor = accent.container
     // 各タブの左端と幅（px）。置かれてから分かる
     val bounds = remember { mutableStateMapOf<T, Pair<Float, Float>>() }
     val target = bounds[selected]
@@ -76,7 +78,7 @@ fun <T> PillTabs(
             val isSelected = selected == tab
             val interactions = remember { MutableInteractionSource() }
             val contentColor by animateColorAsState(
-                if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                if (isSelected) accent.content else MaterialTheme.colorScheme.onSurface,
                 motion.fastEffectsSpec(),
                 label = "tabTextColor",
             )

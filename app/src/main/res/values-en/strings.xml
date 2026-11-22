@@ -195,4 +195,12 @@
         <item>Reading the charts…</item>
         <item>Diving deep…</item>
     </string-array>
+    <string name="panel_home">Home</string>
+    <string name="panel_active">Active</string>
+    <string name="panel_archived">Archived</string>
+    <string name="panel_section_count">%1$s · %2$d</string>
+    <string name="settings_glass_refraction">Glass refraction</string>
+    <string name="settings_glass_refraction_desc">How much the edges bend what is behind</string>
+    <string name="settings_blur_strength">Blur strength</string>
+    <string name="settings_blur_strength_desc">How much to blur what is behind floating surfaces</string>
 </resources>

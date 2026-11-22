@@ -207,4 +207,12 @@
         <item>海図を読んでいます…</item>
         <item>深く潜っています…</item>
     </string-array>
+    <string name="panel_home">ホーム</string>
+    <string name="panel_active">アクティブ</string>
+    <string name="panel_archived">アーカイブ済み</string>
+    <string name="panel_section_count">%1$s · %2$d</string>
+    <string name="settings_glass_refraction">ガラスの屈折</string>
+    <string name="settings_glass_refraction_desc">縁で背景をどれだけ曲げて見せるか</string>
+    <string name="settings_blur_strength">ぼかしの強さ</string>
+    <string name="settings_blur_strength_desc">浮いている面の後ろをどれだけぼかすか</string>
 </resources>

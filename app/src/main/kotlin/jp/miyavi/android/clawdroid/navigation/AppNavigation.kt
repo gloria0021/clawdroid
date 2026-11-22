@@ -181,6 +181,8 @@ private fun MainNavigation(container: AppContainer) {
                         setTheme = { scope.launch { container.settings.setTheme(it) } },
                         setCustomSeed = { scope.launch { container.settings.setCustomSeed(it) } },
                         setSurfaceStyle = { scope.launch { container.settings.setSurfaceStyle(it) } },
+                        setGlassRefraction = { scope.launch { container.settings.setGlassRefraction(it) } },
+                        setBlurStrength = { scope.launch { container.settings.setBlurStrength(it) } },
                         reconnect = container.gateway::reconnectNow,
                         disconnect = container.gateway::disconnect,
                         forget = { scope.launch { container.gateway.forget() } },

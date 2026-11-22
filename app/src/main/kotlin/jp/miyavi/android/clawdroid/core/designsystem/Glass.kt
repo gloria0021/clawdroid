@@ -75,8 +75,8 @@ data class SurfaceOpacity(val glass: Float, val blur: Float)
 /** 上部のボタン・入力ピル・タブ・Snackbar など、ふつうの透過面。 */
 val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 
-/** タイトルバー（テーマカラーで色を付ける唯一の面）。色はごく薄く 5%。 */
-val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.05f, blur = 0.05f)
+/** タイトルバー（テーマカラーで色を付ける唯一の面）。色は薄く 10%。 */
+val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.1f, blur = 0.1f)
 
 /** メニュー。文字を選ぶ面なので濃くする。 */
 val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
@@ -84,11 +84,7 @@ val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
 /** ボトムシート。読む量が多いので濃くする。 */
 val SHEET_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
 
-/** ガラスの屈折の強さ（0〜1）。 */
-private const val GLASS_REFRACTION = 0.6f
-
-/** ぼかしの半径の上限に対する割合（ぼかしは 30%。AGENTS.md 2.10）。 */
-private const val BLUR_RADIUS_FRACTION = 0.3f
+/** ぼかしの強さ 10 のときの半径。強さ 0〜10 を 0〜48dp に当てる（Gerbil と同じ）。 */
 private val BLUR_RADIUS_MAX = 48.dp
 
 /**
@@ -165,9 +161,10 @@ private fun Modifier.glassSurface(
     val darkGlass = colors.surface.luminance() < 0.5f
     val glassTint = tintColor.copy(alpha = fixedOpacity.glass)
     val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else if (darkGlass) 0.28f else 0.16f)
-    // 横いっぱいの帯（rim = false）は屈折させない。縁の屈折が上下の端で下の内容を引き込み、1 ドット透けて見えるため
-    val refraction = if (rim) GLASS_REFRACTION else 0f
-    val glassStyle = remember(shape, rimShadow, rim) {
+    // 屈折の強さは設定（0〜10）。横いっぱいの帯（rim = false）は屈折させない。縁の屈折が上下の端で下の内容を引き込み、1 ドット透けて見えるため
+    val level = LocalGlassLevels.current.refraction.coerceIn(0, 10) / 10f
+    val refraction = if (rim) level else 0f
+    val glassStyle = remember(shape, rimShadow, rim, refraction) {
         GlassStyle.clear.then {
             shape(shape)
             whitePoint(0f)
@@ -194,7 +191,7 @@ private fun Modifier.glassSurface(
 private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity, tintColor: Color, baseColor: Color): Modifier = composed {
     // 下地は無彩色の面。色は tint の不透明度の分だけ
     val surface = baseColor
-    val radius = BLUR_RADIUS_MAX * BLUR_RADIUS_FRACTION
+    val radius = BLUR_RADIUS_MAX * (LocalGlassLevels.current.blurStrength.coerceIn(0, 10) / 10f)
     val alpha = fixedOpacity.blur
     val style = remember(surface, tintColor, radius, alpha) {
         HazeBlurStyle {

@@ -73,6 +73,14 @@ fun Appearance.isDark(systemDark: Boolean): Boolean = when (this) {
     Appearance.DARK -> true
 }
 
+/** ガラスの屈折とぼかしの強さ（各 0〜10）。共通部品（Glass.kt）が読む。 */
+data class GlassLevels(
+    val refraction: Int = ThemeSettings.DEFAULT_GLASS_REFRACTION,
+    val blurStrength: Int = ThemeSettings.DEFAULT_BLUR_STRENGTH,
+)
+
+val LocalGlassLevels = staticCompositionLocalOf { GlassLevels() }
+
 /** 現在の透かし方（ガラス / ぼかし）。共通部品（Glass.kt）が読む。 */
 val LocalSurfaceStyle = staticCompositionLocalOf { SurfaceStyle.GLASS }
 
@@ -95,7 +103,11 @@ fun ClawdroidTheme(
     } else {
         AccentContainer(scheme.primaryContainer, scheme.onPrimaryContainer)
     }
-    CompositionLocalProvider(LocalSurfaceStyle provides settings.surfaceStyle, LocalAccentContainer provides accent) {
+    CompositionLocalProvider(
+        LocalSurfaceStyle provides settings.surfaceStyle,
+        LocalGlassLevels provides GlassLevels(settings.glassRefraction, settings.blurStrength),
+        LocalAccentContainer provides accent,
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             motionScheme = AppMotionScheme,

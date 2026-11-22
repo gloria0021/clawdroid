@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.core.data
 
+import jp.miyavi.android.clawdroid.core.gateway.long
+import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
 import jp.miyavi.android.clawdroid.core.gateway.array
@@ -27,7 +29,12 @@ data class AgentsState(
 
 /** 1 エージェントぶんのセッション一覧。 */
 data class SessionListState(
+    /** アクティブなセッション（ホームを除く）。 */
     val sessions: List<SessionSummary> = emptyList(),
+    /** アーカイブ済みのセッション。 */
+    val archived: List<SessionSummary> = emptyList(),
+    /** エージェントのホーム（main）。 */
+    val home: SessionSummary? = null,
     val loading: Boolean = true,
     val error: String? = null,
 )
@@ -92,18 +99,40 @@ class SessionsRepository(
 
     suspend fun refresh(agentId: String) {
         _sessions.update { it + (agentId to (it[agentId] ?: SessionListState()).copy(loading = true, error = null)) }
-        runCatching { gateway.request("sessions.list", listParams(agentId)).asObject() }
-            .onSuccess { root ->
-                val rows = Parse.sessionsArray(root)
-                _sessions.update { it + (agentId to SessionListState(rows, loading = false)) }
-            }
+        runCatching {
+            // アクティブとアーカイブ済みは Gateway 側で別の一覧（archived の true / false）。どちらもページを最後まで読む
+            val active = fetchAll(agentId, archived = false)
+            val archived = fetchAll(agentId, archived = true)
+            SessionListState(
+                sessions = active.filterNot { it.isMain },
+                archived = archived.filterNot { it.isMain },
+                home = active.firstOrNull { it.isMain } ?: archived.firstOrNull { it.isMain },
+                loading = false,
+            )
+        }.onSuccess { state -> _sessions.update { it + (agentId to state) } }
             .onFailure { e ->
                 _sessions.update { it + (agentId to (it[agentId] ?: SessionListState()).copy(loading = false, error = e.message)) }
             }
     }
 
-    private fun listParams(agentId: String) = buildJsonObject {
+    private suspend fun fetchAll(agentId: String, archived: Boolean): List<SessionSummary> {
+        val rows = mutableListOf<SessionSummary>()
+        var offset = 0
+        repeat(MAX_PAGES) {
+            val root = gateway.request("sessions.list", listParams(agentId, archived, offset)).asObject()
+            val page = Parse.sessionsArray(root)
+            rows += page
+            val more = root?.bool("hasMore") == true && page.isNotEmpty()
+            if (!more) return rows
+            offset = root?.long("nextOffset")?.toInt() ?: (offset + page.size)
+        }
+        return rows
+    }
+
+    private fun listParams(agentId: String, archived: Boolean, offset: Int) = buildJsonObject {
         put("agentId", agentId)
+        if (archived) put("archived", true)
+        if (offset > 0) put("offset", offset)
         put("includeGlobal", false)
         put("includeUnknown", false)
         put("excludeSubagents", true)
@@ -127,15 +156,23 @@ class SessionsRepository(
         if (row.isAutomation) return
         _sessions.update { all ->
             val current = all[agentId] ?: return@update all
-            val others = current.sessions.filterNot { it.key == row.key }
-            val next = if (row.archived) others else (listOf(row) + others).sortedByDescending { it.updatedAt ?: 0 }
-            all + (agentId to current.copy(sessions = next))
+            if (row.isMain) return@update all + (agentId to current.copy(home = row))
+            val active = current.sessions.filterNot { it.key == row.key }
+            val archived = current.archived.filterNot { it.key == row.key }
+            val next = if (row.archived) {
+                current.copy(sessions = active, archived = (listOf(row) + archived).sortedByDescending { it.updatedAt ?: 0 })
+            } else {
+                current.copy(sessions = (listOf(row) + active).sortedByDescending { it.updatedAt ?: 0 }, archived = archived)
+            }
+            all + (agentId to next)
         }
     }
 
     /** 一覧の中から探す（会話の画面のヘッダ用）。 */
     fun find(sessionKey: String): SessionSummary? =
-        _sessions.value.values.firstNotNullOfOrNull { list -> list.sessions.firstOrNull { it.key == sessionKey } }
+        _sessions.value.values.firstNotNullOfOrNull { list ->
+            list.home?.takeIf { it.key == sessionKey } ?: (list.sessions + list.archived).firstOrNull { it.key == sessionKey }
+        }
 
     suspend fun rename(session: SessionSummary, label: String) = patch(session) { put("label", label) }
     suspend fun setArchived(session: SessionSummary, archived: Boolean) = patch(session) { put("archived", archived) }
@@ -179,5 +216,7 @@ class SessionsRepository(
 
     private companion object {
         const val LIST_LIMIT = 100
+        /** 1 つの一覧で読むページの上限（100 件 × 20）。 */
+        const val MAX_PAGES = 20
     }
 }

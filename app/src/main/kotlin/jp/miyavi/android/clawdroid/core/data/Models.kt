@@ -50,6 +50,8 @@ data class SessionSummary(
     val modelReference: String? = null,
     val permissionMode: String? = null,
     val permissionModePending: Boolean = false,
+    /** エージェントのホーム（main）のセッションか。 */
+    val isMain: Boolean = false,
 ) {
     val contextFraction: Float?
         get() {
@@ -163,6 +165,7 @@ internal object Parse {
             unread = obj.bool("unread") == true,
             archived = obj.bool("archived") == true,
             isAutomation = obj.string("createdVia") == "cron",
+            isMain = obj.bool("isMain") == true || key.endsWith(":main"),
             updatedAt = obj.long("lastActivityAt") ?: obj.long("updatedAt"),
             contextTokens = obj.long("contextTokens"),
             totalTokens = obj.long("totalTokens"),

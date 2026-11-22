@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.sidebar
 
+import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -116,6 +117,17 @@ fun SidePanel(
                     }
                     PanelAction(R.drawable.ic_huge_new_chat, R.string.panel_new_session, onNewSession)
                     PanelAction(R.drawable.ic_huge_automation, R.string.sidebar_automations, onOpenAutomations)
+                    // ホーム（選んでいるエージェントの main のセッション）。セッション履歴より上に置く
+                    val currentAgentId = agents.getOrNull(pagerState.currentPage)?.id
+                    val home = currentAgentId?.let { sessionsByAgent[it]?.home }
+                    if (home != null) {
+                        PanelAction(
+                            R.drawable.ic_huge_home,
+                            R.string.panel_home,
+                            onClick = { onSelectSession(home) },
+                            selected = home.key == selectedSessionKey,
+                        )
+                    }
                     Text(
                         stringResource(R.string.panel_history),
                         style = MaterialTheme.typography.titleSmall,
@@ -174,11 +186,14 @@ fun SidePanel(
 }
 
 @Composable
-private fun PanelAction(icon: Int, label: Int, onClick: () -> Unit) {
+private fun PanelAction(icon: Int, label: Int, onClick: () -> Unit, selected: Boolean = false) {
     ListItem(
         headlineContent = { Text(stringResource(label), style = MaterialTheme.typography.titleMedium) },
         leadingContent = { Icon(painterResource(icon), contentDescription = null) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        colors = ListItemDefaults.colors(
+            containerColor = if (selected) accentContainer().container else Color.Transparent,
+            headlineColor = if (selected) accentContainer().content else MaterialTheme.colorScheme.onSurface,
+        ),
         modifier = Modifier.combinedClickable(onClick = onClick),
     )
 }
@@ -195,10 +210,10 @@ private fun SessionList(
     onArchive: (SessionSummary, Boolean) -> Unit,
 ) {
     when {
-        state.loading && state.sessions.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        state.loading && state.sessions.isEmpty() && state.archived.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             LoadingIndicator()
         }
-        state.sessions.isEmpty() -> Column(
+        state.sessions.isEmpty() && state.archived.isEmpty() -> Column(
             Modifier.fillMaxSize().padding(Spacing.l),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -211,6 +226,8 @@ private fun SessionList(
             )
         }
         else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
+            // アクティブとアーカイブ済みを分けて出す
+            item(key = "header-active", contentType = "header") { ListHeader(R.string.panel_active, state.sessions.size) }
             items(state.sessions, key = { it.key }) { session ->
                 SessionItem(
                     session = session,
@@ -222,8 +239,35 @@ private fun SessionList(
                     modifier = motionItem(),
                 )
             }
+            if (state.archived.isNotEmpty()) {
+                item(key = "header-archived", contentType = "header") {
+                    ListHeader(R.string.panel_archived, state.archived.size, motionItem())
+                }
+                items(state.archived, key = { "archived-${it.key}" }) { session ->
+                    SessionItem(
+                        session = session,
+                        selected = session.key == selectedSessionKey,
+                        timeLabel = session.updatedAt?.let(timeLabel),
+                        onClick = { onSelect(session) },
+                        onRename = { onRename(session, it) },
+                        onArchive = { onArchive(session, !session.archived) },
+                        modifier = motionItem(),
+                    )
+                }
+            }
         }
     }
+}
+
+/** 一覧の区切りの見出し（件数付き）。 */
+@Composable
+private fun ListHeader(label: Int, count: Int, modifier: Modifier = Modifier) {
+    Text(
+        stringResource(R.string.panel_section_count, stringResource(label), count),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = Spacing.l, top = Spacing.m, bottom = Spacing.xs).semantics { heading() },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -251,8 +295,8 @@ private fun SessionItem(
             },
             trailingContent = { SessionMarks(session) },
             colors = ListItemDefaults.colors(
-                containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                headlineColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                containerColor = if (selected) accentContainer().container else Color.Transparent,
+                headlineColor = if (selected) accentContainer().content else MaterialTheme.colorScheme.onSurface,
             ),
             modifier = Modifier.combinedClickable(
                 onClick = onClick,

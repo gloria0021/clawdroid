@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.settings
 
+import kotlin.math.roundToInt
+import androidx.compose.material3.Slider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,6 +80,8 @@ data class SettingsActions(
     val setTheme: (AppTheme) -> Unit,
     val setCustomSeed: (Int) -> Unit,
     val setSurfaceStyle: (SurfaceStyle) -> Unit,
+    val setGlassRefraction: (Int) -> Unit,
+    val setBlurStrength: (Int) -> Unit,
     val reconnect: () -> Unit,
     val disconnect: () -> Unit,
     val forget: () -> Unit,
@@ -183,6 +187,12 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                 selected = state.theme.surfaceStyle,
                                 onSelect = actions.setSurfaceStyle,
                             )
+                            // 選んでいる透かし方の強さ（10 段階。Gerbil と同じ）
+                            if (state.theme.surfaceStyle == SurfaceStyle.GLASS) {
+                                LevelSlider(R.string.settings_glass_refraction, R.string.settings_glass_refraction_desc, state.theme.glassRefraction, actions.setGlassRefraction)
+                            } else {
+                                LevelSlider(R.string.settings_blur_strength, R.string.settings_blur_strength_desc, state.theme.blurStrength, actions.setBlurStrength)
+                            }
                         }
                     }
                     item(key = "about") {
@@ -268,6 +278,24 @@ private fun <T> SegmentedRow(options: List<Pair<T, Int>>, selected: T, onSelect:
                 label = { Text(stringResource(label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             )
         }
+    }
+}
+
+/** 0〜10 の強さのスライダー。動かしているあいだも即座に反映する。 */
+@Composable
+private fun LevelSlider(title: Int, description: Int, level: Int, onLevelChange: (Int) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text("$level / ${ThemeSettings.MAX_LEVEL}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        Text(stringResource(description), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Slider(
+            value = level.toFloat(),
+            onValueChange = { onLevelChange(it.roundToInt()) },
+            valueRange = ThemeSettings.MIN_LEVEL.toFloat()..ThemeSettings.MAX_LEVEL.toFloat(),
+            steps = ThemeSettings.MAX_LEVEL - ThemeSettings.MIN_LEVEL - 1,
+        )
     }
 }
 

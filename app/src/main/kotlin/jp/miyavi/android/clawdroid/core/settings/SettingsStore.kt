@@ -29,7 +29,18 @@ data class ThemeSettings(
     val theme: AppTheme = AppTheme.OPENCLAW,
     val customSeedArgb: Int? = null,
     val surfaceStyle: SurfaceStyle = SurfaceStyle.GLASS,
-)
+    /** ガラスの屈折の強さ（0〜10）。 */
+    val glassRefraction: Int = DEFAULT_GLASS_REFRACTION,
+    /** ぼかしの強さ（0〜10）。 */
+    val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
+) {
+    companion object {
+        const val MIN_LEVEL = 0
+        const val MAX_LEVEL = 10
+        const val DEFAULT_GLASS_REFRACTION = 6
+        const val DEFAULT_BLUR_STRENGTH = 3
+    }
+}
 
 data class NotificationSettings(
     val backgroundConnection: Boolean = true,
@@ -57,6 +68,8 @@ class SettingsStore(context: Context) {
             theme = p[THEME].toEnum(AppTheme.OPENCLAW),
             customSeedArgb = p[CUSTOM_SEED],
             surfaceStyle = p[SURFACE_STYLE].toEnum(SurfaceStyle.GLASS),
+            glassRefraction = (p[GLASS_REFRACTION] ?: ThemeSettings.DEFAULT_GLASS_REFRACTION).coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL),
+            blurStrength = (p[BLUR_STRENGTH] ?: ThemeSettings.DEFAULT_BLUR_STRENGTH).coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL),
         )
     }.distinctUntilChanged()
 
@@ -86,6 +99,8 @@ class SettingsStore(context: Context) {
         it[THEME] = AppTheme.CUSTOM.name
     }
     suspend fun setSurfaceStyle(v: SurfaceStyle) = store.edit { it[SURFACE_STYLE] = v.name }
+    suspend fun setGlassRefraction(v: Int) = store.edit { it[GLASS_REFRACTION] = v.coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL) }
+    suspend fun setBlurStrength(v: Int) = store.edit { it[BLUR_STRENGTH] = v.coerceIn(ThemeSettings.MIN_LEVEL, ThemeSettings.MAX_LEVEL) }
 
     suspend fun setBackgroundConnection(v: Boolean) = store.edit { it[BACKGROUND_CONNECTION] = v }
     suspend fun setNotifyReplies(v: Boolean) = store.edit { it[NOTIFY_REPLIES] = v }
@@ -108,6 +123,8 @@ class SettingsStore(context: Context) {
         val THEME = stringPreferencesKey("theme")
         val CUSTOM_SEED = intPreferencesKey("custom_seed")
         val SURFACE_STYLE = stringPreferencesKey("surface_style")
+        val GLASS_REFRACTION = intPreferencesKey("glass_refraction")
+        val BLUR_STRENGTH = intPreferencesKey("blur_strength")
         val BACKGROUND_CONNECTION = booleanPreferencesKey("background_connection")
         val NOTIFY_REPLIES = booleanPreferencesKey("notify_replies")
         val NOTIFY_APPROVALS = booleanPreferencesKey("notify_approvals")
