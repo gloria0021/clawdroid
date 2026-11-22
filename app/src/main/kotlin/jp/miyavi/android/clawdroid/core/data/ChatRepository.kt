@@ -147,10 +147,11 @@ class ChatSession(
                 // 実行の始まりは、最後の利用者のメッセージの時刻（無ければ今）
                 val startedAt = when {
                     !running -> null
-                    current.runStartedAt != null -> current.runStartedAt
-                    else -> messages.lastOrNull { it.role == ChatMessage.Role.USER }?.timestamp?.takeIf { ts ->
-                        messages.none { it.role == ChatMessage.Role.ASSISTANT && (it.timestamp ?: 0) > ts && it.runId == null }
-                    } ?: System.currentTimeMillis()
+                    else -> {
+                        // 実行中の応答は最後の利用者のメッセージから始まっている。途中のツールの通知などで手元に入った「今」より前ならそちらを使う
+                        val lastUser = messages.lastOrNull { it.role == ChatMessage.Role.USER }?.timestamp
+                        listOfNotNull(lastUser, current.runStartedAt).minOrNull() ?: System.currentTimeMillis()
+                    }
                 }
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
