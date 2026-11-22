@@ -11,6 +11,11 @@ import jp.miyavi.android.clawdroid.core.settings.ThemeSettings
 import jp.miyavi.android.clawdroid.navigation.AppNavigation
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        (application as ClawdroidApp).container.gateway.onForeground()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)

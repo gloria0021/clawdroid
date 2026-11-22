@@ -27,5 +27,6 @@ object Dimens {
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
     val avatar = 24.dp
+    val usageRingStroke = 2.dp
     val usageBarHeight = 8.dp
 }

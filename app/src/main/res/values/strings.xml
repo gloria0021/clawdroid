@@ -16,8 +16,7 @@
 
     <!-- 接続（US1） -->
     <string name="connect_title">Gateway に接続</string>
-    <string name="connect_description">OpenClaw Gateway の接続先と、ゲートウェイトークンを入力してください。</string>
-    <string name="connect_url_label">接続先</string>
+    <string name="connect_url_label">Gateway URL</string>
     <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
     <string name="connect_token_label">ゲートウェイトークン</string>
     <string name="connect_action">接続</string>
@@ -32,7 +31,10 @@
     <string name="connect_error_pairing_rejected">この端末の接続は拒否されました</string>
     <string name="connect_error_other">接続できませんでした: %1$s</string>
     <string name="connect_awaiting_title">この端末の承認を待っています</string>
-    <string name="connect_awaiting_body">Control UI の「Devices」で承認するか、Gateway のホストで次のコマンドを実行してください。</string>
+    <string name="connect_awaiting_body">コマンドをコピーし、Gateway ホストのターミナルに貼り付けて実行してください。</string>
+    <string name="connect_awaiting_control_ui">Control UI の「Devices」で、この端末を承認してください。</string>
+    <string name="connect_edit_connection">接続情報を変更</string>
+    <string name="connect_copy_command">コマンドをコピー</string>
     <string name="connect_awaiting_command">openclaw devices approve %1$s</string>
 
     <!-- 接続の状態 -->
@@ -151,4 +153,40 @@
     <string name="panel_new_session">新しいセッション</string>
     <string name="panel_history">セッション履歴</string>
     <string name="panel_close_cd">パネルを閉じる</string>
+    <string name="session_no_title">タイトルなし</string>
+    <string name="chat_context_title">コンテキストウィンドウ</string>
+    <string name="chat_context_amount">%1$s / %2$s トークン · %3$s</string>
+    <string name="chat_usage_tokens">入力 %1$s · 出力 %2$s トークン</string>
+    <string name="chat_usage_unknown">—</string>
+    <string name="chat_usage_provider">プロバイダの使用枠</string>
+    <string name="chat_usage_unavailable">データなし</string>
+    <string name="chat_usage_window">%1$s · %2$s 使用済み</string>
+    <string name="chat_usage_reset">リセット %1$s</string>
+    <string name="chat_link_failed">リンクを開けませんでした</string>
+    <string name="chat_video_preview">動画をプレビュー</string>
+    <string name="chat_video_failed">動画を再生できませんでした</string>
+    <plurals name="chat_tools_count">
+        <item quantity="other">ツールの実行 %d 件</item>
+    </plurals>
+    <string name="chat_reply_cd">返信</string>
+    <string name="chat_elapsed_seconds">%1$d秒</string>
+    <string name="chat_elapsed_minutes_seconds">%1$d分%2$d秒</string>
+    <string name="chat_elapsed">回答まで約%1$s</string>
+    <string name="chat_context_tokens">%1$s / %2$s トークン</string>
+    <string name="chat_setting_default">デフォルト</string>
+    <string name="chat_setting_model">モデル</string>
+    <string name="chat_setting_effort">エフォート</string>
+    <string name="chat_setting_permissions">実行権限</string>
+    <string name="chat_settings_unavailable">このエージェントで変更できる項目はありません</string>
+    <string name="chat_permission_readonly">読み取り専用</string>
+    <string name="chat_permission_guarded">保護付き</string>
+    <string name="chat_permission_workspace">ワークスペース</string>
+    <string name="chat_permission_full">フルアクセス</string>
+    <string name="chat_permission_default_description">エージェントに設定された権限を使います。</string>
+    <string name="chat_permission_inherits">エージェントに設定された権限「%1$s」を使います。</string>
+    <string name="chat_permission_readonly_description">読み取りのみ許可します。ツール固有の承認ルールも適用されます。</string>
+    <string name="chat_permission_guarded_description">セッションの権限を超えるリクエストは人が確認します。</string>
+    <string name="chat_permission_workspace_description">追加のアクセスは AI が確認し、必要に応じて人に引き継ぎます。</string>
+    <string name="chat_permission_full_description">通常の承認を省略します。ホストとツールのポリシーは適用されます。</string>
+    <string name="chat_permission_button">実行権限（%1$s）</string>
 </resources>

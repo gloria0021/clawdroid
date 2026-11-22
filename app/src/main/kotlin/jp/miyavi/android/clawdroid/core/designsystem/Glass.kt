@@ -34,6 +34,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -174,6 +177,29 @@ private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpac
         }
     }
     hazeBlur(input = HazeInput.Sources(hazeState), style = style)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppTitleBar(
+    hazeState: HazeState,
+    title: @Composable () -> Unit,
+    navigationIcon: @Composable () -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+) {
+    val shape = remember { RoundedCornerShape(0.dp) }
+    TopAppBar(
+        title = title,
+        navigationIcon = navigationIcon,
+        actions = actions,
+        scrollBehavior = scrollBehavior,
+        modifier = Modifier.hazeSurface(hazeState, shape, rim = false),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = Color.Transparent,
+        ),
+    )
 }
 
 /** 透過効果のピル型の面（ボタンやボタンの組・入力欄を載せる）。 */

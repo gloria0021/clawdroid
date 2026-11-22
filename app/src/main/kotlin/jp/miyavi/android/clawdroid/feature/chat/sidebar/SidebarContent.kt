@@ -68,6 +68,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.PillTabs
 import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.motionItem
+import jp.miyavi.android.clawdroid.feature.chat.AgentAvatar
 import kotlinx.coroutines.launch
 
 /**
@@ -93,6 +94,7 @@ fun SidePanel(
 ) {
     val scope = rememberCoroutineScope()
     val hazeState = rememberHazeState()
+    val agentsById = remember(agents) { agents.associateBy(Agent::id) }
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     ProvideScreenHaze(hazeState) {
         Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxSize()) {
@@ -148,15 +150,17 @@ fun SidePanel(
                     ) {
                         Row(Modifier.horizontalScroll(rememberScrollState())) {
                             PillTabs(
-                                tabs = agents.map { it.id },
+                                tabs = agentsById.keys.toList(),
                                 selected = agents.getOrNull(pagerState.currentPage)?.id ?: agents.first().id,
                                 onSelect = { id ->
                                     val index = agents.indexOfFirst { it.id == id }
                                     if (index >= 0) scope.launch { pagerState.animateScrollToPage(index) }
                                 },
-                                label = { id -> agents.first { it.id == id }.let { a -> listOfNotNull(a.emoji, a.name).joinToString(" ") } },
-                                tabHorizontalPadding = Spacing.l,
-                            )
+                                label = { id -> agentsById.getValue(id).name },
+                                tabHorizontalPadding = Spacing.m,
+                            ) { id ->
+                                AgentAvatar(agentsById.getValue(id))
+                            }
                         }
                     }
                 }

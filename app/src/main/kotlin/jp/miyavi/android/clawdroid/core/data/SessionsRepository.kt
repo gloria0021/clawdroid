@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -140,22 +141,37 @@ class SessionsRepository(
     suspend fun setArchived(session: SessionSummary, archived: Boolean) = patch(session) { put("archived", archived) }
     suspend fun markRead(session: SessionSummary) = patch(session) { put("unread", false) }
 
-    private suspend fun patch(session: SessionSummary, fields: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) {
+    suspend fun setOption(key: String, agentId: String, setting: SessionSetting, value: String?) =
+        patch(key, agentId) {
+            if (value == null) put(setting.wireKey, JsonNull) else put(setting.wireKey, value)
+        }
+
+    private suspend fun patch(session: SessionSummary, fields: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) =
+        patch(session.key, session.agentId, fields)
+
+    private suspend fun patch(key: String, agentId: String?, fields: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) {
         gateway.request("sessions.patch", buildJsonObject {
-            put("key", session.key)
-            session.agentId?.let { put("agentId", it) }
+            put("key", key)
+            agentId?.let { put("agentId", it) }
             fields()
         })
-        session.agentId?.let { refresh(it) }
+        agentId?.let { refresh(it) }
     }
 
     /** 新しいセッションを作る（US3）。最初のメッセージを一緒に送れる。作られた key を返す。 */
-    suspend fun create(agentId: String, cwd: String?, message: String?, idempotencyKey: String): String? {
+    suspend fun create(
+        agentId: String,
+        cwd: String?,
+        message: String?,
+        idempotencyKey: String,
+        options: Map<SessionSetting, String> = emptyMap(),
+    ): String? {
         val result = gateway.request("sessions.create", buildJsonObject {
             put("agentId", agentId)
             put("idempotencyKey", idempotencyKey)
             cwd?.let { put("cwd", it) }
             message?.let { put("message", it) }
+            options.forEach { (setting, value) -> put(setting.wireKey, value) }
         }).asObject()
         refresh(agentId)
         return result?.string("key") ?: result?.string("sessionKey") ?: result?.obj("session")?.string("key")

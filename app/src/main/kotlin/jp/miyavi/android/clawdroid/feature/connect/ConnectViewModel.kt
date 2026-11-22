@@ -23,7 +23,6 @@ data class ConnectForm(
     val tokenVisible: Boolean = false,
     val urlError: FieldError? = null,
     val tokenError: FieldError? = null,
-    val submitted: Boolean = false,
 )
 
 data class ConnectUiState(val form: ConnectForm, val connection: ConnectionState)
@@ -49,6 +48,8 @@ class ConnectViewModel(
     fun onTokenChange(v: String) = form.update { it.copy(token = v, tokenError = null) }
     fun toggleTokenVisible() = form.update { it.copy(tokenVisible = !it.tokenVisible) }
 
+    fun editConnection() = gateway.disconnect()
+
     fun submit() {
         val current = form.value
         val urlCheck = GatewayUrl.check(current.url)
@@ -58,7 +59,7 @@ class ConnectViewModel(
             is UrlCheck.Ok -> null
         }
         val tokenError = if (current.token.isBlank()) FieldError.TOKEN_EMPTY else null
-        form.update { it.copy(urlError = urlError, tokenError = tokenError, submitted = urlError == null && tokenError == null) }
+        form.update { it.copy(urlError = urlError, tokenError = tokenError) }
         if (urlCheck !is UrlCheck.Ok || tokenError != null) return
         viewModelScope.launch { gateway.connect(urlCheck.normalized, current.token.trim()) }
     }

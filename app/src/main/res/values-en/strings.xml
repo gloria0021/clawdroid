@@ -12,8 +12,7 @@
     <string name="copied">Copied</string>
 
     <string name="connect_title">Connect to Gateway</string>
-    <string name="connect_description">Enter your OpenClaw Gateway address and gateway token.</string>
-    <string name="connect_url_label">Address</string>
+    <string name="connect_url_label">Gateway URL</string>
     <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
     <string name="connect_token_label">Gateway token</string>
     <string name="connect_action">Connect</string>
@@ -28,7 +27,10 @@
     <string name="connect_error_pairing_rejected">This device was rejected</string>
     <string name="connect_error_other">Couldn\'t connect: %1$s</string>
     <string name="connect_awaiting_title">Waiting for approval of this device</string>
-    <string name="connect_awaiting_body">Approve it in Control UI → Devices, or run this on the Gateway host:</string>
+    <string name="connect_awaiting_body">Copy the command, then paste and run it in a terminal on the Gateway host.</string>
+    <string name="connect_awaiting_control_ui">Approve this device in Control UI → Devices.</string>
+    <string name="connect_edit_connection">Edit connection details</string>
+    <string name="connect_copy_command">Copy command</string>
     <string name="connect_awaiting_command">openclaw devices approve %1$s</string>
 
     <string name="connection_reconnecting">Reconnecting…</string>
@@ -138,4 +140,41 @@
     <string name="panel_new_session">New session</string>
     <string name="panel_history">Session history</string>
     <string name="panel_close_cd">Close panel</string>
+    <string name="session_no_title">Untitled session</string>
+    <string name="chat_context_title">Context window</string>
+    <string name="chat_context_amount">%1$s / %2$s tokens · %3$s</string>
+    <string name="chat_usage_tokens">Input %1$s · Output %2$s tokens</string>
+    <string name="chat_usage_unknown">—</string>
+    <string name="chat_usage_provider">Provider limits</string>
+    <string name="chat_usage_unavailable">No data available</string>
+    <string name="chat_usage_window">%1$s · %2$s used</string>
+    <string name="chat_usage_reset">Resets %1$s</string>
+    <string name="chat_link_failed">Unable to open the link</string>
+    <string name="chat_video_preview">Preview video</string>
+    <string name="chat_video_failed">Unable to play video</string>
+    <plurals name="chat_tools_count">
+        <item quantity="one">%d tool item</item>
+        <item quantity="other">%d tool items</item>
+    </plurals>
+    <string name="chat_reply_cd">Reply</string>
+    <string name="chat_elapsed_seconds">%1$d s</string>
+    <string name="chat_elapsed_minutes_seconds">%1$d min %2$d s</string>
+    <string name="chat_elapsed">Answered in about %1$s</string>
+    <string name="chat_context_tokens">%1$s / %2$s tokens</string>
+    <string name="chat_setting_default">Default</string>
+    <string name="chat_setting_model">Model</string>
+    <string name="chat_setting_effort">Effort</string>
+    <string name="chat_setting_permissions">Execution permissions</string>
+    <string name="chat_settings_unavailable">No choices are available for this agent</string>
+    <string name="chat_permission_readonly">Read only</string>
+    <string name="chat_permission_guarded">Guarded</string>
+    <string name="chat_permission_workspace">Workspace</string>
+    <string name="chat_permission_full">Full access</string>
+    <string name="chat_permission_default_description">Follow the agent’s configured policy.</string>
+    <string name="chat_permission_inherits">Follow the agent’s configured policy (%1$s).</string>
+    <string name="chat_permission_readonly_description">Allow read access. Tool-specific approval rules still apply.</string>
+    <string name="chat_permission_guarded_description">Requests outside the session’s access require human review.</string>
+    <string name="chat_permission_workspace_description">AI reviews additional access and falls back to human review.</string>
+    <string name="chat_permission_full_description">Run without routine approval prompts, subject to host and tool policy.</string>
+    <string name="chat_permission_button">Execution permissions (%1$s)</string>
 </resources>

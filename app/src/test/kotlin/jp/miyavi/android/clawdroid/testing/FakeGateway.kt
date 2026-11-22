@@ -24,7 +24,11 @@ class FakeGateway {
     sealed interface ConnectBehavior {
         data class Accept(val deviceToken: String? = "device-token-1", val tickIntervalMs: Long = 30_000) : ConnectBehavior
         data class Reject(val code: String, val detailCode: String) : ConnectBehavior
-        data class PairingRequired(val requestId: String = "pair-1", val resolveWith: String? = null) : ConnectBehavior
+        data class PairingRequired(
+            val requestId: String = "pair-1",
+            val resolveWith: String? = null,
+            val waitForResolution: Boolean = true,
+        ) : ConnectBehavior
     }
 
     val server = MockWebServer()
@@ -34,6 +38,7 @@ class FakeGateway {
 
     /** 接続済みのときの RPC の応答。method → payload（null なら空のオブジェクト）。 */
     val handlers = mutableMapOf<String, (JsonObject?) -> JsonElement?>()
+    val ignoredMethods = mutableSetOf<String>()
 
     val url: String get() = server.url("/").toString().replace("http://", "ws://")
 
@@ -78,6 +83,7 @@ class FakeGateway {
                 respondToConnect(webSocket, id, behavior)
             } else {
                 requests += method to params
+                if (method in ignoredMethods) return
                 val handler = handlers[method]
                 if (handler == null) {
                     webSocket.send(error(id, "UNKNOWN_METHOD", null))
@@ -134,9 +140,10 @@ class FakeGateway {
                     error(id, "NOT_PAIRED", buildJsonObject {
                         put("code", "PAIRING_REQUIRED")
                         put("requestId", behavior.requestId)
-                        put("waitForResolution", true)
+                        if (behavior.waitForResolution) put("waitForResolution", true)
                     }),
                 )
+                if (!behavior.waitForResolution) ws.close(1008, "pairing required")
                 behavior.resolveWith?.let { decision ->
                     ws.send(
                         buildJsonObject {

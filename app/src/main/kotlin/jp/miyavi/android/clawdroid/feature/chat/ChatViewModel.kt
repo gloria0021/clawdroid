@@ -11,8 +11,12 @@ import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.ChatRepository
 import jp.miyavi.android.clawdroid.core.data.ChatSession
 import jp.miyavi.android.clawdroid.core.data.ChatState
+import jp.miyavi.android.clawdroid.core.data.ModelCatalog
 import jp.miyavi.android.clawdroid.core.data.OutgoingImage
+import jp.miyavi.android.clawdroid.core.data.Parse
+import jp.miyavi.android.clawdroid.core.data.ProviderUsage
 import jp.miyavi.android.clawdroid.core.data.SessionListState
+import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
 import jp.miyavi.android.clawdroid.core.data.SessionsRepository
 import jp.miyavi.android.clawdroid.core.database.DraftDao
@@ -21,11 +25,18 @@ import jp.miyavi.android.clawdroid.core.database.ReadingPositionDao
 import jp.miyavi.android.clawdroid.core.database.ReadingPositionEntity
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
+import jp.miyavi.android.clawdroid.core.gateway.GatewayNotConnectedException
+import jp.miyavi.android.clawdroid.core.gateway.GatewayRpcException
+import jp.miyavi.android.clawdroid.core.gateway.asObject
+import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.settings.SettingsStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,11 +55,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** 会話の画面に出す 1 行（表示の準備を済ませたもの。AGENTS.md 1: 項目の中で整形しない）。 */
 data class MessageUi(
     val message: ChatMessage,
     val timeLabel: String?,
+    val elapsedMs: Long? = null,
 )
 
 /** 入力欄の状態。 */
@@ -56,6 +70,8 @@ data class ComposerState(
     val text: String = "",
     val images: List<PendingImage> = emptyList(),
     val sending: Boolean = false,
+    val sessionOptions: Map<SessionSetting, String> = emptyMap(),
+    val updatingSettings: Boolean = false,
 )
 
 data class PendingImage(val uri: Uri, val image: OutgoingImage)
@@ -109,7 +125,9 @@ class ChatViewModel(
     private val chatState = currentChat.flatMapLatest { it?.state ?: flowOf(null) }
 
     private val formattedMessages = chatState
-        .map { chat -> chat?.messages.orEmpty().map { MessageUi(it, it.timestamp?.let(timeFormatter)) } }
+        .map { it?.messages.orEmpty() }
+        .distinctUntilChanged()
+        .map { formatMessages(it, timeFormatter) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val state: StateFlow<ChatScreenState> = combine(
@@ -132,6 +150,7 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatScreenState())
 
     private var draftJob: Job? = null
+    private var settingsJob: Job? = null
 
     init {
         // 前回の選択を戻す（SC-008）。無ければ Gateway の既定のエージェント
@@ -163,6 +182,70 @@ class ChatViewModel(
 
     /** サイドバーのページが変わったとき、一覧だけ先に読み込む（会話はまだ替えない）。 */
     fun preloadAgent(agentId: String) = sessions.ensureLoaded(agentId)
+
+    suspend fun loadModelCatalog(agentId: String, sessionKey: String?): ModelCatalog? {
+        if (!gateway.supports("models.list")) return null
+        return try {
+            val data = gateway.request("models.list", buildJsonObject {
+                put("agentId", agentId)
+                sessionKey?.let { put("sessionKey", it) }
+                put("includeDetails", true)
+            }).asObject()
+            data?.let(Parse::modelCatalog)
+        } catch (_: TimeoutCancellationException) {
+            null
+        } catch (_: GatewayNotConnectedException) {
+            null
+        } catch (_: GatewayRpcException) {
+            null
+        }
+    }
+
+    fun updateSessionSetting(setting: SessionSetting, value: String?) {
+        val connection = gateway.state.value as? ConnectionState.Connected ?: return
+        if (setting == SessionSetting.PERMISSIONS && value == "full" && "operator.admin" !in connection.scopes) return
+        val chat = currentChat.value
+        if (chat == null) {
+            _composer.update { composer ->
+                val options = if (value == null) composer.sessionOptions - setting else composer.sessionOptions + (setting to value)
+                composer.copy(sessionOptions = if (setting == SessionSetting.MODEL) options - SessionSetting.EFFORT else options)
+            }
+            return
+        }
+        if (settingsJob?.isActive == true) return
+        _composer.update { it.copy(updatingSettings = true) }
+        settingsJob = viewModelScope.launch {
+            try {
+                sessions.setOption(chat.sessionKey, chat.agentId, setting, value)
+            } catch (_: TimeoutCancellationException) {
+                _events.tryEmit(ChatEvent.Error(null))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _events.tryEmit(ChatEvent.Error(error.message))
+            } finally {
+                if (currentChat.value === chat) _composer.update { it.copy(updatingSettings = false) }
+            }
+        }
+    }
+
+    suspend fun loadProviderUsage(): List<ProviderUsage> {
+        if (!gateway.supports("usage.status")) return emptyList()
+        try {
+            repeat(4) { attempt ->
+                if (attempt > 0) delay(1_000)
+                val usage = gateway.request("usage.status", timeoutMs = 5_000).asObject() ?: return emptyList()
+                if (usage.bool("refreshing") != true || attempt == 3) return Parse.providerUsage(usage)
+            }
+        } catch (_: TimeoutCancellationException) {
+            return emptyList()
+        } catch (_: GatewayNotConnectedException) {
+            return emptyList()
+        } catch (_: GatewayRpcException) {
+            return emptyList()
+        }
+        return emptyList()
+    }
 
     fun selectSession(session: SessionSummary) {
         val agentId = session.agentId ?: selectedAgentId.value ?: return
@@ -207,6 +290,11 @@ class ChatViewModel(
 
     fun onTextChange(text: String) = _composer.update { it.copy(text = text) }
 
+    fun replyTo(text: String) {
+        val quote = text.lineSequence().joinToString("\n") { if (it.isEmpty()) ">" else "> $it" }
+        _composer.update { it.copy(text = "$quote\n\n${it.text}") }
+    }
+
     fun addImage(uri: Uri) {
         viewModelScope.launch {
             val image = withContext(Dispatchers.IO) { readImage(uri) } ?: return@launch
@@ -223,7 +311,7 @@ class ChatViewModel(
     fun send() {
         val composer = _composer.value
         val text = composer.text.trim()
-        if (composer.sending || (text.isEmpty() && composer.images.isEmpty())) return
+        if (composer.sending || composer.updatingSettings || (text.isEmpty() && composer.images.isEmpty())) return
         val agentId = selectedAgentId.value ?: return
         val idempotencyKey = GatewayClient.newIdempotencyKey()
         val draft = draftKey()
@@ -233,7 +321,10 @@ class ChatViewModel(
                 val chat = currentChat.value
                 if (chat == null) {
                     // 新規チャット: 最初のメッセージと一緒にセッションを作る（US3）
-                    val key = sessions.create(agentId, cwd = null, message = text, idempotencyKey = idempotencyKey)
+                    val key = sessions.create(
+                        agentId, cwd = null, message = text, idempotencyKey = idempotencyKey,
+                        options = composer.sessionOptions,
+                    )
                     if (key != null) {
                         openSession(key, agentId)
                         settings.selectSession(agentId, key)
@@ -288,5 +379,30 @@ class ChatViewModel(
         const val DRAFT_SAVE_DEBOUNCE_MS = 400L
         /** Gateway の既定の画像の上限（hello-ok の policy.attachments.maxImageBytes）。 */
         const val MAX_IMAGE_BYTES = 6 * 1024 * 1024
+    }
+}
+
+
+/** 記録にある利用者の送信時刻と応答時刻から、回答までのおおよその時間を求める。 */
+internal fun formatMessages(messages: List<ChatMessage>, timeFormatter: (Long) -> String): List<MessageUi> {
+    val promptsByRun = mutableMapOf<String, ChatMessage>()
+    var latestPrompt: ChatMessage? = null
+    return messages.map { message ->
+        if (message.role == ChatMessage.Role.USER) {
+            latestPrompt = message
+            message.runId?.let { promptsByRun[it] = message }
+        }
+        val elapsed = if (message.role == ChatMessage.Role.ASSISTANT && !message.isError) {
+            val runId = message.runId
+            val prompt = if (runId == null) latestPrompt else {
+                promptsByRun[runId] ?: latestPrompt?.takeIf { it.runId == null }
+            }
+            val start = prompt?.timestamp
+            val end = message.timestamp
+            if (start != null && end != null && end >= start) end - start else null
+        } else {
+            null
+        }
+        MessageUi(message, message.timestamp?.let(timeFormatter), elapsed)
     }
 }

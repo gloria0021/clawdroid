@@ -85,10 +85,17 @@ fun AppNavigation(container: AppContainer) {
     val connection by container.gateway.state.collectAsStateWithLifecycle()
     // 一度でも接続できたら、切断や再接続のあいだも会話の画面を出し続ける（表示済みの内容を残す）
     var everConnected by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(connection) { if (connection is ConnectionState.Connected) everConnected = true }
+    LaunchedEffect(container.gateway) {
+        container.gateway.state.collect { state ->
+            when (state) {
+                is ConnectionState.Connected -> everConnected = true
+                ConnectionState.NotConfigured -> everConnected = false
+                else -> Unit
+            }
+        }
+    }
     val needsConnect = connection is ConnectionState.NotConfigured ||
         (!everConnected && connection !is ConnectionState.Connected)
-    LaunchedEffect(connection) { if (connection is ConnectionState.NotConfigured) everConnected = false }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         if (needsConnect) {
@@ -154,7 +161,6 @@ private fun MainNavigation(container: AppContainer) {
                         openAutomations = { gate.run { backStack.push(AutomationsRoute) } },
                         openTerminal = { key -> gate.run { backStack.push(TerminalRoute(key)) } },
                         openFiles = { key, agentId -> gate.run { backStack.push(FilesRoute(key, agentId)) } },
-                        openUsage = { gate.run { backStack.push(UsageRoute) } },
                         restartGateway = { confirmRestart = true },
                     ),
                 )

@@ -86,6 +86,24 @@ class GatewayClientTest {
         assertEquals("req-9", state.requestId)
     }
 
+    @Test fun pairingRequired_reconnectsWhenResolutionIsMissing() {
+        gateway.enqueue(ConnectBehavior.PairingRequired())
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.state.first { it is ConnectionState.AwaitingApproval } }
+        await { client.awaitConnected() }
+        assertEquals(2, gateway.connectParams.size)
+    }
+
+    @Test fun pairingRequired_reconnectsAfterGatewayClosesTheSocket() {
+        gateway.enqueue(ConnectBehavior.PairingRequired(waitForResolution = false))
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.state.first { it is ConnectionState.AwaitingApproval } }
+        await { client.awaitConnected() }
+        assertEquals(2, gateway.connectParams.size)
+    }
+
     @Test fun pairingRejected_failsWithoutRetry() {
         gateway.enqueue(ConnectBehavior.PairingRequired(resolveWith = "rejected"))
         await { client.connect(gateway.url, "t") }
@@ -119,6 +137,20 @@ class GatewayClientTest {
         await { client.state.first { it is ConnectionState.Reconnecting } }
         await { client.awaitConnected() }
         assertTrue(gateway.connectParams.size >= 2)
+    }
+
+    @Test fun foreground_reconnectsWhenAnOpenSocketNoLongerResponds() {
+        gateway.ignoredMethods += "health"
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "before-lock"))
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "after-resume"))
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+
+        client.onForeground()
+        await { client.state.first { it is ConnectionState.Connected && secrets.connection?.deviceToken == "after-resume" } }
+
+        assertEquals("after-resume", secrets.connection?.deviceToken)
+        assertEquals(2, gateway.connectParams.size)
     }
 
     @Test fun events_areDelivered_exceptTick() {

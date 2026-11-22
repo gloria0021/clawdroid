@@ -147,6 +147,33 @@ class GatewayClient(
         if (loopJob?.isActive == true) reconnectSignal.trySend(Unit) else launchLoop()
     }
 
+    /** 復帰時は再接続の待ち時間を飛ばし、接続中のソケットには応答があるか確かめる。 */
+    fun onForeground() {
+        when (_state.value) {
+            is ConnectionState.Reconnecting, ConnectionState.Restarting -> reconnectSignal.trySend(Unit)
+            is ConnectionState.Connected -> {
+                val connectionSocket = socket ?: return
+                scope.launch {
+                    val responds = withTimeoutOrNull(FOREGROUND_PROBE_TIMEOUT_MS) {
+                        try {
+                            request("health")
+                            true
+                        } catch (_: GatewayRpcException) {
+                            true // RPC エラーでも WebSocket の応答は届いている。
+                        } catch (_: GatewayNotConnectedException) {
+                            false
+                        }
+                    } == true
+                    if (!responds && socket === connectionSocket && _state.value is ConnectionState.Connected) {
+                        reconnectSignal.trySend(Unit)
+                        connectionSocket.cancel()
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
     /** 再起動を指示した直後に呼ぶ。切断から再接続までを「再起動中」として示す。 */
     fun markRestarting() {
         restartPending = true
@@ -212,7 +239,10 @@ class GatewayClient(
                     if (_state.value !is ConnectionState.AwaitingApproval) setReconnecting(attempt, FailureReason.OTHER)
                     waitBeforeRetry(outcome.delayMs)
                 }
-                SessionOutcome.PairingApproved -> attempt = 0
+                SessionOutcome.PairingApproved -> {
+                    attempt = 0
+                    _state.value = ConnectionState.Connecting
+                }
                 is SessionOutcome.Fatal -> {
                     restartPending = false
                     _state.value = ConnectionState.Failed(outcome.reason, outcome.message)
@@ -299,8 +329,7 @@ class GatewayClient(
 
             // 4. 接続済み
             val hello = response.payload.asObject() ?: return SessionOutcome.Unreachable
-            onHello(hello, connection)
-            socket = ws
+            onHello(hello, connection, ws)
             return runConnected(ws, signals, tickIntervalMs(hello))
         } finally {
             if (socket === ws) socket = null
@@ -319,22 +348,9 @@ class GatewayClient(
         if (GatewayErrorClassifier.isPairingRequired(error)) {
             _state.value = ConnectionState.AwaitingApproval(error.details?.string("requestId"), deviceId)
             if (!GatewayErrorClassifier.waitsForResolution(error)) return SessionOutcome.RetryLater(PAIRING_POLL_MS)
-            // 承認の結果（device.pair.resolved）を待つ。Gateway はその後ソケットを閉じる
-            while (true) {
-                when (val s = signals.receive()) {
-                    is Signal.Text -> {
-                        val event = Frames.parse(s.text) as? Frame.Event ?: continue
-                        if (event.event != "device.pair.resolved") continue
-                        return when (event.payload.asObject()?.string("decision")) {
-                            "approved" -> SessionOutcome.PairingApproved
-                            "rejected", "expired" -> SessionOutcome.Fatal(FailureReason.PAIRING_REJECTED, null)
-                            else -> SessionOutcome.RetryLater(PAIRING_POLL_MS)
-                        }
-                    }
-                    // 別の要求に置き換えられたときも閉じられる。少し待って接続し直す
-                    is Signal.Closed, is Signal.Failure -> return SessionOutcome.RetryLater(PAIRING_POLL_MS)
-                }
-            }
+            // イベントも切断も届かなければ、承認待ちを表示したまま新しい接続で確認する。
+            return withTimeoutOrNull(handshakeTimeoutMs) { awaitPairingResolution(signals) }
+                ?: SessionOutcome.RetryLater(0)
         }
         // 保存した端末のトークンが古いときは捨ててやり直す
         if (error.detailCode == "AUTH_DEVICE_TOKEN_MISMATCH" && connection.deviceToken != null) {
@@ -345,7 +361,24 @@ class GatewayClient(
         return SessionOutcome.Fatal(GatewayErrorClassifier.classify(error), error.message)
     }
 
-    private suspend fun onHello(hello: JsonObject, connection: GatewayConnection) {
+    private suspend fun awaitPairingResolution(signals: Channel<Signal>): SessionOutcome {
+        while (true) {
+            when (val signal = signals.receive()) {
+                is Signal.Text -> {
+                    val event = Frames.parse(signal.text) as? Frame.Event ?: continue
+                    if (event.event != "device.pair.resolved") continue
+                    return when (event.payload.asObject()?.string("decision")) {
+                        "approved" -> SessionOutcome.PairingApproved
+                        "rejected", "expired" -> SessionOutcome.Fatal(FailureReason.PAIRING_REJECTED, null)
+                        else -> SessionOutcome.RetryLater(PAIRING_POLL_MS)
+                    }
+                }
+                is Signal.Closed, is Signal.Failure -> return SessionOutcome.RetryLater(PAIRING_POLL_MS)
+            }
+        }
+    }
+
+    private suspend fun onHello(hello: JsonObject, connection: GatewayConnection, ws: WebSocket) {
         val auth = hello.obj("auth")
         val scopes = auth?.array("scopes")?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
         val deviceToken = auth?.string("deviceToken")
@@ -354,6 +387,7 @@ class GatewayClient(
         }
         val methods = hello.obj("features")?.array("methods")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toSet().orEmpty()
         restartPending = false
+        socket = ws
         _state.value = ConnectionState.Connected(
             serverVersion = hello.obj("server")?.string("version") ?: "",
             methods = methods,
@@ -446,13 +480,14 @@ class GatewayClient(
         const val ROLE = "operator"
         /** ターミナルと再起動に operator.admin が要る（research R1）。 */
         val SCOPES = listOf("operator.admin", "operator.approvals", "operator.read", "operator.write")
-        val CAPS = listOf("agent-kind", "usage-refreshing", "health-summary", "hello-health-on-demand", "presence-deltas")
+        val CAPS = listOf("agent-kind", "usage-refreshing", "health-summary", "hello-health-on-demand", "presence-deltas", "model-selection-policy")
         const val DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000L
         const val DEFAULT_REQUEST_TIMEOUT_MS = 30_000L
         const val DEFAULT_TICK_INTERVAL_MS = 30_000L
         const val INITIAL_RETRY_DELAY_MS = 1_000L
         const val MAX_RETRY_DELAY_MS = 30_000L
         const val PAIRING_POLL_MS = 3_000L
+        private const val FOREGROUND_PROBE_TIMEOUT_MS = 3_000L
         private const val NORMAL_CLOSURE = 1000
 
         fun backoffMs(attempt: Int): Long =

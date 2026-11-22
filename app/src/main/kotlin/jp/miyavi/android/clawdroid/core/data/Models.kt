@@ -1,6 +1,7 @@
 package jp.miyavi.android.clawdroid.core.data
 
 import jp.miyavi.android.clawdroid.core.gateway.array
+import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.gateway.long
 import jp.miyavi.android.clawdroid.core.gateway.obj
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 
 // Gateway の写し（data-model 2）。項目名は ref-schema と公式 Android アプリの解析に合わせる。
 
@@ -20,6 +22,9 @@ data class Agent(
     val avatarUrl: String?,
     val defaultModel: String?,
     val isSystem: Boolean,
+    val thinkingLevels: List<SettingChoice> = emptyList(),
+    val thinkingDefault: String? = null,
+    val defaultPermissionMode: String? = null,
 )
 
 data class SessionSummary(
@@ -39,7 +44,46 @@ data class SessionSummary(
     val contextTokens: Long?,
     val totalTokens: Long?,
     val preview: String?,
+    val inputTokens: Long? = null,
+    val outputTokens: Long? = null,
+    val totalTokensFresh: Boolean = true,
+    val modelReference: String? = null,
+    val permissionMode: String? = null,
+    val permissionModePending: Boolean = false,
+) {
+    val contextFraction: Float?
+        get() {
+            val limit = contextTokens?.takeIf { it > 0 } ?: return null
+            val used = totalTokens?.takeIf { totalTokensFresh && it >= 0 } ?: return null
+            return (used.toDouble() / limit).coerceAtMost(1.0).toFloat()
+        }
+}
+
+enum class SessionSetting(val wireKey: String) {
+    MODEL("model"),
+    EFFORT("thinkingLevel"),
+    PERMISSIONS("permissionMode"),
+}
+
+data class SettingChoice(val id: String, val label: String)
+data class ModelChoice(
+    val reference: String,
+    val name: String,
+    val selectable: Boolean,
+    val thinkingLevels: List<SettingChoice>,
+    val thinkingDefault: String?,
 )
+
+data class ModelCatalog(val models: List<ModelChoice> = emptyList(), val canReset: Boolean = true) {
+    fun find(reference: String?): ModelChoice? {
+        if (reference == null) return null
+        return models.firstOrNull { it.reference == reference }
+            ?: models.singleOrNull { it.reference.substringAfter('/') == reference }
+    }
+}
+
+data class ProviderUsage(val name: String, val windows: List<UsageWindow>, val plan: String? = null)
+data class UsageWindow(val label: String, val usedFraction: Float, val resetAt: Long?)
 
 data class ChatMessage(
     /** 表示の key。transcript の id があればそれ、無ければ位置から作る。 */
@@ -58,6 +102,7 @@ data class ChatMessage(
 
 sealed interface MessagePart {
     data class Text(val markdown: String) : MessagePart
+    data class Video(val url: String) : MessagePart
     data class Image(val url: String?, val base64: String?, val mimeType: String?) : MessagePart
     data class ToolCall(
         val callId: String?,
@@ -82,9 +127,16 @@ internal object Parse {
             id = id,
             name = identity?.string("name") ?: obj.string("name") ?: id,
             emoji = identity?.string("emoji"),
-            avatarUrl = identity?.string("avatarUrl"),
+            avatarUrl = identity?.string("avatarUrl") ?: identity?.string("avatar"),
             defaultModel = obj.obj("model")?.string("primary"),
             isSystem = obj.string("kind") == "system",
+            thinkingLevels = thinkingChoices(obj).ifEmpty {
+                obj.array("thinkingOptions").mapNotNull { option ->
+                    (option as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.let { SettingChoice(it, it) }
+                }
+            },
+            thinkingDefault = obj.string("thinkingDefault"),
+            defaultPermissionMode = obj.string("defaultPermissionMode"),
         )
     }
 
@@ -99,7 +151,7 @@ internal object Parse {
             title = listOf("label", "displayName", "derivedTitle", "autoLabel")
                 .firstNotNullOfOrNull { k -> obj.string(k)?.trim()?.takeIf(String::isNotEmpty) },
             cwd = listOf("execCwd", "spawnedCwd", "workspaceDir").firstNotNullOfOrNull { obj.string(it)?.takeIf(String::isNotBlank) },
-            model = obj.string("model"),
+            model = obj.string("activeModel") ?: obj.string("model"),
             thinkingLevel = obj.string("thinkingLevel"),
             running = obj.bool("hasActiveRun") == true || status == "running" || status == "queued",
             unread = obj.bool("unread") == true,
@@ -109,8 +161,54 @@ internal object Parse {
             contextTokens = obj.long("contextTokens"),
             totalTokens = obj.long("totalTokens"),
             preview = obj.string("lastMessagePreview"),
+            inputTokens = obj.long("inputTokens"),
+            outputTokens = obj.long("outputTokens"),
+            totalTokensFresh = obj.bool("totalTokensFresh") != false,
+            modelReference = obj.string("model")?.let { canonicalModel(it, obj.string("modelProvider")) },
+            permissionMode = obj.string("permissionMode"),
+            permissionModePending = obj.bool("permissionModePending") == true,
         )
     }
+
+    fun modelCatalog(obj: JsonObject): ModelCatalog {
+        val models = obj.array("models").mapNotNull { value ->
+            val model = value.asObject() ?: return@mapNotNull null
+            val id = model.string("id") ?: return@mapNotNull null
+            ModelChoice(
+                reference = canonicalModel(id, model.string("provider")),
+                name = model.string("name") ?: id,
+                selectable = model.bool("manualSelectionAllowed") != false && model.bool("available") != false,
+                thinkingLevels = thinkingChoices(model),
+                thinkingDefault = model.string("thinkingDefault"),
+            )
+        }.distinctBy(ModelChoice::reference)
+        val policy = obj.obj("modelSelectionPolicy")
+        return ModelCatalog(models, policy == null || policy.string("defaultModel") != null)
+    }
+
+    private fun thinkingChoices(obj: JsonObject): List<SettingChoice> =
+        obj.array("thinkingLevels").mapNotNull { value ->
+            val option = value.asObject() ?: return@mapNotNull null
+            val id = option.string("id") ?: return@mapNotNull null
+            SettingChoice(id, option.string("label") ?: id)
+        }.distinctBy(SettingChoice::id)
+
+    private fun canonicalModel(id: String, provider: String?): String =
+        if (provider == null || id.startsWith("$provider/")) id else "$provider/$id"
+
+    fun providerUsage(obj: JsonObject): List<ProviderUsage> =
+        obj.array("providers").mapNotNull { entry ->
+            val provider = entry.asObject() ?: return@mapNotNull null
+            val name = provider.string("displayName") ?: provider.string("provider") ?: return@mapNotNull null
+            val windows = provider.array("windows").mapNotNull window@{ entryWindow ->
+                val window = entryWindow.asObject() ?: return@window null
+                val label = window.string("label") ?: return@window null
+                val percent = (window["usedPercent"] as? JsonPrimitive)?.doubleOrNull?.takeIf { it.isFinite() }
+                    ?: return@window null
+                UsageWindow(label, (percent / 100).coerceIn(0.0, 1.0).toFloat(), window.long("resetAt"))
+            }
+            name.takeIf { windows.isNotEmpty() }?.let { ProviderUsage(it, windows, provider.string("plan")?.takeIf(String::isNotBlank)) }
+        }
 
     fun message(obj: JsonObject, index: Int): ChatMessage? {
         val role = when (obj.string("role")?.trim()?.lowercase()) {
@@ -147,18 +245,22 @@ internal object Parse {
     private fun part(obj: JsonObject): MessagePart? = when (normalizeType(obj.string("type") ?: "text")) {
         "text", "input_text", "output_text" -> (obj.string("text") ?: obj.string("content"))
             ?.takeIf(String::isNotBlank)?.let(MessagePart::Text)
-        "image" -> {
+        "image", "image_url", "input_image", "output_image" -> {
             val source = obj.obj("source")
             MessagePart.Image(
-                url = obj.string("url") ?: source?.string("url"),
+                url = mediaUrl(obj, "image_url"),
                 base64 = obj.string("data") ?: source?.string("data") ?: obj.string("content"),
                 mimeType = obj.string("mimeType") ?: source?.string("media_type"),
             )
         }
+        "video", "video_url", "input_video", "output_video" -> mediaUrl(obj, "video_url")?.let(MessagePart::Video)
         "toolCall" -> toolPart(obj, isResult = false, topLevel = false)
         "toolResult" -> toolPart(obj, isResult = true, topLevel = false)
         else -> null
     }
+
+    private fun mediaUrl(obj: JsonObject, field: String): String? =
+        obj.string("url") ?: obj.string(field) ?: obj.obj(field)?.string("url") ?: obj.obj("source")?.string("url")
 
     private fun normalizeType(type: String): String = when (type.lowercase()) {
         "toolcall", "tool_call", "tooluse", "tool_use" -> "toolCall"

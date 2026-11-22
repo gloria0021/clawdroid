@@ -30,13 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import com.mikepenz.markdown.m3.Markdown
@@ -44,6 +44,7 @@ import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.markdownPadding
 import jp.miyavi.android.clawdroid.R
+import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.MessagePart
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
@@ -53,14 +54,22 @@ import jp.miyavi.android.clawdroid.core.designsystem.bodyTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.codeTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.expandEnter
 import jp.miyavi.android.clawdroid.core.designsystem.shrinkExit
+import jp.miyavi.android.clawdroid.feature.chat.AgentAvatar
 
 /** 利用者のメッセージ。右寄せの角丸の面（本文の下地の色。影なし。AGENTS.md 2.5）。 */
 @Composable
-fun UserMessage(message: ChatMessage, onOpenImage: (MessagePart.Image) -> Unit, modifier: Modifier = Modifier) {
+fun UserMessage(
+    message: ChatMessage,
+    timeLabel: String?,
+    onOpenImage: (MessagePart.Image) -> Unit,
+    onOpenVideo: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         message.parts.filterIsInstance<MessagePart.Image>().forEach { image ->
             MessageImage(image, onOpenImage, Modifier.padding(bottom = Spacing.xs))
         }
+        message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
         if (text.isNotBlank()) {
             Surface(
@@ -69,10 +78,18 @@ fun UserMessage(message: ChatMessage, onOpenImage: (MessagePart.Image) -> Unit, 
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.widthIn(max = Dimens.maxReadingWidth * USER_BUBBLE_MAX_FRACTION),
             ) {
-                SelectionContainer {
-                    Text(text, style = bodyTextStyle(), modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s))
+                Box(Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s)) {
+                    MarkdownText(text)
                 }
             }
+        }
+        if (timeLabel != null) {
+            Text(
+                timeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
         }
     }
 }
@@ -81,20 +98,27 @@ fun UserMessage(message: ChatMessage, onOpenImage: (MessagePart.Image) -> Unit, 
 @Composable
 fun AssistantMessage(
     message: ChatMessage,
+    agent: Agent?,
+    timeLabel: String?,
+    elapsedMs: Long?,
     onCopy: (String) -> Unit,
-    onShare: (String) -> Unit,
+    onReply: ((String) -> Unit)?,
     onOpenImage: (MessagePart.Image) -> Unit,
+    onOpenVideo: (String) -> Unit,
     onShowFull: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    ReplyLayout(agent, showAvatar = message.role == ChatMessage.Role.ASSISTANT, modifier) {
         message.parts.forEach { part ->
             when (part) {
                 is MessagePart.Text -> MarkdownText(part.markdown)
                 is MessagePart.Image -> MessageImage(part, onOpenImage)
-                is MessagePart.ToolCall -> ToolCallRow(part)
+                is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
+                is MessagePart.ToolCall -> Unit
             }
         }
+        val tools = remember(message.parts) { message.parts.filterIsInstance<MessagePart.ToolCall>() }
+        if (tools.isNotEmpty()) ToolGroup(tools)
         if (message.truncated && onShowFull != null) {
             Text(
                 stringResource(R.string.chat_show_full),
@@ -103,14 +127,32 @@ fun AssistantMessage(
                 modifier = Modifier.heightIn(min = Dimens.compactTouchTarget).clickable(onClick = onShowFull).padding(vertical = Spacing.xs),
             )
         }
+        elapsedMs?.let {
+            val seconds = (it / 1_000).coerceAtLeast(1)
+            val duration = if (seconds < 60) {
+                stringResource(R.string.chat_elapsed_seconds, seconds)
+            } else {
+                stringResource(R.string.chat_elapsed_minutes_seconds, seconds / 60, seconds % 60)
+            }
+            Text(
+                stringResource(R.string.chat_elapsed, duration),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         val text = message.text
+        if (timeLabel != null) {
+            Text(timeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (text.isNotBlank()) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                if (onReply != null && message.role == ChatMessage.Role.ASSISTANT) {
+                    IconButton(onClick = { onReply(text) }) {
+                        Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd))
+                    }
+                }
                 IconButton(onClick = { onCopy(text) }) {
                     Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy))
-                }
-                IconButton(onClick = { onShare(text) }) {
-                    Icon(painterResource(R.drawable.ic_huge_share), contentDescription = stringResource(R.string.action_share))
                 }
             }
         }
@@ -119,15 +161,52 @@ fun AssistantMessage(
 
 /** 生成中の応答（逐次表示）。 */
 @Composable
-fun LiveAssistantMessage(text: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth()) { MarkdownText(text) }
+fun LiveAssistantMessage(text: String, agent: Agent?, modifier: Modifier = Modifier) {
+    ReplyLayout(agent, showAvatar = true, modifier) { MarkdownText(text) }
 }
 
-/** ツールだけの結果のメッセージ（role = toolResult）。 */
 @Composable
-fun ToolResultMessage(message: ChatMessage, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth()) {
-        message.parts.filterIsInstance<MessagePart.ToolCall>().forEach { ToolCallRow(it) }
+private fun ReplyLayout(agent: Agent?, showAvatar: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        if (showAvatar) AgentAvatar(agent, label = agent?.name)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            content()
+        }
+    }
+}
+
+/** 連続したツール実行をひとつの行にまとめる。 */
+@Composable
+fun ToolGroup(parts: List<MessagePart.ToolCall>, modifier: Modifier = Modifier) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(modifier) {
+        Row(
+            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+                .clickable { expanded = !expanded }
+                .heightIn(min = Dimens.minTouchTarget),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val tint = if (parts.any { it.isError }) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            Icon(painterResource(R.drawable.ic_huge_tool), null, Modifier.size(Spacing.l), tint = tint)
+            Text(
+                pluralStringResource(R.plurals.chat_tools_count, parts.size, parts.size),
+                style = MaterialTheme.typography.labelLarge,
+                color = tint,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painterResource(R.drawable.ic_huge_arrow_down),
+                contentDescription = null,
+                modifier = Modifier.rotate(if (expanded) 180f else 0f),
+                tint = tint,
+            )
+        }
+        AnimatedVisibility(visible = expanded, enter = expandEnter(), exit = shrinkExit()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                parts.forEach { ToolCallRow(it) }
+            }
+        }
     }
 }
 
@@ -149,7 +228,7 @@ private fun MarkdownText(markdown: String) {
 
 /** ツールの実行。折りたたみの行で、展開すると引数と出力を見られる（FR-024）。 */
 @Composable
-fun ToolCallRow(part: MessagePart.ToolCall, modifier: Modifier = Modifier) {
+private fun ToolCallRow(part: MessagePart.ToolCall, modifier: Modifier = Modifier) {
     var expanded by rememberSaveable(part.callId, part.isResult) { mutableStateOf(false) }
     val label = stringResource(R.string.chat_tool_expand_label)
     Column(
@@ -157,7 +236,6 @@ fun ToolCallRow(part: MessagePart.ToolCall, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClickLabel = label) { expanded = !expanded }
-            .semantics { onClick(label) { expanded = !expanded; true } }
             .heightIn(min = Dimens.compactTouchTarget)
             .padding(vertical = Spacing.xs),
     ) {
@@ -191,7 +269,7 @@ fun ToolCallRow(part: MessagePart.ToolCall, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) -> Unit, modifier: Modifier = Modifier) {
+internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) -> Unit, modifier: Modifier = Modifier) {
     val cd = stringResource(R.string.chat_image_cd)
     val shape = MaterialTheme.shapes.large
     val imageModifier = modifier
@@ -200,10 +278,11 @@ private fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) -
         .clip(shape)
         .background(bodyContainerColor())
         .clickable { onOpen(image) }
+    val url = remember(image.url) { image.url?.let(::webUri) }
     val bitmap = rememberBase64Bitmap(image.base64)
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
-        image.url != null -> AsyncImage(model = image.url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
+        url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
     }
 }
 

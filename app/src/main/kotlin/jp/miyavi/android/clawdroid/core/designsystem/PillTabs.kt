@@ -13,9 +13,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -28,9 +29,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -40,10 +41,11 @@ fun <T> PillTabs(
     tabs: List<T>,
     selected: T,
     onSelect: (T) -> Unit,
-    label: @Composable (T) -> String,
+    label: (T) -> String,
     fillWidth: Boolean = false,
     indicatorPadding: PaddingValues = PaddingValues(0.dp),
     tabHorizontalPadding: Dp = if (fillWidth) Spacing.xs else Spacing.xxl,
+    content: @Composable (T) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
     val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
@@ -73,7 +75,7 @@ fun <T> PillTabs(
         tabs.forEach { tab ->
             val isSelected = selected == tab
             val interactions = remember { MutableInteractionSource() }
-            val textColor by animateColorAsState(
+            val contentColor by animateColorAsState(
                 if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
                 motion.fastEffectsSpec(),
                 label = "tabTextColor",
@@ -87,6 +89,7 @@ fun <T> PillTabs(
                         indication = null,
                         role = Role.Tab,
                     ) { onSelect(tab) }
+                    .semantics { contentDescription = label(tab) }
                     .heightIn(min = Dimens.minTouchTarget)
                     .padding(indicatorPadding)
                     .clip(CircleShape)
@@ -94,7 +97,7 @@ fun <T> PillTabs(
                     .padding(horizontal = tabHorizontalPadding, vertical = Spacing.s),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label(tab), style = MaterialTheme.typography.labelLarge, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                CompositionLocalProvider(LocalContentColor provides contentColor) { content(tab) }
             }
         }
     }
