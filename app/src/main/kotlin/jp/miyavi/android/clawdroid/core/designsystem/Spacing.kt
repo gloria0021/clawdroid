@@ -27,6 +27,7 @@ object Dimens {
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
     val avatar = 24.dp
-    val usageRingStroke = 2.dp
     val usageBarHeight = 8.dp
+    /** 入力欄のモデルのピルの最大幅（長いモデル名は省略記号）。 */
+    val modelPillMaxWidth = 200.dp
 }

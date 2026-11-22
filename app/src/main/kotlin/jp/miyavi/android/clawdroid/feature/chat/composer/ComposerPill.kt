@@ -14,20 +14,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +48,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import dev.chrisbanes.haze.HazeState
+import java.text.NumberFormat
 import jp.miyavi.android.clawdroid.R
-import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
@@ -61,8 +60,9 @@ import jp.miyavi.android.clawdroid.feature.chat.ComposerState
 import jp.miyavi.android.clawdroid.feature.chat.message.rememberBase64Bitmap
 
 /**
- * 画面下部に浮くガラスのピル型の入力欄（AGENTS.md 2.7）。左に添付、中央に入力、右にマイク／送信。
- * 生成中は送信の位置が停止に変わる（FR-022）。
+ * 画面下部に浮くガラスの入力欄（AGENTS.md 2.7）。上に入力、下の行に 添付 ｜ モデルのピル ｜ 送信。
+ * モデルのピルはコンテキストの消費で色が変わり、押すとセッションのシート（設定と使用量）を開く。
+ * 入力が空のあいだは送信の位置に音声入力、生成中は停止を出す（FR-022・029）。
  */
 @Composable
 fun ComposerPill(
@@ -73,14 +73,8 @@ fun ComposerPill(
     focusRequester: FocusRequester,
     voice: VoiceInputState,
     model: String?,
-    effort: String?,
-    permission: String?,
-    canEditModel: Boolean,
-    canEditEffort: Boolean,
-    canEditPermissions: Boolean,
-    onOpenSetting: (SessionSetting) -> Unit,
     contextFraction: Float?,
-    onShowUsage: () -> Unit,
+    onOpenSession: () -> Unit,
     onTextChange: (String) -> Unit,
     onAttach: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
@@ -119,17 +113,13 @@ fun ComposerPill(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(min = Dimens.minTouchTarget, max = Dimens.composerMaxHeight)
-                    .padding(horizontal = Spacing.l, vertical = Spacing.m),
+                    .heightIn(max = Dimens.composerMaxHeight)
+                    .padding(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = Spacing.xs),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 val textStyle = bodyTextStyle().copy(color = LocalContentColor.current)
                 if (state.text.isEmpty()) {
-                    Text(
-                        stringResource(R.string.chat_input_placeholder),
-                        style = textStyle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(stringResource(R.string.chat_input_placeholder), style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 var editingValue by remember { mutableStateOf(TextFieldValue(state.text)) }
                 val fieldValue = if (editingValue.text == state.text) editingValue else {
@@ -148,95 +138,36 @@ fun ComposerPill(
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 )
             }
+            val canSend = state.text.isNotBlank() || state.images.isNotEmpty()
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val usageLabel = stringResource(R.string.usage_title)
-                IconButton(onClick = onShowUsage, modifier = Modifier.semantics { contentDescription = usageLabel }) {
-                    if (contextFraction != null) {
-                        CircularProgressIndicator(
-                            progress = { contextFraction },
-                            modifier = Modifier.size(Spacing.l),
-                            trackColor = MaterialTheme.colorScheme.outlineVariant,
-                            strokeWidth = Dimens.usageRingStroke,
-                        )
-                    } else {
-                        Icon(painterResource(R.drawable.ic_huge_usage), null)
-                    }
-                }
-                val modelText = model?.substringAfterLast('/') ?: stringResource(R.string.chat_setting_model)
-                if (canEditModel) {
-                    TextButton(
-                        onClick = { onOpenSetting(SessionSetting.MODEL) },
-                        modifier = Modifier.weight(1f).heightIn(min = Dimens.minTouchTarget),
-                        contentPadding = PaddingValues(horizontal = Spacing.xs),
-                    ) {
-                        Text(modelText, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        Icon(painterResource(R.drawable.ic_huge_arrow_down), null, Modifier.size(Spacing.l))
-                    }
-                } else {
-                    Text(modelText, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                }
-                if (canEditEffort) {
-                    TextButton(
-                        onClick = { onOpenSetting(SessionSetting.EFFORT) },
-                        modifier = Modifier.heightIn(min = Dimens.minTouchTarget),
-                        contentPadding = PaddingValues(horizontal = Spacing.xs),
-                    ) {
-                        Text(effort ?: stringResource(R.string.chat_setting_effort), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Icon(painterResource(R.drawable.ic_huge_arrow_down), null, Modifier.size(Spacing.l))
-                    }
-                }
-            }
-            val canSend = state.text.isNotBlank() || state.images.isNotEmpty()
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 IconButton(onClick = onAttach, enabled = enabled) {
                     Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
                 }
-                val permissionChoice = PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default
-                IconButton(
-                    onClick = { onOpenSetting(SessionSetting.PERMISSIONS) },
-                    enabled = canEditPermissions,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_huge_key),
-                        contentDescription = stringResource(
-                            R.string.chat_permission_button,
-                            stringResource(permissionChoice.label),
-                        ),
-                        tint = if (canEditPermissions && permissionChoice == PermissionChoice.Full) {
-                            MaterialTheme.colorScheme.error
-                        } else LocalContentColor.current,
-                    )
-                }
+                ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
-                if (voice.available && !canSend && !running) {
-                    val micColor by animateColorAsState(
-                        if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                        animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
-                        label = "micColor",
-                    )
-                    IconButton(onClick = voice::toggle, enabled = enabled) {
-                        Icon(
-                            painterResource(R.drawable.ic_huge_mic),
-                            contentDescription = stringResource(if (voice.listening) R.string.chat_mic_listening_cd else R.string.chat_mic_cd),
-                            tint = micColor,
-                        )
-                    }
-                }
                 when {
                     running -> FilledIconButton(onClick = onStop) {
                         Icon(painterResource(R.drawable.ic_huge_stop), contentDescription = stringResource(R.string.chat_stop_cd))
                     }
-                    else -> FilledIconButton(
-                        onClick = onSend,
-                        enabled = enabled && canSend && !state.sending && !state.updatingSettings,
-                        colors = IconButtonDefaults.filledIconButtonColors(),
-                    ) {
+                    !canSend && voice.available -> {
+                        val micColor by animateColorAsState(
+                            if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                            animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
+                            label = "micColor",
+                        )
+                        IconButton(onClick = voice::toggle, enabled = enabled) {
+                            Icon(
+                                painterResource(R.drawable.ic_huge_mic),
+                                contentDescription = stringResource(if (voice.listening) R.string.chat_mic_listening_cd else R.string.chat_mic_cd),
+                                tint = micColor,
+                            )
+                        }
+                    }
+                    else -> FilledIconButton(onClick = onSend, enabled = enabled && canSend && !state.sending && !state.updatingSettings) {
                         Icon(painterResource(R.drawable.ic_huge_send), contentDescription = stringResource(R.string.chat_send_cd))
                     }
                 }
@@ -244,3 +175,59 @@ fun ComposerPill(
         }
     }
 }
+
+/** コンテキストの消費の段階。 */
+internal enum class ContextLevel { LOW, MEDIUM, HIGH }
+
+internal fun contextLevel(fraction: Float?): ContextLevel = when {
+    fraction == null || fraction < CONTEXT_MEDIUM -> ContextLevel.LOW
+    fraction < CONTEXT_HIGH -> ContextLevel.MEDIUM
+    else -> ContextLevel.HIGH
+}
+
+/**
+ * モデル名のピル。背景の色でコンテキストの消費を示す（低 = secondaryContainer、中 = tertiaryContainer、高 = errorContainer）。
+ * 色の切り替えは弾ませない（effects のトークン）。
+ */
+@Composable
+private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
+    val level = contextLevel(contextFraction)
+    val container by animateColorAsState(
+        when (level) {
+            ContextLevel.LOW -> colors.secondaryContainer
+            ContextLevel.MEDIUM -> colors.tertiaryContainer
+            ContextLevel.HIGH -> colors.errorContainer
+        },
+        motion.defaultEffectsSpec(),
+        label = "modelPillContainer",
+    )
+    val content by animateColorAsState(
+        when (level) {
+            ContextLevel.LOW -> colors.onSecondaryContainer
+            ContextLevel.MEDIUM -> colors.onTertiaryContainer
+            ContextLevel.HIGH -> colors.onErrorContainer
+        },
+        motion.defaultEffectsSpec(),
+        label = "modelPillContent",
+    )
+    val name = model?.substringAfterLast('/') ?: stringResource(R.string.chat_setting_default)
+    val percent = contextFraction?.let { NumberFormat.getPercentInstance().format(it) }
+    val cd = if (percent != null) stringResource(R.string.chat_model_pill_cd, name, percent) else name
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+        modifier = modifier.heightIn(min = Dimens.compactTouchTarget).widthIn(max = Dimens.modelPillMaxWidth).semantics { contentDescription = cd },
+    ) {
+        Row(Modifier.padding(horizontal = Spacing.m), verticalAlignment = Alignment.CenterVertically) {
+            Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** コンテキストの消費の境目（中・高）。 */
+private const val CONTEXT_MEDIUM = 0.5f
+private const val CONTEXT_HIGH = 0.8f

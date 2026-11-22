@@ -189,4 +189,5 @@
     <string name="chat_permission_workspace_description">追加のアクセスは AI が確認し、必要に応じて人に引き継ぎます。</string>
     <string name="chat_permission_full_description">通常の承認を省略します。ホストとツールのポリシーは適用されます。</string>
     <string name="chat_permission_button">実行権限（%1$s）</string>
+    <string name="chat_model_pill_cd">%1$s、コンテキスト %2$s 使用。押すと設定と使用量を開きます</string>
 </resources>

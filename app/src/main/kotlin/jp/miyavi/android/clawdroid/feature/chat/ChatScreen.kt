@@ -93,8 +93,8 @@ import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import jp.miyavi.android.clawdroid.feature.chat.composer.ComposerPill
-import jp.miyavi.android.clawdroid.feature.chat.composer.ComposerSettingsSheet
-import jp.miyavi.android.clawdroid.feature.chat.composer.ComposerUsageSheet
+import jp.miyavi.android.clawdroid.feature.chat.composer.ComposerSessionSheet
+import jp.miyavi.android.clawdroid.feature.chat.composer.SettingAvailability
 import jp.miyavi.android.clawdroid.feature.chat.composer.rememberVoiceInput
 import jp.miyavi.android.clawdroid.feature.chat.message.AssistantMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
@@ -236,9 +236,8 @@ fun ChatContent(
         onError = { scope.launch { snackbar.showSnackbar(voiceError) } },
     )
     val copied = stringResource(R.string.copied)
-    var showUsage by rememberSaveable { mutableStateOf(false) }
+    var showSessionSheet by rememberSaveable { mutableStateOf(false) }
     val agent = state.selectedAgent
-    var openSetting by rememberSaveable(state.currentSessionKey, agent?.id) { mutableStateOf<SessionSetting?>(null) }
     val model = composer.sessionOptions[SessionSetting.MODEL] ?: state.currentSession?.model ?: agent?.defaultModel
     val effort = composer.sessionOptions[SessionSetting.EFFORT] ?: state.currentSession?.thinkingLevel ?: agent?.thinkingDefault
     val permission = composer.sessionOptions[SessionSetting.PERMISSIONS] ?: state.currentSession?.permissionMode
@@ -333,14 +332,8 @@ fun ChatContent(
                                 focusRequester = composerFocus,
                                 voice = voice,
                                 model = model,
-                                effort = effort,
-                                permission = permission,
-                                canEditModel = canEdit && canLoadModels,
-                                canEditEffort = canEdit && (canLoadModels || agent?.thinkingLevels?.isNotEmpty() == true),
-                                canEditPermissions = canEdit && state.currentSession?.permissionModePending != true,
-                                onOpenSetting = { openSetting = it },
                                 contextFraction = state.currentSession?.contextFraction,
-                                onShowUsage = { showUsage = true },
+                                onOpenSession = { showSessionSheet = true },
                                 onTextChange = actions.textChange,
                                 onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                 onRemoveImage = actions.removeImage,
@@ -386,31 +379,25 @@ fun ChatContent(
         }
         ImageOverlay(image = openedImage, onDismiss = { openedImage = null })
         openedVideo?.let { VideoPreviewSheet(it, hazeState) { openedVideo = null } }
-        if (showUsage) {
-            ComposerUsageSheet(
+        if (showSessionSheet) {
+            ComposerSessionSheet(
                 hazeState = hazeState,
-                model = model,
-                session = state.currentSession,
-                loadUsage = actions.loadUsage,
-                onDismiss = { showUsage = false },
-            )
-        }
-        val setting = openSetting
-        if (agent != null && setting != null && canEdit) {
-            ComposerSettingsSheet(
-                hazeState = hazeState,
-                setting = setting,
                 agent = agent,
-                sessionKey = state.currentSessionKey,
                 session = state.currentSession,
+                model = model,
+                effort = effort,
+                permission = permission,
                 draftOptions = composer.sessionOptions,
+                availability = SettingAvailability(
+                    model = canEdit && canLoadModels,
+                    effort = canEdit && (canLoadModels || agent?.thinkingLevels?.isNotEmpty() == true),
+                    permissions = canEdit && state.currentSession?.permissionModePending != true,
+                ),
                 canSelectFull = canSelectFull,
                 loadModels = actions.loadModels,
-                onSelect = { value ->
-                    openSetting = null
-                    actions.updateSetting(setting, value)
-                },
-                onDismiss = { openSetting = null },
+                loadUsage = actions.loadUsage,
+                onSelect = { setting, value -> actions.updateSetting(setting, value) },
+                onDismiss = { showSessionSheet = false },
             )
         }
     }
