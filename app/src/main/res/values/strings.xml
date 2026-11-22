@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Clawdroid</string>
+
+    <!-- 共通 -->
+    <string name="action_retry">再試行</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">削除</string>
+    <string name="action_discard">破棄</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_share">共有</string>
+    <string name="action_close">閉じる</string>
+    <string name="copied">コピーしました</string>
+
+    <!-- 接続（US1） -->
+    <string name="connect_title">Gateway に接続</string>
+    <string name="connect_description">OpenClaw Gateway の接続先と、ゲートウェイトークンを入力してください。</string>
+    <string name="connect_url_label">接続先</string>
+    <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
+    <string name="connect_token_label">ゲートウェイトークン</string>
+    <string name="connect_action">接続</string>
+    <string name="connect_connecting">接続しています…</string>
+    <string name="connect_show_token_cd">トークンを表示</string>
+    <string name="connect_hide_token_cd">トークンを隠す</string>
+    <string name="connect_error_url_invalid">ws:// か wss:// で始まるアドレスを入力してください</string>
+    <string name="connect_error_cleartext_public">暗号化しない ws:// は、LAN と Tailscale のアドレスだけで使えます。それ以外は wss:// を使ってください</string>
+    <string name="connect_error_token_empty">トークンを入力してください</string>
+    <string name="connect_error_auth">認証が拒否されました。トークンを確かめてください</string>
+    <string name="connect_error_unreachable">Gateway に到達できません。アドレスとネットワークを確かめてください</string>
+    <string name="connect_error_pairing_rejected">この端末の接続は拒否されました</string>
+    <string name="connect_error_other">接続できませんでした: %1$s</string>
+    <string name="connect_awaiting_title">この端末の承認を待っています</string>
+    <string name="connect_awaiting_body">Control UI の「Devices」で承認するか、Gateway のホストで次のコマンドを実行してください。</string>
+    <string name="connect_awaiting_command">openclaw devices approve %1$s</string>
+
+    <!-- 接続の状態 -->
+    <string name="connection_reconnecting">再接続しています…</string>
+    <string name="connection_restarting">Gateway を再起動しています…</string>
+    <string name="connection_offline">接続されていません</string>
+    <string name="connection_auth_expired">認証が切れました。接続し直してください</string>
+    <string name="connection_reconnect">接続し直す</string>
+
+    <!-- サイドバー -->
+    <string name="sidebar_open_cd">サイドバーを開く</string>
+    <string name="sidebar_automations">自動化</string>
+    <string name="sidebar_terminal">ターミナル</string>
+    <string name="sidebar_settings">設定</string>
+    <string name="sidebar_empty_title">セッションがありません</string>
+    <string name="sidebar_empty_body">新規チャットから始めましょう</string>
+    <string name="session_running_cd">実行中</string>
+    <string name="session_unread_cd">未読</string>
+    <string name="session_menu_rename">名前を変更</string>
+    <string name="session_menu_archive">アーカイブ</string>
+    <string name="session_menu_unarchive">アーカイブを解除</string>
+    <string name="session_menu_open_label">セッションのメニューを開く</string>
+    <string name="session_rename_title">セッションの名前</string>
+    <string name="session_untitled">新しいチャット</string>
+
+    <!-- 会話 -->
+    <string name="chat_new_cd">新規チャット</string>
+    <string name="chat_more_cd">その他の操作</string>
+    <string name="chat_input_placeholder">メッセージ</string>
+    <string name="chat_send_cd">送信</string>
+    <string name="chat_stop_cd">停止</string>
+    <string name="chat_attach_cd">画像を添付</string>
+    <string name="chat_mic_cd">音声で入力</string>
+    <string name="chat_mic_listening_cd">聞き取り中。押すと止めます</string>
+    <string name="chat_remove_attachment_cd">添付を外す</string>
+    <string name="chat_scroll_bottom_cd">最新のメッセージへ</string>
+    <string name="chat_empty_title">何をしましょうか</string>
+    <string name="chat_archived_banner">このセッションはアーカイブされています</string>
+    <string name="chat_unarchive">アーカイブを解除</string>
+    <string name="chat_send_failed">送信できませんでした</string>
+    <string name="chat_load_failed">会話を読み込めませんでした</string>
+    <string name="chat_tool_running">実行中</string>
+    <string name="chat_tool_failed">失敗</string>
+    <string name="chat_tool_expand_label">ツールの実行を開く</string>
+    <string name="chat_image_cd">画像</string>
+    <string name="chat_image_close_cd">画像を閉じる</string>
+    <string name="chat_message_menu_label">メッセージの操作</string>
+    <string name="chat_show_full">全文を表示</string>
+
+    <!-- 承認 -->
+    <string name="approval_title">承認が必要です</string>
+    <string name="approval_approve">承認</string>
+    <string name="approval_deny">拒否</string>
+    <string name="approval_pending_banner">承認待ちが %1$d 件あります</string>
+
+    <!-- 音声入力 -->
+    <string name="voice_permission_denied">マイクの許可がないため、音声入力を使えません</string>
+    <string name="voice_error">音声を認識できませんでした</string>
+
+    <!-- メニュー -->
+    <string name="menu_files">ファイル</string>
+    <string name="menu_terminal">ターミナル</string>
+    <string name="menu_usage">使用量</string>
+    <string name="menu_restart_gateway">Gateway を再起動</string>
+    <string name="menu_disconnect">切断</string>
+</resources>

@@ -21,3 +21,6 @@ build/
 .idea/
 *.iml
 .DS_Store
+
+# Roborazzi の出力
+/app/build/outputs/roborazzi/

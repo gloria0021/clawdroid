@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 平文の ws:// は LAN・Tailscale のプライベートアドレス向け。どのアドレスを許すかはアプリ側（ConnectViewModel）で検証する -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

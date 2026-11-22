@@ -1,0 +1,150 @@
+package jp.miyavi.android.clawdroid.core.gateway
+
+import java.util.concurrent.TimeUnit
+import jp.miyavi.android.clawdroid.core.security.GatewayConnection
+import jp.miyavi.android.clawdroid.testing.FakeGateway
+import jp.miyavi.android.clawdroid.testing.FakeGateway.ConnectBehavior
+import jp.miyavi.android.clawdroid.testing.InMemorySecretStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.OkHttpClient
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class GatewayClientTest {
+    private val gateway = FakeGateway()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private lateinit var secrets: InMemorySecretStore
+    private lateinit var client: GatewayClient
+
+    @Before fun setUp() {
+        gateway.handlers["echo"] = { params -> params }
+        gateway.start()
+        secrets = InMemorySecretStore()
+        client = GatewayClient(
+            scope = scope,
+            httpClient = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build(),
+            identities = DeviceIdentityRepository(secrets),
+            secrets = secrets,
+            clientInfo = ClientInfo(version = "0.1.0-test", modelIdentifier = "Test", displayName = "Test"),
+            handshakeTimeoutMs = 5_000,
+        )
+    }
+
+    @After fun tearDown() {
+        scope.cancel()
+        gateway.shutdown()
+    }
+
+    private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(10_000) { block() } }
+
+    @Test fun connect_succeeds_savesDeviceToken_andRequestsWork() {
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "dt-1"))
+        await { client.connect(gateway.url, "shared-token") }
+        val connected = await { client.awaitConnected() }
+        assertEquals("2026.11.6", connected.serverVersion)
+        assertEquals("dt-1", secrets.connection?.deviceToken)
+
+        // connect の中身: role・scopes・token・端末の署名
+        val params = gateway.connectParams.single()
+        assertEquals("operator", params.string("role"))
+        assertEquals("shared-token", gateway.lastConnectAuthToken())
+        val device = params.obj("device")!!
+        assertEquals("nonce-1", device.string("nonce"))
+        assertEquals(1_700_000_000_000L, device.long("signedAt"))
+        assertNotNull(device.string("signature"))
+        assertEquals("openclaw-android", params.obj("client")?.string("id"))
+
+        val echoed = await { client.request("echo", buildJsonObject { put("x", 1) }) }
+        assertEquals(1, echoed.asObject()?.int("x"))
+    }
+
+    @Test fun pairingRequired_thenApproved_connects() {
+        gateway.enqueue(ConnectBehavior.PairingRequired(resolveWith = "approved"))
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+        assertEquals(2, gateway.connectParams.size)
+    }
+
+    @Test fun pairingRequired_showsAwaitingApproval() {
+        gateway.enqueue(ConnectBehavior.PairingRequired(requestId = "req-9"))
+        await { client.connect(gateway.url, "t") }
+        val state = await { client.state.first { it is ConnectionState.AwaitingApproval } } as ConnectionState.AwaitingApproval
+        assertEquals("req-9", state.requestId)
+    }
+
+    @Test fun pairingRejected_failsWithoutRetry() {
+        gateway.enqueue(ConnectBehavior.PairingRequired(resolveWith = "rejected"))
+        await { client.connect(gateway.url, "t") }
+        val state = await { client.state.first { it is ConnectionState.Failed } } as ConnectionState.Failed
+        assertEquals(FailureReason.PAIRING_REJECTED, state.reason)
+    }
+
+    @Test fun authRejected_failsAndStopsReconnecting() {
+        gateway.enqueue(ConnectBehavior.Reject("INVALID_REQUEST", "AUTH_TOKEN_MISMATCH"))
+        await { client.connect(gateway.url, "wrong") }
+        val state = await { client.state.first { it is ConnectionState.Failed } } as ConnectionState.Failed
+        assertEquals(FailureReason.AUTH_REJECTED, state.reason)
+        Thread.sleep(1_500)
+        assertEquals(1, gateway.connectParams.size)
+    }
+
+    @Test fun unreachable_reconnectsWithBackoff() {
+        val deadUrl = gateway.url
+        gateway.shutdown()
+        await { client.connect(deadUrl, "t") }
+        val state = await { client.state.first { it is ConnectionState.Reconnecting } } as ConnectionState.Reconnecting
+        assertEquals(FailureReason.UNREACHABLE, state.reason)
+    }
+
+    @Test fun tickSilence_closesAndReconnects() {
+        gateway.enqueue(ConnectBehavior.Accept(tickIntervalMs = 200))
+        gateway.enqueue(ConnectBehavior.Accept(tickIntervalMs = 30_000))
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+        // tick が届かないので 400ms で閉じ、2 本目の接続に入る
+        await { client.state.first { it is ConnectionState.Reconnecting } }
+        await { client.awaitConnected() }
+        assertTrue(gateway.connectParams.size >= 2)
+    }
+
+    @Test fun events_areDelivered_exceptTick() {
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+        val received = scope.async { client.events.first() }
+        Thread.sleep(200)
+        gateway.emit("tick", buildJsonObject { put("ts", 1) })
+        gateway.emit("sessions.changed", buildJsonObject { put("key", "s1") })
+        val event = await { received.await() }
+        assertEquals("sessions.changed", event.name)
+    }
+
+    @Test fun backoff_isCapped() {
+        assertEquals(1_000L, GatewayClient.backoffMs(1))
+        assertEquals(2_000L, GatewayClient.backoffMs(2))
+        assertEquals(30_000L, GatewayClient.backoffMs(20))
+    }
+
+    @Test fun reconnect_keepsDeviceTokenForSameUrl() {
+        secrets.connection = GatewayConnection(gateway.url, "old", deviceToken = "keep-me")
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = null))
+        await { client.connect(gateway.url, "new") }
+        await { client.awaitConnected() }
+        assertEquals("keep-me", gateway.connectParams.single().obj("auth")?.string("deviceToken"))
+    }
+}
+

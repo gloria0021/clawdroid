@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 起動直後の窓だけの設定。画面の色はすべて Compose のテーマ（core/designsystem/Theme.kt）で決める -->
+    <style name="Theme.Clawdroid" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+</resources>

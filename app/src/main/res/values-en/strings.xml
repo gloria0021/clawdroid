@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_close">Close</string>
+    <string name="copied">Copied</string>
+
+    <string name="connect_title">Connect to Gateway</string>
+    <string name="connect_description">Enter your OpenClaw Gateway address and gateway token.</string>
+    <string name="connect_url_label">Address</string>
+    <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
+    <string name="connect_token_label">Gateway token</string>
+    <string name="connect_action">Connect</string>
+    <string name="connect_connecting">Connecting…</string>
+    <string name="connect_show_token_cd">Show token</string>
+    <string name="connect_hide_token_cd">Hide token</string>
+    <string name="connect_error_url_invalid">Enter an address starting with ws:// or wss://</string>
+    <string name="connect_error_cleartext_public">Unencrypted ws:// works only with LAN and Tailscale addresses. Use wss:// otherwise.</string>
+    <string name="connect_error_token_empty">Enter the token</string>
+    <string name="connect_error_auth">Authentication was rejected. Check the token.</string>
+    <string name="connect_error_unreachable">Can\'t reach the Gateway. Check the address and network.</string>
+    <string name="connect_error_pairing_rejected">This device was rejected</string>
+    <string name="connect_error_other">Couldn\'t connect: %1$s</string>
+    <string name="connect_awaiting_title">Waiting for approval of this device</string>
+    <string name="connect_awaiting_body">Approve it in Control UI → Devices, or run this on the Gateway host:</string>
+    <string name="connect_awaiting_command">openclaw devices approve %1$s</string>
+
+    <string name="connection_reconnecting">Reconnecting…</string>
+    <string name="connection_restarting">Restarting the Gateway…</string>
+    <string name="connection_offline">Not connected</string>
+    <string name="connection_auth_expired">Authentication expired. Connect again.</string>
+    <string name="connection_reconnect">Reconnect</string>
+
+    <string name="sidebar_open_cd">Open sidebar</string>
+    <string name="sidebar_automations">Automations</string>
+    <string name="sidebar_terminal">Terminal</string>
+    <string name="sidebar_settings">Settings</string>
+    <string name="sidebar_empty_title">No sessions</string>
+    <string name="sidebar_empty_body">Start with a new chat</string>
+    <string name="session_running_cd">Running</string>
+    <string name="session_unread_cd">Unread</string>
+    <string name="session_menu_rename">Rename</string>
+    <string name="session_menu_archive">Archive</string>
+    <string name="session_menu_unarchive">Unarchive</string>
+    <string name="session_menu_open_label">Open session menu</string>
+    <string name="session_rename_title">Session name</string>
+    <string name="session_untitled">New chat</string>
+
+    <string name="chat_new_cd">New chat</string>
+    <string name="chat_more_cd">More actions</string>
+    <string name="chat_input_placeholder">Message</string>
+    <string name="chat_send_cd">Send</string>
+    <string name="chat_stop_cd">Stop</string>
+    <string name="chat_attach_cd">Attach image</string>
+    <string name="chat_mic_cd">Voice input</string>
+    <string name="chat_mic_listening_cd">Listening. Tap to stop.</string>
+    <string name="chat_remove_attachment_cd">Remove attachment</string>
+    <string name="chat_scroll_bottom_cd">Jump to latest</string>
+    <string name="chat_empty_title">What can I help with?</string>
+    <string name="chat_archived_banner">This session is archived</string>
+    <string name="chat_unarchive">Unarchive</string>
+    <string name="chat_send_failed">Couldn\'t send</string>
+    <string name="chat_load_failed">Couldn\'t load the conversation</string>
+    <string name="chat_tool_running">Running</string>
+    <string name="chat_tool_failed">Failed</string>
+    <string name="chat_tool_expand_label">Open tool call</string>
+    <string name="chat_image_cd">Image</string>
+    <string name="chat_image_close_cd">Close image</string>
+    <string name="chat_message_menu_label">Message actions</string>
+    <string name="chat_show_full">Show full message</string>
+
+    <string name="approval_title">Approval needed</string>
+    <string name="approval_approve">Approve</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_pending_banner">%1$d approvals pending</string>
+
+    <string name="voice_permission_denied">Voice input needs microphone permission</string>
+    <string name="voice_error">Couldn\'t recognize speech</string>
+
+    <string name="menu_files">Files</string>
+    <string name="menu_terminal">Terminal</string>
+    <string name="menu_usage">Usage</string>
+    <string name="menu_restart_gateway">Restart Gateway</string>
+    <string name="menu_disconnect">Disconnect</string>
+</resources>

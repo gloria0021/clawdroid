@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 秘密情報（トークン・端末の鍵）は Keystore の鍵で暗号化しており、別の端末では復号できないためバックアップしない -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="datastore/vault.preferences_pb" />
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore/vault.preferences_pb" />
+        <exclude domain="sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>
