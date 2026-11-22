@@ -55,14 +55,14 @@ fun ThinkingIndicator(startedAt: Long?, activity: RunActivity?, modifier: Modifi
         null -> phrases[phraseIndex]
     }
     Row(
-        modifier.heightIn(min = Dimens.minTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
+        modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.s),
     ) {
-        LoadingIndicator(Modifier.size(Dimens.minTouchTarget))
+        LoadingIndicator(Modifier.size(Dimens.compactTouchTarget))
         Text(
             formatElapsed(elapsed),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val motion = MaterialTheme.motionScheme
@@ -73,7 +73,7 @@ fun ThinkingIndicator(startedAt: Long?, activity: RunActivity?, modifier: Modifi
         ) { text ->
             Text(
                 "· $text",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

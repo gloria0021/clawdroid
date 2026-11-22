@@ -240,7 +240,10 @@ fun ChatContent(
     val keyboard = LocalSoftwareKeyboardController.current
     val connected = state.connection as? ConnectionState.Connected
     val canReply = connected != null && state.currentSession?.archived != true
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(actions.addImage) }
+    // 画像は一度に複数選べる（上限は MAX_ATTACH_IMAGES）
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_ATTACH_IMAGES)) { uris ->
+        uris.forEach(actions.addImage)
+    }
     var openedImage by remember { mutableStateOf<MessagePart.Image?>(null) }
     var openedVideo by rememberSaveable { mutableStateOf<String?>(null) }
     val voiceDenied = stringResource(R.string.voice_permission_denied)
@@ -659,6 +662,9 @@ private fun ScrollToBottomButton(listState: LazyListState, hazeState: dev.chrisb
         )
     }
 }
+
+/** 一度に添付できる画像の数。 */
+private const val MAX_ATTACH_IMAGES = 10
 
 private val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mov", "webm", "mkv", "3gp")
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif", "avif")

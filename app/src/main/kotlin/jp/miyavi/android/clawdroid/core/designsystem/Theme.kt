@@ -35,6 +35,9 @@ import jp.miyavi.android.clawdroid.core.settings.ThemeSettings
 private val OpenClawSeedLight = Color(0xFFDC2626)
 private val OpenClawSeedDark = Color(0xFFFF5C5C)
 
+/** Gerbil の Suna（砂）の種色。OpenClaw の面の土台に使う（赤みのある灰色）。 */
+private val SunaSeed = Color(0xFF605050)
+
 /** モダン（モノクロ）の種色。Monochrome では色相・彩度は使われない。 */
 private val ModernSeed = Color(0xFF808080)
 
@@ -45,12 +48,10 @@ val DefaultCustomSeed = Color(0xFFFFFFFF)
 private const val TINT_WEIGHT_LIGHT = 0.18f
 private const val TINT_WEIGHT_DARK = 0.22f
 
-/**
- * OpenClaw の背景の寄せ方（Gerbil の Suna と同じ考え方）。全体を赤くせず、背景は赤みのある落ち着いたオフホワイトにとどめ、
- * 赤はアクセント（primary）と利用者のメッセージの面（primaryContainer）に回す。
- */
-private const val OPENCLAW_TINT_WEIGHT_LIGHT = 0.06f
-private const val OPENCLAW_TINT_WEIGHT_DARK = 0.10f
+
+/** OpenClaw のメッセージの面で、赤を背景に溶かす割合（大きいほど淡い）。 */
+private const val NUANCE_MIX_LIGHT = 0.72f
+private const val NUANCE_MIX_DARK = 0.62f
 
 /** 補助の色に使うコントラスト（0 = 標準、0.5 = 中、1 = 高）。 */
 internal const val CUSTOM_SECONDARY_CONTRAST = 0.5
@@ -79,13 +80,19 @@ fun ClawdroidTheme(
 ) {
     val dark = settings.appearance.isDark(isSystemInDarkTheme())
     val base = baseScheme(settings.theme, settings.customSeedArgb, dark)
-    val weight = when {
-        settings.theme == AppTheme.OPENCLAW -> if (dark) OPENCLAW_TINT_WEIGHT_DARK else OPENCLAW_TINT_WEIGHT_LIGHT
-        dark -> TINT_WEIGHT_DARK
-        else -> TINT_WEIGHT_LIGHT
+    val tinted = remember(base, dark) { tintedScheme(base, dark) }
+    // OpenClaw: 面は Suna と同じ塗り方（赤みの落ち着いたオフホワイト）、赤はアクセントと利用者のメッセージの面だけ
+    val red = if (settings.theme == AppTheme.OPENCLAW) {
+        rememberDynamicColorScheme(seedColor = if (dark) OpenClawSeedDark else OpenClawSeedLight, isDark = dark, style = PaletteStyle.Fidelity)
+    } else null
+    val scheme = remember(tinted, red, dark) { if (red == null) tinted else withRedAccent(tinted, red, dark) }
+    // OpenClaw の強い色の面は、送信ボタンの赤（primary）を背景に溶かしたくすみ色（ニュアンスカラー）
+    val accent = if (red != null) {
+        AccentContainer(lerp(scheme.primary, scheme.surface, if (dark) NUANCE_MIX_DARK else NUANCE_MIX_LIGHT), scheme.onSurface)
+    } else {
+        AccentContainer(scheme.primaryContainer, scheme.onPrimaryContainer)
     }
-    val scheme = remember(base, dark, weight) { tintedScheme(base, dark, weight) }
-    CompositionLocalProvider(LocalSurfaceStyle provides settings.surfaceStyle) {
+    CompositionLocalProvider(LocalSurfaceStyle provides settings.surfaceStyle, LocalAccentContainer provides accent) {
         MaterialTheme(
             colorScheme = scheme,
             motionScheme = AppMotionScheme,
@@ -102,11 +109,14 @@ private fun baseScheme(theme: AppTheme, customSeedArgb: Int?, dark: Boolean): Co
         // 最小 SDK 33 なので Dynamic Color は常に使える
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
-    AppTheme.OPENCLAW -> rememberDynamicColorScheme(
-        seedColor = if (dark) OpenClawSeedDark else OpenClawSeedLight,
-        isDark = dark,
-        style = PaletteStyle.TonalSpot,
-    )
+    // 面の土台は Gerbil の Suna（赤みのある灰色の種色を Fidelity で）。赤は ClawdroidTheme で重ねる
+    AppTheme.OPENCLAW -> {
+        val base = rememberDynamicColorScheme(seedColor = SunaSeed, isDark = dark, style = PaletteStyle.Fidelity)
+        val contrasted = rememberDynamicColorScheme(
+            seedColor = SunaSeed, isDark = dark, style = PaletteStyle.Fidelity, contrastLevel = CUSTOM_SECONDARY_CONTRAST,
+        )
+        remember(base, contrasted) { withContrastedSecondary(base, contrasted) }
+    }
     AppTheme.MODERN -> {
         val mono = rememberDynamicColorScheme(seedColor = ModernSeed, isDark = dark, style = PaletteStyle.Monochrome)
         remember(mono, dark) { withStandardError(mono, dark) }
@@ -124,11 +134,8 @@ private fun baseScheme(theme: AppTheme, customSeedArgb: Int?, dark: Boolean): Co
 /**
  * 背景を primaryContainer へ少し寄せ、リンクの色を背景に対して十分なコントラストにする（Gerbil と同じ処理）。
  */
-internal fun tintedScheme(
-    base: ColorScheme,
-    dark: Boolean,
-    weight: Float = if (dark) TINT_WEIGHT_DARK else TINT_WEIGHT_LIGHT,
-): ColorScheme {
+internal fun tintedScheme(base: ColorScheme, dark: Boolean): ColorScheme {
+    val weight = if (dark) TINT_WEIGHT_DARK else TINT_WEIGHT_LIGHT
     val background = lerp(base.surface, base.primaryContainer, weight)
     return base.copy(
         surface = background,
@@ -139,6 +146,27 @@ internal fun tintedScheme(
         primary = vividLinkColor(base.primary, background, dark),
     )
 }
+
+/**
+ * OpenClaw の赤を重ねる。面（背景・コンテナ・タイトルバーの色）は Suna の塗り方のまま、
+ * アクセント（primary）だけを赤にする。利用者のメッセージの赤い面は [AccentContainer] で別に渡す。
+ */
+internal fun withRedAccent(surfaces: ColorScheme, red: ColorScheme, dark: Boolean): ColorScheme = surfaces.copy(
+    primary = vividLinkColor(red.primary, surfaces.surface, dark),
+    onPrimary = red.onPrimary,
+    inversePrimary = red.inversePrimary,
+)
+
+/** 利用者のメッセージなど、テーマの「強い色」の面と文字。ふだんは primaryContainer、OpenClaw では赤。 */
+data class AccentContainer(val container: Color, val content: Color)
+
+val LocalAccentContainer = staticCompositionLocalOf { AccentContainer(Color.Unspecified, Color.Unspecified) }
+
+/** テーマの強い色の面。 */
+@Composable
+@ReadOnlyComposable
+fun accentContainer(): AccentContainer = LocalAccentContainer.current.takeIf { it.container != Color.Unspecified }
+    ?: AccentContainer(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
 
 /** モダンはモノクロだが、エラーだけは標準の赤を残す（FR-085）。 */
 internal fun withStandardError(mono: ColorScheme, dark: Boolean): ColorScheme {

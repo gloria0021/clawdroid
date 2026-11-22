@@ -1,5 +1,8 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.lerp
+import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.core.data.PendingInput
 import androidx.compose.runtime.key
 import androidx.compose.animation.core.MutableTransitionState
@@ -172,7 +175,7 @@ fun ComposerPill(
                 IconButton(onClick = onAttach, enabled = enabled) {
                     Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
                 }
-                ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession, modifier = Modifier.weight(1f, fill = false))
+                ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession)
                 Spacer(Modifier.weight(1f))
                 when {
                     // 実行中でも入力があれば送れる（steer で差し込む）。入力が空のときだけ停止を出す
@@ -254,23 +257,21 @@ internal fun contextLevel(fraction: Float?): ContextLevel = when {
 @Composable
 private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
+    val accent = accentContainer()
     val motion = MaterialTheme.motionScheme
     val level = contextLevel(contextFraction)
+    // 利用者のメッセージと同じくすみ色。コンテキストが残り少ない（80% 以上）ときだけ error のくすみ色にして知らせる
+    val mix = if (colors.surface.luminance() < 0.5f) PILL_MIX_DARK else PILL_MIX_LIGHT
     val container by animateColorAsState(
         when (level) {
-            ContextLevel.LOW -> colors.primaryContainer
-            ContextLevel.MEDIUM -> colors.tertiaryContainer
-            ContextLevel.HIGH -> colors.errorContainer
+            ContextLevel.LOW, ContextLevel.MEDIUM -> accent.container
+            ContextLevel.HIGH -> lerp(colors.error, colors.surface, mix)
         },
         motion.defaultEffectsSpec(),
         label = "modelPillContainer",
     )
     val content by animateColorAsState(
-        when (level) {
-            ContextLevel.LOW -> colors.onPrimaryContainer
-            ContextLevel.MEDIUM -> colors.onTertiaryContainer
-            ContextLevel.HIGH -> colors.onErrorContainer
-        },
+        if (level == ContextLevel.HIGH) colors.onSurface else accent.content,
         motion.defaultEffectsSpec(),
         label = "modelPillContent",
     )
@@ -289,6 +290,10 @@ private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Un
         }
     }
 }
+
+/** モデルのピルで、基準の色を背景に溶かす割合。 */
+private const val PILL_MIX_LIGHT = 0.72f
+private const val PILL_MIX_DARK = 0.62f
 
 /** コンテキストの消費の境目（中・高）。 */
 private const val CONTEXT_MEDIUM = 0.5f

@@ -314,7 +314,8 @@ class ChatViewModel(
     fun addImage(uri: Uri) {
         viewModelScope.launch {
             val image = withContext(Dispatchers.IO) { readImage(uri) } ?: return@launch
-            _composer.update { it.copy(images = it.images + PendingImage(uri, image)) }
+            // 同じ画像は二重に入れない（一覧の key が重なるため）
+            _composer.update { c -> if (c.images.any { it.uri == uri }) c else c.copy(images = c.images + PendingImage(uri, image)) }
         }
     }
 

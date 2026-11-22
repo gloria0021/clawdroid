@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
+import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.core.data.rememberInboundImage
 import jp.miyavi.android.clawdroid.core.data.isInboundMediaUrl
 import android.graphics.BitmapFactory
@@ -75,9 +76,10 @@ fun UserMessage(
         val text = message.text
         if (text.isNotBlank()) {
             // 利用者のメッセージの面はテーマの濃い色（OpenClaw なら赤み）。背景のオフホワイトと見分けやすくする
+            val accent = accentContainer()
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = accent.container,
+                contentColor = accent.content,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.widthIn(max = Dimens.maxReadingWidth * USER_BUBBLE_MAX_FRACTION),
             ) {

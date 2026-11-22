@@ -112,7 +112,8 @@ fun Modifier.hazeSurface(
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val tintColor = when (tint) {
-        GlassTint.THEME -> colors.primaryContainer
+        // テーマの強い色（ふだんは primaryContainer、OpenClaw ではくすんだ赤）
+        GlassTint.THEME -> accentContainer().container
         GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
     }
     when (LocalSurfaceStyle.current) {
