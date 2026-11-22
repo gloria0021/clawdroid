@@ -70,7 +70,8 @@ fun UserMessage(
 ) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         message.parts.filterIsInstance<MessagePart.Image>().forEach { image ->
-            MessageImage(image, onOpenImage, Modifier.padding(bottom = Spacing.xs))
+            // 画像と本文のあいだは 12dp あける
+            MessageImage(image, onOpenImage, Modifier.padding(bottom = Spacing.m))
         }
         message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
@@ -301,8 +302,8 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
     val cd = stringResource(R.string.chat_image_cd)
     val shape = MaterialTheme.shapes.large
     val imageModifier = modifier
-        .widthIn(max = Dimens.maxReadingWidth / 2)
-        .heightIn(max = Dimens.maxReadingWidth / 2)
+        .widthIn(max = Dimens.messageImageMax)
+        .heightIn(max = Dimens.messageImageMax)
         .clip(shape)
         .background(bodyContainerColor())
         .clickable { onOpen(image) }

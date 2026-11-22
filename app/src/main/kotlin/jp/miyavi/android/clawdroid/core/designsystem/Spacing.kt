@@ -38,6 +38,8 @@ object Dimens {
     val usageBarHeight = 8.dp
     /** 添付画像を読み込むあいだの面の大きさ。 */
     val imagePlaceholder = 160.dp
+    /** 会話の中の画像のプレビューの最大の辺。 */
+    val messageImageMax = 240.dp
     /** 入力欄のモデルのピルの最大幅（長いモデル名は省略記号）。 */
     val modelPillMaxWidth = 200.dp
 }
