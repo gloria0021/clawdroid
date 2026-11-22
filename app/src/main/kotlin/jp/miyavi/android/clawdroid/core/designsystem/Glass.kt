@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.core.designsystem
 
+import androidx.compose.ui.graphics.lerp
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +79,9 @@ val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 /** タイトルバー（テーマカラーで色を付ける唯一の面）。色は薄く 10%。 */
 val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.1f, blur = 0.1f)
 
+/** タイトルバーの色を暗く沈める割合。 */
+private const val TITLE_BAR_DARKEN = 0.5f
+
 /** メニュー。文字を選ぶ面なので濃くする。 */
 val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
 
@@ -111,8 +115,8 @@ fun Modifier.hazeSurface(
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val tintColor = when (tint) {
-        // タイトルバーは鮮やかなテーマカラー（primary）をごく薄く重ねる。淡い色を薄く重ねると白にしか見えないため
-        GlassTint.THEME -> colors.primary
+        // タイトルバーはテーマカラーを暗く沈めた色（primary と scrim の中間）を薄く重ねる。背景より少し暗く、ほんのり色が入る
+        GlassTint.THEME -> lerp(colors.primary, colors.scrim, TITLE_BAR_DARKEN)
         GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
     }
     // 下に敷く面は常に無彩色。テーマカラーは不透明度の分だけ重ねる（敷く面に色を使うと、不透明度に関係なく色が付くため）

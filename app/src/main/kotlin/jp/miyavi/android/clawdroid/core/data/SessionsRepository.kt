@@ -175,7 +175,11 @@ class SessionsRepository(
         }
 
     suspend fun rename(session: SessionSummary, label: String) = patch(session) { put("label", label) }
-    suspend fun setArchived(session: SessionSummary, archived: Boolean) = patch(session) { put("archived", archived) }
+    /** アーカイブ・解除は「セッションの寿命」の変更で、Gateway は expectedSessionId を必須にしている（別の実体を誤って動かさないため）。 */
+    suspend fun setArchived(session: SessionSummary, archived: Boolean) = patch(session) {
+        put("archived", archived)
+        session.sessionId?.let { put("expectedSessionId", it) }
+    }
     suspend fun markRead(session: SessionSummary) = patch(session) { put("unread", false) }
 
     suspend fun setOption(key: String, agentId: String, setting: SessionSetting, value: String?) =
