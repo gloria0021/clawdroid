@@ -103,7 +103,7 @@
     <string name="settings_section_gateway">Gateway</string>
     <string name="settings_restart">Restart Gateway</string>
     <string name="settings_restart_desc">Restarts after running work reaches a safe point</string>
-    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_appearance">Display</string>
     <string name="settings_appearance_system">System</string>
     <string name="settings_appearance_light">Light</string>
     <string name="settings_appearance_dark">Dark</string>
@@ -119,7 +119,7 @@
     <string name="settings_custom_color">Custom color</string>
     <string name="settings_custom_color_hint">#RRGGBB</string>
     <string name="settings_custom_color_invalid">Enter a color as #RRGGBB</string>
-    <string name="settings_surface_style">Floating surfaces</string>
+    <string name="settings_surface_style">Transparency effect</string>
     <string name="settings_surface_glass">Glass</string>
     <string name="settings_surface_blur">Blur</string>
     <string name="settings_section_about">About</string>
@@ -222,4 +222,5 @@
     <string name="context_part_tools">Tool schemas</string>
     <string name="context_part_skills">Skills catalog</string>
     <string name="context_part_system">System instructions</string>
+    <string name="settings_appearance_label">Appearance</string>
 </resources>

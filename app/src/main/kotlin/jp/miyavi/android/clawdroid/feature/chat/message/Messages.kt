@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.draw.shadow
 import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.core.data.rememberInboundImage
@@ -109,6 +110,8 @@ fun UserMessage(
 fun AssistantMessage(
     message: ChatMessage,
     agent: Agent?,
+    /** この応答の前に続いたツールの実行（応答の見出しの行にまとめて出す）。 */
+    precedingTools: List<MessagePart.ToolCall> = emptyList(),
     timeLabel: String?,
     elapsedMs: Long?,
     onCopy: (String) -> Unit,
@@ -118,12 +121,19 @@ fun AssistantMessage(
     onShowFull: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    val tools = remember(precedingTools, message.parts) { precedingTools + message.parts.filterIsInstance<MessagePart.ToolCall>() }
+    var toolsOpen by rememberSaveable(message.id) { mutableStateOf(false) }
     ReplyLayout(
         agent,
         showAvatar = message.role == ChatMessage.Role.ASSISTANT,
         modifier,
-        header = elapsedMs?.let { ms -> { ElapsedLabel(ms) } },
+        // アイコンの横: 回答にかかった時間とツールの実行の開閉
+        header = if (elapsedMs != null || tools.isNotEmpty()) ({
+            elapsedMs?.let { ElapsedLabel(it) }
+            if (tools.isNotEmpty()) ToolToggle(tools, toolsOpen) { toolsOpen = !toolsOpen }
+        }) else null,
     ) {
+        if (tools.isNotEmpty()) ToolDetails(tools, toolsOpen)
         message.parts.forEach { part ->
             when (part) {
                 is MessagePart.Text -> MarkdownText(part.markdown)
@@ -132,8 +142,6 @@ fun AssistantMessage(
                 is MessagePart.ToolCall -> Unit
             }
         }
-        val tools = remember(message.parts) { message.parts.filterIsInstance<MessagePart.ToolCall>() }
-        if (tools.isNotEmpty()) ToolGroup(tools)
         if (message.truncated && onShowFull != null) {
             Text(
                 stringResource(R.string.chat_show_full),
@@ -168,24 +176,25 @@ fun LiveAssistantMessage(text: String, agent: Agent?, modifier: Modifier = Modif
 }
 
 /**
- * エージェントの応答の外枠。いちばん上に回答にかかった時間、その下にキャラクターのアイコンと本文。
+ * エージェントの応答の外枠。1 行目にキャラクターのアイコンと、その横の見出し（回答時間・ツールの開閉）。
+ * 本文はアイコンの下の行から横幅いっぱいに出す。
  */
 @Composable
 private fun ReplyLayout(
     agent: Agent?,
     showAvatar: Boolean,
     modifier: Modifier,
-    header: (@Composable () -> Unit)? = null,
-    content: @Composable () -> Unit,
+    header: (@Composable ColumnScope.() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        header?.invoke()
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-            if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                content()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        if (showAvatar || header != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge)
+                if (header != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs / 2)) { header() }
             }
         }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) { content() }
     }
 }
 
@@ -210,32 +219,34 @@ private fun ElapsedLabel(elapsedMs: Long) {
 fun ToolGroup(parts: List<MessagePart.ToolCall>, modifier: Modifier = Modifier) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
-        Row(
-            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
-                .clickable { expanded = !expanded }
-                .heightIn(min = Dimens.minTouchTarget),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val tint = if (parts.any { it.isError }) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-            Icon(painterResource(R.drawable.ic_huge_tool), null, Modifier.size(Spacing.l), tint = tint)
-            Text(
-                pluralStringResource(R.plurals.chat_tools_count, parts.size, parts.size),
-                style = MaterialTheme.typography.labelLarge,
-                color = tint,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                painterResource(R.drawable.ic_huge_arrow_down),
-                contentDescription = null,
-                modifier = Modifier.rotate(if (expanded) 180f else 0f),
-                tint = tint,
-            )
-        }
-        AnimatedVisibility(visible = expanded, enter = expandEnter(), exit = shrinkExit()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                parts.forEach { ToolCallRow(it) }
-            }
+        ToolToggle(parts, expanded) { expanded = !expanded }
+        ToolDetails(parts, expanded)
+    }
+}
+
+/** ツールの実行の件数と開閉の矢印（押すと開閉）。 */
+@Composable
+fun ToolToggle(parts: List<MessagePart.ToolCall>, expanded: Boolean, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    Row(
+        modifier.clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onToggle)
+            .heightIn(min = Dimens.compactTouchTarget),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val tint = if (parts.any { it.isError }) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+        Icon(painterResource(R.drawable.ic_huge_tool), null, Modifier.size(Spacing.l), tint = tint)
+        Text(pluralStringResource(R.plurals.chat_tools_count, parts.size, parts.size), style = MaterialTheme.typography.labelLarge, color = tint)
+        Icon(painterResource(R.drawable.ic_huge_arrow_down), contentDescription = null, modifier = Modifier.size(Spacing.l).rotate(if (expanded) 180f else 0f), tint = tint)
+    }
+}
+
+/** 開いたときのツールの実行の一覧（横幅いっぱい）。 */
+@Composable
+fun ToolDetails(parts: List<MessagePart.ToolCall>, expanded: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = expanded, enter = expandEnter(), exit = shrinkExit(), modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            parts.forEach { ToolCallRow(it) }
         }
     }
 }

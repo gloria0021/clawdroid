@@ -114,7 +114,7 @@
     <string name="settings_section_gateway">Gateway</string>
     <string name="settings_restart">Gateway を再起動</string>
     <string name="settings_restart_desc">実行中の作業がひと区切りついてから再起動します</string>
-    <string name="settings_section_appearance">外観</string>
+    <string name="settings_section_appearance">表示</string>
     <string name="settings_appearance_system">システム</string>
     <string name="settings_appearance_light">ライト</string>
     <string name="settings_appearance_dark">ダーク</string>
@@ -130,7 +130,7 @@
     <string name="settings_custom_color">カスタムの色</string>
     <string name="settings_custom_color_hint">#RRGGBB</string>
     <string name="settings_custom_color_invalid">#RRGGBB の形で入力してください</string>
-    <string name="settings_surface_style">浮いている面の透かし方</string>
+    <string name="settings_surface_style">透過効果</string>
     <string name="settings_surface_glass">ガラス</string>
     <string name="settings_surface_blur">ぼかし</string>
     <string name="settings_section_about">このアプリについて</string>
@@ -234,4 +234,5 @@
     <string name="context_part_tools">ツールスキーマ</string>
     <string name="context_part_skills">Skills カタログ</string>
     <string name="context_part_system">システム指示</string>
+    <string name="settings_appearance_label">外観</string>
 </resources>

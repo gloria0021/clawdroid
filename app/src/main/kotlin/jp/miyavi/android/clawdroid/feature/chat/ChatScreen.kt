@@ -453,7 +453,6 @@ private fun SessionTitleBar(
     onOpenDrawer: () -> Unit,
     navigation: ChatNavigation,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
     AppTitleBar(
         hazeState = hazeState,
         scrollBehavior = scrollBehavior,
@@ -473,31 +472,16 @@ private fun SessionTitleBar(
             }
         },
         actions = {
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(painterResource(R.drawable.ic_huge_more), stringResource(R.string.chat_more_cd))
+            // ファイルとターミナルはアイコンで（タイトルバーのアイコンは 2 つまで。AGENTS.md 2.6）。再起動は設定から
+            val key = state.currentSessionKey
+            val agentId = state.selectedAgentId
+            if (key != null && agentId != null) {
+                IconButton(onClick = { navigation.openFiles(key, agentId) }) {
+                    Icon(painterResource(R.drawable.ic_huge_folder), stringResource(R.string.menu_files))
                 }
-                GlassDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    val key = state.currentSessionKey
-                    val agentId = state.selectedAgentId
-                    if (key != null && agentId != null) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_files)) },
-                            leadingIcon = { Icon(painterResource(R.drawable.ic_huge_folder), null) },
-                            onClick = { menuOpen = false; navigation.openFiles(key, agentId) },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.menu_terminal)) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_huge_terminal), null) },
-                        onClick = { menuOpen = false; navigation.openTerminal(key) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.menu_restart_gateway)) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_huge_restart), null) },
-                        onClick = { menuOpen = false; navigation.restartGateway() },
-                    )
-                }
+            }
+            IconButton(onClick = { navigation.openTerminal(key) }) {
+                Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal))
             }
         },
     )
@@ -542,18 +526,25 @@ private fun MessageList(
     val agent = state.currentSession?.agentId?.let { id -> state.agents.agents.firstOrNull { it.id == id } }
         ?: state.selectedAgent
     val messages = state.messages
+    // 続いたツールの実行は 1 行にまとめ、次にエージェントの応答が来たらその応答の見出しに入れる
     val rows = remember(messages) {
         buildList {
             var tools = mutableListOf<MessageUi>()
             for (item in messages) {
-                if (item.message.parts.isNotEmpty() && item.message.parts.all { it is MessagePart.ToolCall }) {
-                    tools += item
-                } else {
-                    if (tools.isNotEmpty()) {
-                        add(tools)
+                val toolOnly = item.message.parts.isNotEmpty() && item.message.parts.all { it is MessagePart.ToolCall }
+                when {
+                    toolOnly -> tools += item
+                    item.message.role == ChatMessage.Role.ASSISTANT && tools.isNotEmpty() -> {
+                        add(tools + item)
                         tools = mutableListOf()
                     }
-                    add(listOf(item))
+                    else -> {
+                        if (tools.isNotEmpty()) {
+                            add(tools)
+                            tools = mutableListOf()
+                        }
+                        add(listOf(item))
+                    }
                 }
             }
             if (tools.isNotEmpty()) add(tools)
@@ -607,10 +598,11 @@ private fun MessageList(
             verticalArrangement = Arrangement.spacedBy(Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            items(rows, key = { it.first().message.id }, contentType = { it.first().message.role }) { row ->
-                val item = row.first()
+            items(rows, key = { it.first().message.id }, contentType = { it.last().message.role }) { row ->
+                val item = row.last()
                 val message = item.message
                 val itemModifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
+                val precedingTools = remember(row) { row.dropLast(1).flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } }
                 if (message.parts.isNotEmpty() && message.parts.all { it is MessagePart.ToolCall }) {
                     ToolGroup(
                         parts = remember(row) { row.flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } },
@@ -621,6 +613,7 @@ private fun MessageList(
                     ChatMessage.Role.ASSISTANT, ChatMessage.Role.SYSTEM -> AssistantMessage(
                         message = message,
                         agent = agent,
+                        precedingTools = precedingTools,
                         timeLabel = item.timeLabel,
                         elapsedMs = item.elapsedMs,
                         onCopy = onCopy,
