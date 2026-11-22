@@ -27,7 +27,15 @@ object Dimens {
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
     val avatar = 24.dp
+    /** キャラクターの大きいアイコン（avatar の 2 倍）。サイドパネルのタブと会話の応答で使う。 */
+    val avatarLarge = 48.dp
+    /** 応答の下の操作（返信・コピー）の小さめのアイコン。 */
+    val smallIcon = 18.dp
+    /** 設定のメニューの最大幅。 */
+    val settingMenuMaxWidth = 320.dp
     val usageBarHeight = 8.dp
+    /** 添付画像を読み込むあいだの面の大きさ。 */
+    val imagePlaceholder = 160.dp
     /** 入力欄のモデルのピルの最大幅（長いモデル名は省略記号）。 */
     val modelPillMaxWidth = 200.dp
 }

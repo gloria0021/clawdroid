@@ -88,6 +88,15 @@ private const val GLASS_REFRACTION = 0.6f
 private const val BLUR_RADIUS_FRACTION = 0.3f
 private val BLUR_RADIUS_MAX = 48.dp
 
+/**
+ * 透過面の色付け。テーマカラーで色を付けるのはタイトルバーだけ（マスター指定 2026-11-22）。
+ * それ以外は背景色、入力欄は読み書きの面の色（ライトで白）。
+ */
+enum class GlassTint { THEME, NEUTRAL, FIELD }
+
+/** 入力欄の面の不透明度（白く見せるため濃くする）。 */
+val FIELD_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.9f)
+
 /** 画面の透かす元。メニューや Snackbar が下の内容を透かすために、各画面で渡す。 */
 val LocalScreenHazeState = staticCompositionLocalOf<HazeState?> { null }
 
@@ -96,12 +105,19 @@ fun Modifier.hazeSurface(
     hazeState: HazeState,
     shape: RoundedCornerShape,
     fixedOpacity: SurfaceOpacity = SURFACE_OPACITY,
-    /** false なら縁の影と光を付けない（横いっぱいの帯では、縁が線に見えるため）。 */
+    /** false なら縁の影・光・屈折を付けない（横いっぱいの帯では、縁が線や透けに見えるため）。 */
     rim: Boolean = true,
+    tint: GlassTint = GlassTint.NEUTRAL,
 ): Modifier = composed {
+    val colors = MaterialTheme.colorScheme
+    val tintColor = when (tint) {
+        GlassTint.THEME -> colors.primaryContainer
+        GlassTint.NEUTRAL -> colors.surface
+        GlassTint.FIELD -> sheetFieldColor()
+    }
     when (LocalSurfaceStyle.current) {
-        SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity)
-        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim)
+        SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor)
+        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor)
     }
 }
 
@@ -136,12 +152,14 @@ private fun Modifier.glassSurface(
     shape: RoundedCornerShape,
     fixedOpacity: SurfaceOpacity,
     rim: Boolean,
+    tintColor: Color,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val darkGlass = colors.surface.luminance() < 0.5f
-    // ガラスの色はテーマカラー（AGENTS.md 2.10）。primaryContainer はライトで淡く・ダークで濃いので、onSurface の文字の読みやすさを保てる
-    val glassTint = colors.primaryContainer.copy(alpha = fixedOpacity.glass)
+    val glassTint = tintColor.copy(alpha = fixedOpacity.glass)
     val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else if (darkGlass) 0.28f else 0.16f)
+    // 横いっぱいの帯（rim = false）は屈折させない。縁の屈折が上下の端で下の内容を引き込み、1 ドット透けて見えるため
+    val refraction = if (rim) GLASS_REFRACTION else 0f
     val glassStyle = remember(shape, rimShadow, rim) {
         GlassStyle.clear.then {
             shape(shape)
@@ -150,12 +168,12 @@ private fun Modifier.glassSurface(
             ambientResponse(0.08f)
             specularIntensity(if (rim) 0.4f else 0f)
             edgeShadow(rimShadow)
-            chromaticAberrationStrength(0.12f * GLASS_REFRACTION)
+            chromaticAberrationStrength(0.12f * refraction)
             optics {
                 copy(
-                    refractionStrength = GLASS_REFRACTION,
-                    refractionDisplacement = (GLASS_REFRACTION * 56f).dp,
-                    refractionProfile = RefractionProfile.Edge((12f + 24f * GLASS_REFRACTION).dp),
+                    refractionStrength = refraction,
+                    refractionDisplacement = (refraction * 56f).dp,
+                    refractionProfile = RefractionProfile.Edge((12f + 24f * refraction).dp),
                     refractionDetailIntensity = 0f,
                 )
             }
@@ -166,17 +184,16 @@ private fun Modifier.glassSurface(
 }
 
 /** 屈折のないぼかし（Haze Blur）。 */
-private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity): Modifier = composed {
+private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpacity, tintColor: Color): Modifier = composed {
     val surface = MaterialTheme.colorScheme.surface
-    val theme = MaterialTheme.colorScheme.primaryContainer
     val radius = BLUR_RADIUS_MAX * BLUR_RADIUS_FRACTION
     val alpha = fixedOpacity.blur
-    val style = remember(surface, theme, radius, alpha) {
+    val style = remember(surface, tintColor, radius, alpha) {
         HazeBlurStyle {
             blurRadius(radius)
-            // 下地は背景色、色付けはテーマカラー（AGENTS.md 2.10）
+            // 下地は背景色（AGENTS.md 2.10）、色付けは面ごとの色
             backgroundColor(surface)
-            colorEffects(listOf(HazeColorEffect.tint(theme.copy(alpha = alpha))))
+            colorEffects(listOf(HazeColorEffect.tint(tintColor.copy(alpha = alpha))))
         }
     }
     hazeBlur(input = HazeInput.Sources(hazeState), style = style)
@@ -197,7 +214,7 @@ fun AppTitleBar(
         navigationIcon = navigationIcon,
         actions = actions,
         scrollBehavior = scrollBehavior,
-        modifier = Modifier.hazeSurface(hazeState, shape, rim = false),
+        modifier = Modifier.hazeSurface(hazeState, shape, rim = false, tint = GlassTint.THEME),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = Color.Transparent,
             scrolledContainerColor = Color.Transparent,
@@ -235,11 +252,12 @@ fun GlassPanel(
     modifier: Modifier = Modifier,
     fixedOpacity: SurfaceOpacity = SURFACE_OPACITY,
     shape: RoundedCornerShape = MaterialTheme.shapes.extraLarge as? RoundedCornerShape ?: RoundedCornerShape(Spacing.xl),
+    tint: GlassTint = GlassTint.NEUTRAL,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ProvideGlassEnvironment {
         Column(
-            modifier = modifier.hazeSurface(hazeState, shape, fixedOpacity).clip(shape),
+            modifier = modifier.hazeSurface(hazeState, shape, fixedOpacity, tint = tint).clip(shape),
             content = content,
         )
     }

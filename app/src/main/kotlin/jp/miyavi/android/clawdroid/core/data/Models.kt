@@ -259,11 +259,20 @@ internal object Parse {
         } else {
             contentParts(obj["content"])
         }
+        // 利用者が添付した画像は本文ではなく __openclaw.media に入る（media://inbound/...）
+        val attached = if (role == ChatMessage.Role.USER) {
+            meta?.array("media").orEmpty().mapNotNull { el ->
+                val media = el.asObject() ?: return@mapNotNull null
+                val url = media.string("url") ?: return@mapNotNull null
+                val image = media.string("kind") == "image" || media.string("contentType")?.startsWith("image/") == true
+                if (image) MessagePart.Image(url = url, base64 = null, mimeType = media.string("contentType")) else null
+            }
+        } else emptyList()
         val entryId = meta?.string("id")
         return ChatMessage(
             id = entryId ?: "i$index-${obj.long("timestamp") ?: 0}",
             role = role,
-            parts = parts,
+            parts = attached.filterNot { a -> parts.any { it is MessagePart.Image && it.url == a.url } } + parts,
             timestamp = obj.long("timestamp"),
             // 利用者のメッセージは送信の idempotencyKey が run の識別（受け付け待ちとの突き合わせに使う）
             runId = (

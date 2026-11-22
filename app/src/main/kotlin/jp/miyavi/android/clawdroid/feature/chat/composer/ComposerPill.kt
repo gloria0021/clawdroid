@@ -59,7 +59,9 @@ import dev.chrisbanes.haze.HazeState
 import java.text.NumberFormat
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
+import jp.miyavi.android.clawdroid.core.designsystem.FIELD_OPACITY
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
+import jp.miyavi.android.clawdroid.core.designsystem.GlassTint
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.bodyTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.expandEnter
@@ -129,7 +131,8 @@ fun ComposerPill(
                 }
             }
         }
-        GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth()) {
+        // 入力欄は白い面（色付けしない）
+        GlassPanel(hazeState = hazeState, modifier = Modifier.fillMaxWidth(), fixedOpacity = FIELD_OPACITY, tint = GlassTint.FIELD) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -244,7 +247,7 @@ internal fun contextLevel(fraction: Float?): ContextLevel = when {
 }
 
 /**
- * モデル名のピル。背景の色でコンテキストの消費を示す（低 = secondaryContainer、中 = tertiaryContainer、高 = errorContainer）。
+ * モデル名のピル。ふだんはテーマカラー（primaryContainer）、コンテキストの消費が進むと 中 = tertiaryContainer、高 = errorContainer。
  * 色の切り替えは弾ませない（effects のトークン）。
  */
 @Composable
@@ -254,7 +257,7 @@ private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Un
     val level = contextLevel(contextFraction)
     val container by animateColorAsState(
         when (level) {
-            ContextLevel.LOW -> colors.secondaryContainer
+            ContextLevel.LOW -> colors.primaryContainer
             ContextLevel.MEDIUM -> colors.tertiaryContainer
             ContextLevel.HIGH -> colors.errorContainer
         },
@@ -263,7 +266,7 @@ private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Un
     )
     val content by animateColorAsState(
         when (level) {
-            ContextLevel.LOW -> colors.onSecondaryContainer
+            ContextLevel.LOW -> colors.onPrimaryContainer
             ContextLevel.MEDIUM -> colors.onTertiaryContainer
             ContextLevel.HIGH -> colors.onErrorContainer
         },

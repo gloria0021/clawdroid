@@ -155,6 +155,7 @@ private fun MainNavigation(container: AppContainer) {
                 )
                 ChatScreen(
                     viewModel = vm,
+                    inboundImages = container.inboundImages,
                     timeLabel = timeLabel,
                     navigation = ChatNavigation(
                         openSettings = { gate.run { backStack.push(SettingsRoute) } },

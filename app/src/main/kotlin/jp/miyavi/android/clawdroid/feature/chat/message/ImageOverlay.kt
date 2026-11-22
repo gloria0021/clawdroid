@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
+import jp.miyavi.android.clawdroid.core.data.isInboundMediaUrl
+import jp.miyavi.android.clawdroid.core.data.rememberInboundImage
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -79,10 +81,10 @@ fun ImageOverlay(image: MessagePart.Image?, onDismiss: () -> Unit) {
                     enter = scaleIn(motion.defaultSpatialSpec(), initialScale = IMAGE_OPEN_START_SCALE),
                     exit = scaleOut(motion.fastSpatialSpec(), targetScale = IMAGE_OPEN_START_SCALE),
                 )
-            val bitmap = rememberBase64Bitmap(current.base64)
+            val bitmap = rememberBase64Bitmap(current.base64) ?: rememberInboundImage(current.url)
             when {
                 bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
-                current.url != null -> AsyncImage(model = current.url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
+                current.url != null && !isInboundMediaUrl(current.url) -> AsyncImage(model = current.url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
             }
             IconButton(
                 onClick = onDismiss,

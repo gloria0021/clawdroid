@@ -46,6 +46,7 @@ class AppContainer(app: Application) {
     val database = ClawdroidDatabase.create(app)
     val sessions = SessionsRepository(gateway, appScope)
     val chats = ChatRepository(gateway, appScope)
+    val inboundImages = jp.miyavi.android.clawdroid.core.data.InboundImageLoader(gateway)
     val gatewayControl = GatewayControlRepository(gateway)
 }
 

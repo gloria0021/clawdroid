@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.chat.message
 
+import jp.miyavi.android.clawdroid.core.data.rememberInboundImage
+import jp.miyavi.android.clawdroid.core.data.isInboundMediaUrl
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
@@ -108,7 +110,12 @@ fun AssistantMessage(
     onShowFull: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    ReplyLayout(agent, showAvatar = message.role == ChatMessage.Role.ASSISTANT, modifier) {
+    ReplyLayout(
+        agent,
+        showAvatar = message.role == ChatMessage.Role.ASSISTANT,
+        modifier,
+        header = elapsedMs?.let { ms -> { ElapsedLabel(ms) } },
+    ) {
         message.parts.forEach { part ->
             when (part) {
                 is MessagePart.Text -> MarkdownText(part.markdown)
@@ -127,19 +134,6 @@ fun AssistantMessage(
                 modifier = Modifier.heightIn(min = Dimens.compactTouchTarget).clickable(onClick = onShowFull).padding(vertical = Spacing.xs),
             )
         }
-        elapsedMs?.let {
-            val seconds = (it / 1_000).coerceAtLeast(1)
-            val duration = if (seconds < 60) {
-                stringResource(R.string.chat_elapsed_seconds, seconds)
-            } else {
-                stringResource(R.string.chat_elapsed_minutes_seconds, seconds / 60, seconds % 60)
-            }
-            Text(
-                stringResource(R.string.chat_elapsed, duration),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         val text = message.text
         if (timeLabel != null) {
             Text(timeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -148,11 +142,11 @@ fun AssistantMessage(
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (onReply != null && message.role == ChatMessage.Role.ASSISTANT) {
                     IconButton(onClick = { onReply(text) }) {
-                        Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd))
+                        Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd), modifier = Modifier.size(Dimens.smallIcon))
                     }
                 }
                 IconButton(onClick = { onCopy(text) }) {
-                    Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy))
+                    Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), modifier = Modifier.size(Dimens.smallIcon))
                 }
             }
         }
@@ -165,14 +159,42 @@ fun LiveAssistantMessage(text: String, agent: Agent?, modifier: Modifier = Modif
     ReplyLayout(agent, showAvatar = true, modifier) { MarkdownText(text) }
 }
 
+/**
+ * エージェントの応答の外枠。いちばん上に回答にかかった時間、その下にキャラクターのアイコンと本文。
+ */
 @Composable
-private fun ReplyLayout(agent: Agent?, showAvatar: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        if (showAvatar) AgentAvatar(agent, label = agent?.name)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            content()
+private fun ReplyLayout(
+    agent: Agent?,
+    showAvatar: Boolean,
+    modifier: Modifier,
+    header: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        header?.invoke()
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+            if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                content()
+            }
         }
     }
+}
+
+/** 回答にかかった時間。 */
+@Composable
+private fun ElapsedLabel(elapsedMs: Long) {
+    val seconds = (elapsedMs / 1_000).coerceAtLeast(1)
+    val duration = if (seconds < 60) {
+        stringResource(R.string.chat_elapsed_seconds, seconds)
+    } else {
+        stringResource(R.string.chat_elapsed_minutes_seconds, seconds / 60, seconds % 60)
+    }
+    Text(
+        stringResource(R.string.chat_elapsed, duration),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** 連続したツール実行をひとつの行にまとめる。 */
@@ -279,9 +301,10 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
         .background(bodyContainerColor())
         .clickable { onOpen(image) }
     val url = remember(image.url) { image.url?.let(::webUri) }
-    val bitmap = rememberBase64Bitmap(image.base64)
+    val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
+        isInboundMediaUrl(image.url) -> Box(imageModifier.size(Dimens.imagePlaceholder))
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
     }
 }

@@ -1,16 +1,8 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
 import android.text.format.DateUtils
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,10 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,18 +25,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import java.text.DateFormat
@@ -58,7 +45,10 @@ import jp.miyavi.android.clawdroid.core.data.ModelCatalog
 import jp.miyavi.android.clawdroid.core.data.ProviderUsage
 import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet
+import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.expandEnter
@@ -69,8 +59,8 @@ import jp.miyavi.android.clawdroid.core.designsystem.shrinkExit
 data class SettingAvailability(val model: Boolean, val effort: Boolean, val permissions: Boolean)
 
 /**
- * 入力欄のモデルのピルから開くシート。上にこのセッションの設定（モデル・エフォート・実行権限）、
- * その下にコンテキストとプロバイダの使用量。設定を選ぶと、同じシートの中で選択肢の面に切り替わる（AGENTS.md 2.7: 多段はシートの中身を積む）。
+ * 入力欄のモデルのピルから開くシート。上にこのセッションの設定（モデル・エフォート・実行権限）をアイコンで横 1 行、
+ * その下にコンテキストとプロバイダの使用量。設定はアイコンを押すと透過効果のメニューで選ぶ。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,65 +79,41 @@ fun ComposerSessionSheet(
     onSelect: (SessionSetting, String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var page by rememberSaveable { mutableStateOf<SessionSetting?>(null) }
     val providers by produceState<List<ProviderUsage>?>(null) { value = loadUsage() }
-    // モデルの一覧は、モデルかエフォートの面を初めて開いたときに一度だけ取る
+    // モデルの一覧は、モデルかエフォートのメニューを初めて開いたときに一度だけ取る
     var wantCatalog by remember { mutableStateOf(false) }
     val catalog by produceState<ModelCatalog?>(null, wantCatalog, agent?.id, session?.key) {
         if (wantCatalog && agent != null) value = loadModels(agent.id, session?.key) ?: ModelCatalog(canReset = false)
     }
-    BackHandler(enabled = page != null) { page = null }
+    // メニューがシートの中身を透かせるように、シートの面を透かす元にする
+    val sheetHaze = rememberHazeState()
 
     AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState) {
-        Surface(
-            color = sheetFieldColor(),
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
-        ) {
-            val motion = MaterialTheme.motionScheme
-            AnimatedContent(
-                targetState = page,
-                transitionSpec = {
-                    val forward = targetState != null
-                    (slideInHorizontally(motion.defaultSpatialSpec()) { if (forward) it / 4 else -it / 4 } + fadeIn(motion.defaultEffectsSpec()))
-                        .togetherWith(fadeOut(motion.fastEffectsSpec()))
-                },
-                label = "sessionSheetPage",
-            ) { current ->
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = Spacing.s)) {
-                    if (current == null || agent == null) {
-                        Overview(
-                            model = model,
-                            effort = effort,
-                            permission = permission,
-                            availability = availability,
-                            session = session,
-                            providers = providers,
-                            onOpen = { setting ->
-                                if (setting != SessionSetting.PERMISSIONS) wantCatalog = true
-                                page = setting
-                            },
-                        )
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = Spacing.xs)) {
-                            IconButton(onClick = { page = null }) {
-                                Icon(painterResource(R.drawable.ic_huge_chevron_left), contentDescription = stringResource(R.string.back_cd))
-                            }
-                            Text(stringResource(current.label()), style = MaterialTheme.typography.titleMedium)
-                        }
-                        SettingChoices(
-                            setting = current,
-                            agent = agent,
-                            session = session,
-                            draftOptions = draftOptions,
-                            canSelectFull = canSelectFull,
-                            catalog = catalog,
-                            onSelect = { value ->
-                                onSelect(current, value)
-                                page = null
-                            },
-                        )
-                    }
+        ProvideScreenHaze(sheetHaze) {
+            Surface(
+                color = sheetFieldColor(),
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
+            ) {
+                Column(
+                    Modifier.hazeSource(sheetHaze).verticalScroll(rememberScrollState()).padding(Spacing.l),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.m),
+                ) {
+                    // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すとメニューで選ぶ
+                    SettingIconRow(
+                        agent = agent,
+                        session = session,
+                        model = model,
+                        effort = effort,
+                        permission = permission,
+                        draftOptions = draftOptions,
+                        availability = availability,
+                        canSelectFull = canSelectFull,
+                        catalog = catalog,
+                        onNeedCatalog = { wantCatalog = true },
+                        onSelect = onSelect,
+                    )
+                    Usage(session = session, providers = providers)
                 }
             }
         }
@@ -155,29 +121,14 @@ fun ComposerSessionSheet(
 }
 
 @Composable
-private fun Overview(
-    model: String?,
-    effort: String?,
-    permission: String?,
-    availability: SettingAvailability,
-    session: SessionSummary?,
-    providers: List<ProviderUsage>?,
-    onOpen: (SessionSetting) -> Unit,
-) {
+private fun Usage(session: SessionSummary?, providers: List<ProviderUsage>?) {
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     val percent = remember(locale) { NumberFormat.getPercentInstance(locale) }
     val timeOnly = remember(locale) { DateFormat.getTimeInstance(DateFormat.SHORT, locale) }
     val dateTime = remember(locale) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale) }
-    val defaultLabel = stringResource(R.string.chat_setting_default)
 
-    // このセッションの設定
-    SettingLink(R.string.chat_setting_model, model?.substringAfterLast('/') ?: defaultLabel, availability.model) { onOpen(SessionSetting.MODEL) }
-    SettingLink(R.string.chat_setting_effort, effort ?: defaultLabel, availability.effort) { onOpen(SessionSetting.EFFORT) }
-    val permissionLabel = stringResource((PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default).label)
-    SettingLink(R.string.chat_setting_permissions, permissionLabel, availability.permissions) { onOpen(SessionSetting.PERMISSIONS) }
-
-    Column(Modifier.padding(horizontal = Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         SectionTitle(R.string.chat_context_title)
         val fraction = session?.contextFraction
         if (fraction != null && session.totalTokens != null && session.contextTokens != null) {
@@ -216,17 +167,6 @@ private fun Overview(
             }
         }
     }
-}
-
-@Composable
-private fun SettingLink(label: Int, value: String, enabled: Boolean, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(stringResource(label), style = MaterialTheme.typography.titleMedium) },
-        supportingContent = { Text(value, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingContent = if (enabled) ({ Icon(painterResource(R.drawable.ic_huge_chevron_right), contentDescription = null) }) else null,
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
-    )
 }
 
 @Composable
@@ -282,9 +222,4 @@ private fun windowLabel(label: String): String = when (label.trim().lowercase())
     else -> label
 }
 
-private fun SessionSetting.label(): Int = when (this) {
-    SessionSetting.MODEL -> R.string.chat_setting_model
-    SessionSetting.EFFORT -> R.string.chat_setting_effort
-    SessionSetting.PERMISSIONS -> R.string.chat_setting_permissions
-}
 

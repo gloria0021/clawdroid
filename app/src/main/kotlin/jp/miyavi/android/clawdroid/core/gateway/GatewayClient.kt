@@ -32,6 +32,10 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -200,6 +204,50 @@ class GatewayClient(
         } finally {
             pending.remove(id)
         }
+    }
+
+    /**
+     * 会話に添付された画像（`media://inbound/<id>`）を、Gateway の HTTP の経路から取る（公式 Android アプリと同じ）。
+     * `GET {http(s)://host:port}{path}/__openclaw__/assistant-media?source=…&sessionKey=…&agentId=…`、
+     * 認証は端末のトークン → ゲートウェイトークンの順に Bearer で試す。
+     */
+    suspend fun loadInboundMedia(source: String, sessionKey: String, agentId: String?, maxBytes: Long = MAX_INBOUND_MEDIA_BYTES): ByteArray? {
+        if (!INBOUND_MEDIA.matches(source.trim())) return null
+        val connection = secrets.loadConnection() ?: return null
+        val ws = connection.url.wsToHttpUrl() ?: return null
+        val url = ws.newBuilder()
+            .encodedPath(ws.encodedPath.trimEnd('/') + "/__openclaw__/assistant-media")
+            .query(null)
+            .addQueryParameter("source", source.trim())
+            .addQueryParameter("sessionKey", sessionKey)
+            .apply { agentId?.takeIf(String::isNotBlank)?.let { addQueryParameter("agentId", it) } }
+            .build()
+        val tokens = listOfNotNull(connection.deviceToken, connection.gatewayToken).map(String::trim).filter(String::isNotEmpty).distinct()
+        return withContext(Dispatchers.IO) {
+            for (token in tokens) {
+                val request = Request.Builder().url(url).header("Accept", "image/*").header("Authorization", "Bearer $token").build()
+                val result = runCatching {
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.code == 401 || response.code == 403) return@use null to true
+                        val body = response.body
+                        if (!response.isSuccessful || body.contentLength() > maxBytes) return@use null to false
+                        body.byteStream().readNBytes((maxBytes + 1).toInt()).takeIf { it.size <= maxBytes } to false
+                    }
+                }.getOrNull() ?: return@withContext null
+                val (bytes, unauthorized) = result
+                if (!unauthorized) return@withContext bytes
+            }
+            null
+        }
+    }
+
+    private fun String.wsToHttpUrl(): HttpUrl? {
+        val http = when {
+            startsWith("wss://", ignoreCase = true) -> "https://" + substring(6)
+            startsWith("ws://", ignoreCase = true) -> "http://" + substring(5)
+            else -> this
+        }
+        return http.toHttpUrlOrNull()
     }
 
     // ---- 接続のループ ----
@@ -487,6 +535,8 @@ class GatewayClient(
         const val INITIAL_RETRY_DELAY_MS = 1_000L
         const val MAX_RETRY_DELAY_MS = 30_000L
         const val PAIRING_POLL_MS = 3_000L
+        const val MAX_INBOUND_MEDIA_BYTES = 20L * 1024 * 1024
+        private val INBOUND_MEDIA = Regex("^media://inbound/[^/?#\\\\]+$", RegexOption.IGNORE_CASE)
         private const val FOREGROUND_PROBE_TIMEOUT_MS = 3_000L
         private const val NORMAL_CLOSURE = 1000
 

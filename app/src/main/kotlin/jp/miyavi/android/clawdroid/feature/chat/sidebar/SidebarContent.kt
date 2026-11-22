@@ -75,6 +75,7 @@ import kotlinx.coroutines.launch
  * 全画面のサイドパネル（Gemini 型）。上から 新しいセッション・自動化・セッション履歴。
  * 下部にエージェントの数だけピル型のタブが浮き、切り替えるとセッション履歴が切り替わる（FR-010・011）。
  * 履歴は Pager の 1 ページ＝1 エージェントで、タブの選択面とページが同じ値（PagerState）に追従する。
+ * 横スワイプはパネルを閉じる操作なので、Pager は指では送らない（タブでだけ切り替える）。
  */
 @Composable
 fun SidePanel(
@@ -126,6 +127,8 @@ fun SidePanel(
                         modifier = Modifier.weight(1f).fillMaxWidth().hazeSource(hazeState),
                         key = { agents.getOrNull(it)?.id ?: it },
                         beyondViewportPageCount = 1,
+                        // 横スワイプはパネルを閉じる操作に使う。エージェントの切り替えは下部のタブだけ
+                        userScrollEnabled = false,
                     ) { page ->
                         val agent = agents.getOrNull(page) ?: return@HorizontalPager
                         SessionList(
@@ -159,7 +162,8 @@ fun SidePanel(
                                 label = { id -> agentsById.getValue(id).name },
                                 tabHorizontalPadding = Spacing.m,
                             ) { id ->
-                                AgentAvatar(agentsById.getValue(id))
+                                // サイドパネルのタブのアイコンは大きめ（ふつうのアイコンの 2 倍）
+                                AgentAvatar(agentsById.getValue(id), size = Dimens.avatarLarge)
                             }
                         }
                     }

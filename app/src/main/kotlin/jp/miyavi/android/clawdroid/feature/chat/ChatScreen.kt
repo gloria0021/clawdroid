@@ -1,5 +1,8 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import jp.miyavi.android.clawdroid.core.data.LocalInboundImages
+import jp.miyavi.android.clawdroid.core.data.InboundImageSource
+import jp.miyavi.android.clawdroid.core.data.InboundImageLoader
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import android.content.ClipData
@@ -121,7 +124,12 @@ data class ChatNavigation(
 )
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, navigation: ChatNavigation, timeLabel: (Long) -> String) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    navigation: ChatNavigation,
+    timeLabel: (Long) -> String,
+    inboundImages: InboundImageLoader? = null,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -136,6 +144,7 @@ fun ChatScreen(viewModel: ChatViewModel, navigation: ChatNavigation, timeLabel: 
         }
     }
     ChatContent(
+        inboundImages = inboundImages,
         state = state,
         composer = composer,
         snackbar = snackbar,
@@ -196,6 +205,7 @@ fun ChatContent(
     timeLabel: (Long) -> String,
     navigation: ChatNavigation,
     actions: ChatActions,
+    inboundImages: InboundImageLoader? = null,
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -270,6 +280,14 @@ fun ChatContent(
         }
     }
 
+    // 添付画像（media://inbound/...）は開いている会話の権限で取る
+    val imageSessionKey = state.currentSessionKey
+    val imageAgentId = state.currentSession?.agentId ?: state.selectedAgentId
+    val imageSource = remember(inboundImages, imageSessionKey, imageAgentId) {
+        if (inboundImages == null || imageSessionKey == null) null
+        else InboundImageSource { inboundImages.load(it, imageSessionKey, imageAgentId) }
+    }
+    CompositionLocalProvider(LocalInboundImages provides imageSource) {
     ProvideScreenHaze(hazeState) {
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -406,6 +424,7 @@ fun ChatContent(
                 onDismiss = { showSessionSheet = false },
             )
         }
+    }
     }
 }
 

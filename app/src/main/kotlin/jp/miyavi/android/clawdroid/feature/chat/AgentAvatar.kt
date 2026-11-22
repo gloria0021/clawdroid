@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -27,13 +28,13 @@ import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.feature.chat.message.webUri
 
 @Composable
-internal fun AgentAvatar(agent: Agent?, label: String? = null) {
+internal fun AgentAvatar(agent: Agent?, label: String? = null, size: Dp = Dimens.avatar) {
     val url = remember(agent?.avatarUrl) {
         agent?.avatarUrl?.trim()?.takeIf { it.startsWith("data:image/", ignoreCase = true) || webUri(it) != null }
     }
     var loaded by remember(url) { mutableStateOf(false) }
     Box(
-        Modifier.size(Dimens.avatar).clip(CircleShape).clearAndSetSemantics {
+        Modifier.size(size).clip(CircleShape).clearAndSetSemantics {
             if (label != null) contentDescription = label
         },
         contentAlignment = Alignment.Center,
