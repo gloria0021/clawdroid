@@ -83,8 +83,8 @@ val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.2f, blur = 0.2f)
 /** タイトルバーの色を暗く沈める割合。 */
 private const val TITLE_BAR_DARKEN = 0.5f
 
-/** メニュー。文字を選ぶ面なので濃くする。 */
-val MENU_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
+/** メニュー。90% では下が透けず不透明に見えたので 60% に（マスター指定 2026-11-22）。 */
+val MENU_OPACITY = SurfaceOpacity(glass = 0.6f, blur = 0.3f)
 
 /** ボトムシート。読む量が多いので濃くする。 */
 val SHEET_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
