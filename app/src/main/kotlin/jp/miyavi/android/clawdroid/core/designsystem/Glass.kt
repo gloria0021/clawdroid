@@ -111,12 +111,13 @@ fun Modifier.hazeSurface(
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val tintColor = when (tint) {
-        // テーマの強い色（ふだんは primaryContainer、OpenClaw ではくすんだ赤）
-        GlassTint.THEME -> accentContainer().container
+        // タイトルバーは鮮やかなテーマカラー（primary）をごく薄く重ねる。淡い色を薄く重ねると白にしか見えないため
+        GlassTint.THEME -> colors.primary
         GlassTint.NEUTRAL, GlassTint.FIELD -> sheetFieldColor()
     }
     // 下に敷く面は常に無彩色。テーマカラーは不透明度の分だけ重ねる（敷く面に色を使うと、不透明度に関係なく色が付くため）
-    val base = sheetFieldColor()
+    // タイトルバーの下地は画面の背景色（白ではなく、背景と地続きにほんのり色を乗せる）
+    val base = if (tint == GlassTint.THEME) colors.surface else sheetFieldColor()
     when (LocalSurfaceStyle.current) {
         SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor, base)
         SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor, base)
