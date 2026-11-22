@@ -49,6 +49,9 @@ private const val TINT_WEIGHT_LIGHT = 0.18f
 private const val TINT_WEIGHT_DARK = 0.22f
 
 
+/** OpenClaw の背景を無彩色の面へ寄せる割合（ライトだけ。0.5 で RGB(224,215,215) → 約 (240,235,235)）。 */
+private const val OPENCLAW_BACKGROUND_LIFT = 0.5f
+
 /** OpenClaw のメッセージの面で、赤を背景に溶かす割合（大きいほど淡い）。 */
 private const val NUANCE_MIX_LIGHT = 0.72f
 private const val NUANCE_MIX_DARK = 0.62f
@@ -151,11 +154,17 @@ internal fun tintedScheme(base: ColorScheme, dark: Boolean): ColorScheme {
  * OpenClaw の赤を重ねる。面（背景・コンテナ・タイトルバーの色）は Suna の塗り方のまま、
  * アクセント（primary）だけを赤にする。利用者のメッセージの赤い面は [AccentContainer] で別に渡す。
  */
-internal fun withRedAccent(surfaces: ColorScheme, red: ColorScheme, dark: Boolean): ColorScheme = surfaces.copy(
-    primary = vividLinkColor(red.primary, surfaces.surface, dark),
+internal fun withRedAccent(surfaces: ColorScheme, red: ColorScheme, dark: Boolean): ColorScheme {
+    // 背景は Suna より明るく: 背景と無彩色の面（ライトはほぼ白）の中間
+    val background = if (dark) surfaces.surface else lerp(surfaces.surface, surfaces.surfaceContainerLowest, OPENCLAW_BACKGROUND_LIFT)
+    return surfaces.copy(
+    surface = background,
+    background = background,
+    primary = vividLinkColor(red.primary, background, dark),
     onPrimary = red.onPrimary,
     inversePrimary = red.inversePrimary,
-)
+    )
+}
 
 /** 利用者のメッセージなど、テーマの「強い色」の面と文字。ふだんは primaryContainer、OpenClaw では赤。 */
 data class AccentContainer(val container: Color, val content: Color)
