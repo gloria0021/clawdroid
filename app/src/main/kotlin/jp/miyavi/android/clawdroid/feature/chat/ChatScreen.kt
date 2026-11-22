@@ -344,7 +344,8 @@ fun ChatContent(
                     }
                 },
                 bottomBar = {
-                    Surface(color = MaterialTheme.colorScheme.surface) {
+                    // 入力欄の後ろは塗らない。会話が下まで流れ、入力欄（白いガラス）の周りから透けて見える
+                    Box(Modifier.fillMaxWidth()) {
                         Box(
                             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).imePadding(),
                             contentAlignment = Alignment.Center,
@@ -373,7 +374,8 @@ fun ChatContent(
                 },
                 snackbarHost = { GlassSnackbarHost(snackbar) },
             ) { padding ->
-                Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
+                // 会話は入力欄の裏まで描き、最後の行は入力欄の上に来るよう下の余白で押し上げる
+                Box(Modifier.fillMaxSize()) {
                     CompositionLocalProvider(LocalUriHandler provides uriHandler) {
                         MessageList(
                             state = state,
@@ -382,7 +384,7 @@ fun ChatContent(
                                 start = Spacing.l,
                                 end = Spacing.l,
                                 top = padding.calculateTopPadding() + Spacing.s,
-                                bottom = Spacing.s,
+                                bottom = padding.calculateBottomPadding() + Spacing.s,
                             ),
                             onCopy = { text ->
                                 scope.launch {
@@ -401,7 +403,9 @@ fun ChatContent(
                             modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection).hazeSource(hazeState),
                         )
                     }
-                    Box(Modifier.align(Alignment.BottomCenter)) { ScrollToBottomButton(listState, hazeState) }
+                    Box(Modifier.align(Alignment.BottomCenter).padding(bottom = padding.calculateBottomPadding())) {
+                        ScrollToBottomButton(listState, hazeState)
+                    }
                 }
             }
         }
@@ -567,7 +571,8 @@ private fun MessageList(
     LaunchedEffect(rows.size, live?.text?.length, pending.size, chat?.running, state.currentSessionKey) { followBottom() }
     // 入力欄が伸びる・キーボードが出るなどで表示の高さが変わったとき（会話の表示は縮み、最新の行を見せたままにする）
     LaunchedEffect(listState, state.currentSessionKey) {
-        snapshotFlow { listState.layoutInfo.viewportSize.height }.distinctUntilChanged().collect { followBottom() }
+        snapshotFlow { listState.layoutInfo.viewportSize.height to listState.layoutInfo.afterContentPadding }
+            .distinctUntilChanged().collect { followBottom() }
     }
     when {
         state.currentSessionKey == null || (chat != null && !chat.loading && messages.isEmpty() && live == null) -> {
