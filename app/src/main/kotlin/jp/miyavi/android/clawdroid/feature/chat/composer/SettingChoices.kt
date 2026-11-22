@@ -141,7 +141,8 @@ private fun SettingIconButton(
                 else -> options.forEach { option ->
                     DropdownMenuItem(
                         text = {
-                            Column {
+                            // 上下に 12dp。1 行のエフォートと 2 行（名前と説明）のモデル・権限で、行の上下の余白をそろえる
+                            Column(Modifier.padding(vertical = Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                                 Text(option.name, style = MaterialTheme.typography.bodyLarge)
                                 option.description?.let {
                                     Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
