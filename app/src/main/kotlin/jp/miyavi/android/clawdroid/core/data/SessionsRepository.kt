@@ -267,22 +267,6 @@ class SessionsRepository(
         }
     }
 
-    /**
-     * 会話を引き継いで、別の作業フォルダのセッションを作る（作業フォルダはあとから変えられないため。`sessions.patch` に cwd は無い）。
-     * 作られた key を返す。
-     */
-    suspend fun forkToFolder(parent: SessionSummary, agentId: String, cwd: String): String? {
-        val result = gateway.request("sessions.create", buildJsonObject {
-            put("agentId", agentId)
-            put("parentSessionKey", parent.key)
-            put("fork", true)
-            put("cwd", cwd)
-            // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
-        }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject()
-        refresh(agentId)
-        return result?.string("key") ?: result?.string("sessionKey")
-    }
-
     /** セッションの作業フォルダの変更（Git の差分。ブランチの分と未コミットの分）。集計中なら少し待って取り直す。 */
     suspend fun diff(session: SessionSummary, summaryOnly: Boolean = false): SessionDiff? {
         repeat(DIFF_POLLS) { attempt ->
@@ -411,6 +395,15 @@ class SessionsRepository(
         )
     }
 
+    /** リポジトリのブランチ（ローカルとリモート）と、今のブランチ・既定のブランチ。[cwd] はリポジトリの中のフォルダ。 */
+    suspend fun branches(cwd: String): RepoBranches? {
+        val result = gateway.request("worktrees.branches", buildJsonObject { put("repoRoot", cwd) }).asObject() ?: return null
+        val branches = result.array("branches").mapNotNull { it as? JsonObject }.mapNotNull { b ->
+            RepoBranch(b.string("name") ?: return@mapNotNull null, remote = b.string("kind") == "remote")
+        }
+        return RepoBranches(branches, head = result.string("headBranch"), default = result.string("defaultBranch"))
+    }
+
     private companion object {
         const val MAX_FOLDER_CANDIDATES = 5
         const val DIFF_POLLS = 10
@@ -422,6 +415,12 @@ class SessionsRepository(
         const val MAX_PAGES = 20
     }
 }
+
+/** リポジトリのブランチ。 */
+data class RepoBranch(val name: String, val remote: Boolean)
+
+/** ブランチの一覧（[branches] が空なら、今のブランチだけ分かっている）。 */
+data class RepoBranches(val branches: List<RepoBranch>, val head: String?, val default: String?)
 
 /** フォルダの一覧（[parent] はファイルシステムの根では null）。 */
 data class DirListing(val path: String, val parent: String?, val home: String?, val entries: List<DirEntry>)

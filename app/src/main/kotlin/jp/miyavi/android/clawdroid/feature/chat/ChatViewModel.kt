@@ -389,21 +389,16 @@ class ChatViewModel(
         runCatching { sessions.diff(session) }.getOrNull()
 
     /** ⋮ のメニューに出す合計の +/−（中身は取らない）。 */
+    /** 並行開発のシートの、元にするブランチの候補。一覧が取れなければ、変更量から今のブランチだけ返す。 */
+    suspend fun branches(session: SessionSummary): jp.miyavi.android.clawdroid.core.data.RepoBranches? {
+        val cwd = session.cwd ?: return null
+        runCatching { sessions.branches(cwd) }.getOrNull()?.takeIf { it.branches.isNotEmpty() }?.let { return it }
+        val head = diffSummary(session)?.branch ?: return null
+        return jp.miyavi.android.clawdroid.core.data.RepoBranches(emptyList(), head = head, default = null)
+    }
+
     suspend fun diffSummary(session: SessionSummary): jp.miyavi.android.clawdroid.core.data.SessionDiff? =
         runCatching { sessions.diff(session, summaryOnly = true) }.getOrNull()
-
-    /** 会話を引き継いで、別の作業フォルダのセッションを作り、開く。 */
-    fun forkToFolder(parent: SessionSummary, cwd: String) {
-        val agentId = parent.agentId ?: selectedAgentId.value ?: return
-        viewModelScope.launch {
-            val key = runCatching { sessions.forkToFolder(parent, agentId, cwd) }
-                .onFailure { _events.tryEmit(ChatEvent.Error(it.message)) }
-                .getOrNull() ?: return@launch
-            selectedAgentId.value = agentId
-            openSession(key, agentId)
-            settings.selectSession(agentId, key)
-        }
-    }
 
     /** 既存のセッションからワークツリーのセッションを分けて作り、開く。 */
     fun createWorktree(parent: SessionSummary, name: String?, baseRef: String?, fork: Boolean) {

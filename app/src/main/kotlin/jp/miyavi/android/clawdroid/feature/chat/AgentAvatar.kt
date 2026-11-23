@@ -1,5 +1,13 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.layout.height
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -134,3 +142,52 @@ private fun AgentAvatarImage(agent: Agent?, label: String?, size: Dp) {
         }
     }
 }
+
+/**
+ * サイドパネルの頭の看板の画像。顔の画像を横いっぱい・真ん中基準で敷き、下へいくほど背景に溶かす（色は足さず、画像の透け方だけ）。
+ * 画像が無いときは、絵文字・頭文字を大きく出す。
+ */
+@Composable
+internal fun AgentHero(agent: Agent, modifier: Modifier = Modifier) {
+    val url = remember(agent.avatarUrl) {
+        agent.avatarUrl?.trim()?.takeIf { it.startsWith("data:image/", ignoreCase = true) || webUri(it) != null }
+    }
+    var loaded by remember(url) { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        HERO_FADE_START to Color.Black,
+                        1f to Color.Transparent,
+                    ),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!loaded) {
+            val glyph = agent.emoji?.takeIf(String::isNotBlank) ?: agent.name.firstOrNull()?.takeUnless { it.isSurrogate() }?.toString()
+            Box(Modifier.matchParentSize().background(colors.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                if (glyph != null) Text(glyph, style = MaterialTheme.typography.displayMedium, maxLines = 1)
+            }
+        }
+        if (url != null) {
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                onSuccess = { loaded = true },
+                onError = { loaded = false },
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.Center,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
+}
+
+/** 看板の高さのうち、ここから下を消していく。 */
+private const val HERO_FADE_START = 0.35f

@@ -86,13 +86,18 @@
     <string name="panel_folder_none">作業フォルダなし</string>
     <string name="panel_folder_collapse">閉じる</string>
     <string name="panel_folder_expand">開く</string>
-    <string name="session_menu_worktree">ワークツリーで分岐</string>
-    <string name="worktree_title">ワークツリーで分岐</string>
+    <string name="session_menu_new_worktree">並行開発を開始</string>
+    <string name="session_menu_worktree">並行開発を開始</string>
+    <string name="worktree_title">並行開発を開始</string>
     <string name="worktree_create">作成</string>
     <string name="worktree_name">ブランチ名</string>
     <string name="worktree_name_auto">空なら会話のタイトルから</string>
+    <string name="worktree_name_taken">同じ名前のブランチがあります。別の名前にするか、空にしてください</string>
     <string name="worktree_name_hint">英小文字・数字・ハイフン</string>
     <string name="worktree_base">元にするブランチ</string>
+    <string name="worktree_base_loading">今のブランチを確かめています…</string>
+    <string name="worktree_name_prefix" translatable="false">openclaw/</string>
+    <string name="worktree_base_head">今</string>
     <string name="worktree_base_current">空なら今のブランチ</string>
     <string name="worktree_fork">会話を引き継ぐ</string>
     <string name="worktree_fork_desc">この会話の内容を、新しいセッションにも持っていきます</string>
@@ -114,8 +119,6 @@
     <string name="session_menu_pin">ピン留め</string>
     <string name="session_menu_unpin">ピン留めを外す</string>
     <string name="session_menu_diff">変更量</string>
-    <string name="session_menu_move">別のフォルダで続ける</string>
-    <string name="session_move_title">別のフォルダで続ける</string>
     <string name="session_diff_title">変更量</string>
     <string name="session_diff_failed">変更を読み込めませんでした</string>
     <string name="session_diff_not_git">作業フォルダが Git のリポジトリではありません</string>
@@ -183,13 +186,13 @@
     <string name="settings_appearance_dark">ダーク</string>
     <string name="settings_section_theme">テーマ</string>
     <string name="theme_openclaw">OpenClaw</string>
-    <string name="theme_openclaw_desc">OpenClaw の赤</string>
+    <string name="theme_openclaw_desc">OpenClawの象徴</string>
     <string name="theme_modern">Monochrome</string>
-    <string name="theme_modern_desc">白と灰色だけの落ち着いた配色</string>
+    <string name="theme_modern_desc">白と黒の世界</string>
     <string name="theme_dynamic">ダイナミック</string>
-    <string name="theme_dynamic_desc">壁紙の色</string>
+    <string name="theme_dynamic_desc">壁紙と連動</string>
     <string name="theme_custom">カスタム</string>
-    <string name="theme_custom_desc">好きな色</string>
+    <string name="theme_custom_desc">君が決めて</string>
     <string name="settings_custom_color">カスタムの色</string>
     <string name="settings_custom_color_hint">#RRGGBB</string>
     <string name="settings_custom_color_invalid">#RRGGBB の形で入力してください</string>

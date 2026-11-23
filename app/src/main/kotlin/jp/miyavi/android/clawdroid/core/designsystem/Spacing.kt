@@ -63,4 +63,6 @@ object Dimens {
     val folderBrowserMaxHeight = 420.dp
     /** 使用量の帯の、使った所の下の縁の線の太さ。 */
     val usageMeterEdge = 4.dp
+    /** サイドパネルの頭の看板の高さ（ステータスバーの下から）。 */
+    val agentHeroHeight = 180.dp
 }

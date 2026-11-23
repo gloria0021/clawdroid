@@ -62,10 +62,10 @@
 | 件数バッジ・チップ | `secondaryContainer` / `onSecondaryContainer` |
 | 検索で一致した語 | 背景 `tertiaryContainer` / 文字 `onTertiaryContainer` |
 | エラー | `error`、ラベルは `errorContainer` / `onErrorContainer` |
-| 区切り線 | `outlineVariant` |
+| 区切り線 | `outlineVariant`（ガラスのメニューの中だけは `outline`。`GlassMenuDivider()`。マスター指定 2026-11-23） |
 | 無効・折りたたみ | `onSurfaceVariant`（不透明度 0.6 まで） |
 
-- 意味のない色分けは禁止。ガラス風の面（2.10）以外でグラデーション・影による色付けをしない
+- 意味のない色分けは禁止。ガラス風の面（2.10）以外でグラデーション・影による色付けをしない（例外: サイドパネルの頭の看板は、エージェントの顔の画像を下へいくほど消していく。色は足さず、画像の透け方だけ。会話の画面の上端は、ステータスバーとボタンが読めるよう下の中身を背景色（`surface`）の不透明度だけで溶かす（共通部品 `Modifier.statusBarFade()`）。どちらもマスター指定 2026-11-23）
 
 ### 2.3 タイポグラフィ
 
@@ -106,7 +106,7 @@
 - 公式データから必要なものだけを VectorDrawable にして `res/drawable/ic_huge_<名前>.xml` に置き、`painterResource(R.drawable.ic_huge_*)` で使う。アイコンフォントやライブラリ全体は入れない
 - 色は描画側で `LocalContentColor`（`Icon` の既定）に任せ、XML に色を固定しない。線の太さ・角丸は公式データのまま変えない
 - ライセンス（MIT）は `assets/licenses/` に同梱する
-- TopAppBar に置くアイコンは最大2つ＋ ⋮。それ以外は ⋮ メニューに入れる（会話のタイトルバーは ファイル・ターミナル・⋮。マスター指定 2026-11-23）
+- TopAppBar に置くアイコンは最大2つ＋ ⋮。それ以外は ⋮ メニューに入れる（会話の画面は帯を置かず、左上に「Clawdroid」のガラスのピルだけを浮かせ、押すとメニュー（名前を変更・ピン留め、区切って ファイル・ターミナル・並行開発を開始・変更量）。サイドパネルは左端からのスワイプで開く。マスター指定 2026-11-23）
 - アイコンだけのボタンには必ず `contentDescription`（`strings.xml` の `*_cd`）を付ける。飾りのアイコンは `null`
 
 ### 2.7 コンポーネントの使い分け

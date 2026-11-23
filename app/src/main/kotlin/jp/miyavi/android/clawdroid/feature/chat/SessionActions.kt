@@ -1,6 +1,5 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -51,39 +50,60 @@ import jp.miyavi.android.clawdroid.core.data.SessionSummary
 import jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
+import jp.miyavi.android.clawdroid.core.designsystem.GlassMenuDivider
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.codeTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor
 
 /** タイトルバーの ⋮ から開くもの。 */
-enum class SessionAction { RENAME, DIFF, MOVE }
+enum class SessionAction { RENAME, DIFF, WORKTREE }
 
-/** 会話のタイトルバーの ⋮（名前を変更・ピン留め・変更量・別のフォルダで続ける）。 */
+/** 会話のタイトルバーのメニュー（名前を変更・ピン留め・ファイル・ターミナル・新規ワークツリー・変更量）。 */
 @Composable
 internal fun SessionMoreMenu(
-    session: SessionSummary,
+    /** いまのセッション（新しいチャットでは null。ファイル・ターミナル以外は出さない）。 */
+    session: SessionSummary?,
     onAction: (SessionAction) -> Unit,
     onTogglePin: () -> Unit,
     loadDiffSummary: suspend (SessionSummary) -> SessionDiff? = { null },
+    /** ファイル（開けないときは null）。 */
+    onOpenFiles: (() -> Unit)? = null,
+    onOpenTerminal: (() -> Unit)? = null,
+    /** メニューを開く部品（既定は ⋮ のアイコン）。 */
+    anchor: @Composable (onClick: () -> Unit) -> Unit = { onClick ->
+        IconButton(onClick = onClick) { Icon(painterResource(R.drawable.ic_huge_more), stringResource(R.string.session_more_cd)) }
+    },
 ) {
     var open by remember { mutableStateOf(false) }
     // メニューを開くたびに合計の +/− を取り直す（取れるまでは数を出さない）
-    val summary by produceState<SessionDiff?>(null, open, session.key) {
+    val summary by produceState<SessionDiff?>(null, open, session?.key) {
         value = null
-        if (open && session.cwd != null) value = loadDiffSummary(session)
+        if (open && session?.cwd != null) value = loadDiffSummary(session)
     }
     Box {
-        IconButton(onClick = { open = true }) { Icon(painterResource(R.drawable.ic_huge_more), stringResource(R.string.session_more_cd)) }
+        anchor { open = true }
         GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            // 並び（マスター指定 2026-11-23）: 名前を変更・ピン留め、区切って ファイル・ターミナル・並行開発・変更量
+            // （別のフォルダで続けるは廃止）。新しいチャットではファイル・ターミナルだけ
+            val files: @Composable () -> Unit = {
+                onOpenFiles?.let { MenuRow(R.drawable.ic_huge_folder, R.string.menu_files) { open = false; it() } }
+                onOpenTerminal?.let { MenuRow(R.drawable.ic_huge_terminal, R.string.menu_terminal) { open = false; it() } }
+            }
+            if (session == null) {
+                files()
+                return@GlassDropdownMenu
+            }
             MenuRow(R.drawable.ic_huge_edit, R.string.session_menu_rename) { open = false; onAction(SessionAction.RENAME) }
             MenuRow(
                 if (session.pinned) R.drawable.ic_huge_pin_off else R.drawable.ic_huge_pin,
                 if (session.pinned) R.string.session_menu_unpin else R.string.session_menu_pin,
             ) { open = false; onTogglePin() }
-            MenuRow(R.drawable.ic_huge_folder_move, R.string.session_menu_move) { open = false; onAction(SessionAction.MOVE) }
-            // 変更量は区切りの下に、合計の +/− を添えて（押すと詳細のシート）
+            // ここから下は開発の操作（ファイル・ターミナル・並行開発・変更量）。区切りはここだけ（マスター指定 2026-11-23）
+            GlassMenuDivider()
+            files()
+            MenuRow(R.drawable.ic_huge_branch, R.string.session_menu_new_worktree) { open = false; onAction(SessionAction.WORKTREE) }
+            // 変更量は合計の +/− を添えて（押すと詳細のシート）
             if (session.cwd != null) {
-                HorizontalDivider(Modifier.padding(vertical = Spacing.xs), color = MaterialTheme.colorScheme.outlineVariant)
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.session_menu_diff)) },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_huge_diff), contentDescription = null) },

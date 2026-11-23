@@ -1,6 +1,17 @@
 package jp.miyavi.android.clawdroid.feature.chat.sidebar
 
+import jp.miyavi.android.clawdroid.core.designsystem.GlassTint
+import jp.miyavi.android.clawdroid.core.designsystem.TITLE_BAR_OPACITY
+import jp.miyavi.android.clawdroid.core.designsystem.hazeSurface
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
+import jp.miyavi.android.clawdroid.core.designsystem.FloatingIconButton
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -12,6 +23,10 @@ import androidx.compose.foundation.layout.heightIn
 import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.SpringSpec
@@ -52,6 +67,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.semantics.selected
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -98,7 +117,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.motionItem
 import jp.miyavi.android.clawdroid.feature.chat.AgentAvatar
 
 // The adaptive icon foreground includes a bleed area outside its visible viewport.
-private const val LauncherForegroundViewportScale = 1.5f
+internal const val LauncherForegroundViewportScale = 1.5f
 /** サイドパネルのフェード（エージェントの切り替え・選んだ行の色）の速さ。slowEffects に対する倍率で、約 0.5 秒になる（マスター指定 2026-11-23）。 */
 private const val PanelFadeSpeed = 0.5f
 
@@ -145,6 +164,8 @@ fun SidePanel(
     groupingByAgent: Map<String, SessionGrouping> = emptyMap(),
     onGroupingChange: (String, SessionGrouping) -> Unit = { _, _ -> },
     onCreateWorktree: (SessionSummary, String?, String?, Boolean) -> Unit = { _, _, _, _ -> },
+    /** 並行開発のシートで、元にするブランチの候補を取る。 */
+    loadBranches: suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
     onUnpin: (SessionSummary) -> Unit = {},
 ) {
     val hazeState = rememberHazeState()
@@ -179,34 +200,26 @@ fun SidePanel(
     ProvideScreenHaze(hazeState) {
         Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.fillMaxSize().widthIn(max = Dimens.maxReadingWidth).windowInsetsPadding(WindowInsets.statusBars)) {
-                    // 見出しの行: アプリ名と、設定・閉じる（アイコンは 2 つまで。AGENTS.md 2.6）
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.xs, top = Spacing.s),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.launcher_mascot_foreground),
-                            contentDescription = null,
-                            modifier = Modifier.size(Dimens.sidebarAppIcon).graphicsLayer {
-                                scaleX = LauncherForegroundViewportScale
-                                scaleY = LauncherForegroundViewportScale
-                            },
-                        )
-                        Spacer(Modifier.size(Spacing.s))
-                        Text(
-                            stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).semantics { heading() },
-                        )
-                        IconButton(onClick = { commitAgent(); onOpenSettings() }) {
-                            Icon(painterResource(R.drawable.ic_huge_settings), contentDescription = stringResource(R.string.sidebar_settings))
+                Column(Modifier.fillMaxSize().widthIn(max = Dimens.maxReadingWidth)) {
+                    // 頭の看板（マスター指定 2026-11-23）: 選んでいるエージェントの顔を、ステータスバーの裏まで横いっぱいに敷き、
+                    // 下へいくほど背景に溶かす。右上に閉じる（ガラスの面で、どの画像の上でも読める）
+                    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                    Box(Modifier.fillMaxWidth().height(statusTop + Dimens.agentHeroHeight)) {
+                        currentAgent?.let { agent ->
+                            jp.miyavi.android.clawdroid.feature.chat.AgentHero(
+                                agent,
+                                Modifier.matchParentSize().hazeSource(hazeState, zIndex = HERO_HAZE_Z).graphicsLayer {
+                                    alpha = if (revealedAgentId == currentAgent.id) agentOpacity.value else 0f
+                                },
+                            )
                         }
-                        IconButton(onClick = onClose) {
-                            Icon(painterResource(R.drawable.ic_huge_close), contentDescription = stringResource(R.string.panel_close_cd))
+                        // 右上に閉じるボタンだけ（名前は画像の下、ホームの上。マスター指定 2026-11-23）
+                        Row(
+                            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
+                                .padding(start = Spacing.m, end = Spacing.m, top = Spacing.s),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            FloatingIconButton(hazeState, painterResource(R.drawable.ic_huge_close), stringResource(R.string.panel_close_cd), onClose)
                         }
                     }
                     Column(
@@ -214,36 +227,29 @@ fun SidePanel(
                             alpha = if (revealedAgentId == currentAgent?.id) agentOpacity.value else 0f
                         },
                     ) {
+                        // エージェントの名前（画像の下、ホームの上。titleMedium の 1.5 倍 = headlineSmall。
+                        // ガラスは付けない。マスター指定 2026-11-23）
                         currentAgent?.let { agent ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = PanelTextInset, vertical = Spacing.s),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.m),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                AgentAvatar(agent, size = Dimens.avatarLarge)
-                                Text(
-                                    agent.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.semantics { heading() },
-                                )
-                            }
-                        }
-                        PanelAction(R.drawable.ic_huge_new_chat, R.string.panel_new_session, { commitAgent(); onNewSession() })
-                        currentAgent?.let { agent ->
-                            PanelAction(R.drawable.ic_huge_automation, R.string.sidebar_automations, { commitAgent(); onOpenAutomations(agent) })
-                        }
-                        // ホーム（選んでいるエージェントの main のセッション）。セッション履歴より上に置く
-                        val home = currentAgent?.id?.let { sessionsByAgent[it]?.home }
-                        if (home != null) {
-                            PanelAction(
-                                R.drawable.ic_huge_home,
-                                R.string.panel_home,
-                                onClick = { commitAgent(); onSelectSession(home) },
-                                selected = home.key == selectedSessionKey,
+                            Text(
+                                agent.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(start = PanelTextInset, end = Spacing.l, top = Spacing.s)
+                                    .semantics { heading() },
                             )
                         }
+                        // 操作は1行にまとめる（マスター指定 2026-11-23: 3行使うと右側が空く）。
+                        // 左にホーム・自動化（文字付き）、右に新しいセッション・設定（アイコンだけ）
+                        val home = currentAgent?.id?.let { sessionsByAgent[it]?.home }
+                        PanelActionRow(
+                            onNewSession = { commitAgent(); onNewSession() },
+                            homeSelected = home != null && home.key == selectedSessionKey,
+                            onHome = home?.let { { commitAgent(); onSelectSession(it) } },
+                            onAutomations = currentAgent?.let { agent -> { commitAgent(); onOpenAutomations(agent) } },
+                            onSettings = { commitAgent(); onOpenSettings() },
+                        )
                         // ピン留めしたセッション（ホームの下に、ピンのアイコンで）。長押しでピンを外す
                         val pinned = currentAgent?.id?.let { id -> sessionsByAgent[id]?.sessions?.filter { it.pinned } }.orEmpty()
                         pinned.forEach { session ->
@@ -281,6 +287,7 @@ fun SidePanel(
                                         onDelete = onDelete,
                                         grouping = grouping,
                                         onCreateWorktree = onCreateWorktree,
+                                        loadBranches = loadBranches,
                                     )
                                 }
                             }
@@ -315,17 +322,76 @@ fun SidePanel(
     }
 }
 
+/**
+ * パネルの操作の行。左からホーム・自動化（文字付き）、右に新しいセッション・設定（アイコンだけ）。
+ * ホームは開いているあいだ選択色（マスター指定 2026-11-23）。
+ */
 @Composable
-private fun PanelAction(icon: Int, label: Int, onClick: () -> Unit, selected: Boolean = false) {
-    val highlight = selectionHighlight(selected)
-    Box(Modifier.padding(horizontal = PanelItemInset)) {
-        SelectionPill(highlight)
-        ListItem(
-            headlineContent = { Text(stringResource(label), style = MaterialTheme.typography.titleMedium) },
-            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = highlight.headline),
-            modifier = Modifier.combinedClickable(interactionSource = highlight.interactions, indication = null, onClick = onClick),
-        )
+private fun PanelActionRow(
+    onNewSession: () -> Unit,
+    homeSelected: Boolean,
+    onHome: (() -> Unit)?,
+    onAutomations: (() -> Unit)?,
+    onSettings: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        // ホーム・自動化で残りの幅を使い、右のアイコンまでを埋める（重みを空白と分け合わない）
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            if (onHome != null) {
+                val accent = accentContainer()
+                LabeledAction(
+                    R.drawable.ic_huge_home, R.string.panel_home, onHome,
+                    container = if (homeSelected) accent.container else Color.Transparent,
+                    content = if (homeSelected) accent.content else accent.container,
+                    modifier = Modifier.weight(1f, fill = false).semantics { selected = homeSelected },
+                )
+            }
+            if (onAutomations != null) {
+                LabeledAction(
+                    R.drawable.ic_huge_automation, R.string.sidebar_automations, onAutomations,
+                    container = Color.Transparent,
+                    content = accentContainer().container,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
+        FilledTonalIconButton(onClick = onNewSession) {
+            Icon(painterResource(R.drawable.ic_huge_new_chat), contentDescription = stringResource(R.string.panel_new_session))
+        }
+        IconButton(onClick = onSettings) {
+            Icon(painterResource(R.drawable.ic_huge_settings), contentDescription = stringResource(R.string.sidebar_settings))
+        }
+    }
+}
+
+/** アイコンと文字のボタン（ホーム・自動化）。色はリストで選んだ行の面と同じ色（マスター指定 2026-11-23）。 */
+@Composable
+private fun LabeledAction(icon: Int, label: Int, onClick: () -> Unit, container: Color, content: Color, modifier: Modifier = Modifier) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(containerColor = container, contentColor = content),
+        contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
+        modifier = modifier.heightIn(min = Dimens.minTouchTarget),
+    ) {
+        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(stringResource(label), style = panelPartLabelStyle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** ホーム・自動化・並べ方の切り替えの文字の大きさ: labelLarge より 1sp 大きくする（マスター指定 2026-11-23）。 */
+private const val PART_LABEL_EXTRA_SP = 1f
+
+/** ホーム・自動化・並べ方の切り替えの文字。labelLarge を 1sp 大きく、太字に（マスター指定 2026-11-23）。 */
+@Composable
+private fun panelPartLabelStyle(): TextStyle {
+    val base = MaterialTheme.typography.labelLarge
+    return remember(base) {
+        base.copy(fontSize = TextUnit(base.fontSize.value + PART_LABEL_EXTRA_SP, TextUnitType.Sp), fontWeight = FontWeight.Bold)
     }
 }
 
@@ -418,14 +484,16 @@ private fun SessionList(
     onDelete: (SessionSummary) -> Unit,
     grouping: SessionGrouping = SessionGrouping.UPDATED,
     onCreateWorktree: (SessionSummary, String?, String?, Boolean) -> Unit = { _, _, _, _ -> },
+    loadBranches: suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
 ) {
     // 作業フォルダ別で、閉じているフォルダ（回転・言語の切り替えを越えて残す）
     var collapsed by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val (active, archived) = remember(state.sessions, state.archived) {
-        // 更新日時の新しい順
-        val active = state.sessions.distinctBy { it.key }.sortedByDescending { it.updatedAt ?: 0 }
-        val activeKeys = active.mapTo(mutableSetOf()) { it.key }
-        active to state.archived.distinctBy { it.key }.filterNot { it.key in activeKeys }
+        // 更新日時の新しい順。ピン留めしたものはホームの下に出すので、ここには出さない（マスター指定 2026-11-23）
+        val unique = state.sessions.distinctBy { it.key }
+        val activeKeys = unique.mapTo(mutableSetOf()) { it.key }
+        unique.filterNot { it.pinned }.sortedByDescending { it.updatedAt ?: 0 } to
+            state.archived.distinctBy { it.key }.filterNot { it.key in activeKeys }
     }
     when {
         state.loading && state.sessions.isEmpty() && state.archived.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -445,7 +513,9 @@ private fun SessionList(
         }
         else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             // アクティブとアーカイブ済みを分けて出す
-            item(key = "header-active", contentType = "header") { ListHeader(R.string.panel_active, active.size) }
+            if (active.isNotEmpty()) {
+                item(key = "header-active", contentType = "header") { ListHeader(R.string.panel_active, active.size) }
+            }
             if (grouping == SessionGrouping.FOLDER) {
                 // 作業フォルダごとにまとめる。まとまりの並びも、中の並びも、更新日時の新しい順
                 val groups = groupByFolder(active)
@@ -467,6 +537,7 @@ private fun SessionList(
                             onArchive = { onArchive(session, !session.archived) },
                             onDelete = { onDelete(session) },
                             onCreateWorktree = { name, base, fork -> onCreateWorktree(session, name, base, fork) },
+                            loadBranches = loadBranches,
                             // フォルダの下に、木の枝でぶら下げる（文字は小さく、1 行）
                             tree = if (index == rows.lastIndex) TreeBranch.LAST else TreeBranch.MIDDLE,
                             modifier = motionItem(),
@@ -484,6 +555,7 @@ private fun SessionList(
                         onArchive = { onArchive(session, !session.archived) },
                         onDelete = { onDelete(session) },
                         onCreateWorktree = { name, base, fork -> onCreateWorktree(session, name, base, fork) },
+                            loadBranches = loadBranches,
                         modifier = motionItem(),
                     )
                 }
@@ -533,6 +605,7 @@ private fun SessionItem(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     onCreateWorktree: ((String?, String?, Boolean) -> Unit)? = null,
+    loadBranches: suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
     /** フォルダ別のときの枝の形（null なら通常の行）。 */
     tree: TreeBranch? = null,
 ) {
@@ -544,73 +617,40 @@ private fun SessionItem(
     val menuLabel = stringResource(R.string.session_menu_open_label)
     val highlight = selectionHighlight(selected)
     if (tree != null) {
-        // 枝（親のフォルダから縦の線、自分の所で横に折れる）。最後の行は自分の所で縦の線を止める
+        // 枝（親のフォルダから縦の線、自分の所で角を丸めて横に折れる）。最後の行は自分の所で縦の線を止める。
+        // 線は太めで端も丸く（M3 の丸みに合わせる。マスター指定 2026-11-23）
         val guide = MaterialTheme.colorScheme.outlineVariant
         val density = LocalDensity.current
         val guideX = with(density) { TreeGuideX.toPx() }
         val tick = with(density) { TreeTick.toPx() }
-        val stroke = with(density) { TreeStroke.toPx() }
+        val radius = with(density) { TreeCornerRadius.toPx() }
+        val stroke = remember(density) { Stroke(width = with(density) { TreeStroke.toPx() }, cap = StrokeCap.Round) }
         Box(
-            modifier.fillMaxWidth().drawBehind {
+            modifier.fillMaxWidth().drawWithCache {
                 val mid = size.height / 2
-                drawLine(guide, Offset(guideX, 0f), Offset(guideX, if (tree == TreeBranch.LAST) mid else size.height), stroke)
-                drawLine(guide, Offset(guideX, mid), Offset(guideX + tick, mid), stroke)
+                val branch = Path().apply {
+                    moveTo(guideX, 0f)
+                    lineTo(guideX, mid - radius)
+                    quadraticTo(guideX, mid, guideX + radius, mid)
+                    lineTo(guideX + tick, mid)
+                    if (tree != TreeBranch.LAST) {
+                        moveTo(guideX, mid - radius)
+                        lineTo(guideX, size.height)
+                    }
+                }
+                onDrawBehind { drawPath(branch, guide, style = stroke) }
             },
         ) {
             Box(Modifier.padding(start = TreeChildStart, end = PanelItemInset)) {
-                SelectionPill(highlight)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = Dimens.minTouchTarget)
-                        .combinedClickable(
-                            interactionSource = highlight.interactions,
-                            indication = null,
-                            onClick = onClick,
-                            onLongClick = { menuOpen = true },
-                            onLongClickLabel = menuLabel,
-                        )
-                        .padding(horizontal = Spacing.m, vertical = Spacing.s),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-                ) {
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = highlight.headline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    timeLabel?.let {
-                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    }
-                    SessionMarks(session)
-                }
+                CompactSessionRow(session, title, timeLabel, highlight, menuLabel, onClick) { menuOpen = true }
                 SessionMenu(session, menuOpen, onDismiss = { menuOpen = false }, onRename = { renaming = true },
                     onWorktree = if (onCreateWorktree != null) ({ worktree = true }) else null,
                     onArchive = onArchive, onDelete = { confirmDelete = true })
             }
         }
     } else Box(modifier.padding(horizontal = PanelItemInset)) {
-        SelectionPill(highlight)
-        ListItem(
-            headlineContent = {
-                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            },
-            supportingContent = timeLabel?.let { label ->
-                { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            },
-            trailingContent = { SessionMarks(session) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = highlight.headline),
-            modifier = Modifier.combinedClickable(
-                interactionSource = highlight.interactions,
-                indication = null,
-                onClick = onClick,
-                onLongClick = { menuOpen = true },
-                onLongClickLabel = menuLabel,
-            ),
-        )
+        // 更新順もフォルダ別と同じ1行の行（選んだ面がフォルダ別と同じ大きさになる。マスター指定 2026-11-23）
+        CompactSessionRow(session, title, timeLabel, highlight, menuLabel, onClick) { menuOpen = true }
         SessionMenu(session, menuOpen, onDismiss = { menuOpen = false }, onRename = { renaming = true },
             onWorktree = if (onCreateWorktree != null) ({ worktree = true }) else null,
             onArchive = onArchive, onDelete = { confirmDelete = true })
@@ -633,9 +673,54 @@ private fun SessionItem(
         RenameDialog(initial = session.title.orEmpty(), onDismiss = { renaming = false }, onConfirm = { renaming = false; onRename(it) })
     }
     if (worktree && onCreateWorktree != null) {
-        WorktreeSheet(session, onDismiss = { worktree = false }) { name, base, fork ->
+        jp.miyavi.android.clawdroid.feature.chat.WorktreeSheet(session, onDismiss = { worktree = false }, loadBranches = loadBranches) { name, base, fork ->
             worktree = false
             onCreateWorktree(name, base, fork)
+        }
+    }
+}
+
+/** セッションの1行（タイトル・時刻・目印）。後ろに選んだ面を敷く。更新順・フォルダ別で共通。 */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CompactSessionRow(
+    session: SessionSummary,
+    title: String,
+    timeLabel: String?,
+    highlight: SelectionHighlight,
+    menuLabel: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Box {
+        SelectionPill(highlight)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = Dimens.minTouchTarget)
+                .combinedClickable(
+                    interactionSource = highlight.interactions,
+                    indication = null,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    onLongClickLabel = menuLabel,
+                )
+                .padding(horizontal = Spacing.m, vertical = Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = highlight.headline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            timeLabel?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            SessionMarks(session)
         }
     }
 }
@@ -679,6 +764,8 @@ internal fun groupByFolder(sessions: List<SessionSummary>): List<Pair<String?, L
 private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping) -> Unit) {
     TextButton(
         onClick = { onChange(if (grouping == SessionGrouping.UPDATED) SessionGrouping.FOLDER else SessionGrouping.UPDATED) },
+        // ホーム・自動化と同じく、リストで選んだ行の面と同じ色（マスター指定 2026-11-23）
+        colors = ButtonDefaults.textButtonColors(contentColor = accentContainer().container),
         modifier = Modifier.heightIn(min = Dimens.compactTouchTarget),
     ) {
         Icon(
@@ -688,7 +775,7 @@ private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping
         )
         Text(
             stringResource(if (grouping == SessionGrouping.FOLDER) R.string.panel_group_folder else R.string.panel_group_updated),
-            style = MaterialTheme.typography.labelLarge,
+            style = panelPartLabelStyle(),
             modifier = Modifier.padding(start = Spacing.xs),
         )
     }
@@ -728,78 +815,14 @@ private fun FolderHeader(folder: String?, count: Int, open: Boolean, modifier: M
  * ワークツリーで分ける（セッションの長押しメニュー）。ブランチ名（空なら Gateway が会話のタイトルから付ける）、
  * 元にするブランチ（空なら今のブランチ）、会話を引き継ぐか。
  */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun WorktreeSheet(session: SessionSummary, onDismiss: () -> Unit, onCreate: (String?, String?, Boolean) -> Unit) {
-    val hazeState = jp.miyavi.android.clawdroid.core.designsystem.LocalScreenHazeState.current ?: rememberHazeState()
-    var name by rememberSaveable { mutableStateOf("") }
-    var base by rememberSaveable { mutableStateOf("") }
-    var fork by rememberSaveable { mutableStateOf(true) }
-    val validName = name.isEmpty() || WORKTREE_NAME.matches(name)
-    jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet(
-        onDismissRequest = onDismiss,
-        hazeState = hazeState,
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(Modifier.imePadding().navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.l), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.worktree_title), style = MaterialTheme.typography.titleMedium)
-                    Text(session.cwd.orEmpty(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-                androidx.compose.material3.Button(onClick = { onCreate(name.ifBlank { null }, base.ifBlank { null }, fork) }, enabled = validName) {
-                    Text(stringResource(R.string.worktree_create))
-                }
-            }
-            androidx.compose.material3.Surface(
-                color = jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor(),
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s),
-            ) {
-                Column(Modifier.padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it.lowercase().replace(Regex("[^a-z0-9-]"), "-").take(64) },
-                        label = { Text(stringResource(R.string.worktree_name)) },
-                        placeholder = { Text(stringResource(R.string.worktree_name_auto)) },
-                        prefix = { Text("openclaw/") },
-                        supportingText = { Text(stringResource(R.string.worktree_name_hint)) },
-                        isError = !validName,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = base,
-                        onValueChange = { base = it.trim() },
-                        label = { Text(stringResource(R.string.worktree_base)) },
-                        placeholder = { Text(stringResource(R.string.worktree_base_current)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.worktree_fork)) },
-                        supportingContent = { Text(stringResource(R.string.worktree_fork_desc)) },
-                        trailingContent = { androidx.compose.material3.Switch(checked = fork, onCheckedChange = { fork = it }) },
-                        modifier = Modifier.clickable { fork = !fork },
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Gateway のワークツリー名の決まり（`^[a-z0-9][a-z0-9-]{0,63}$`）。 */
-private val WORKTREE_NAME = Regex("^[a-z0-9][a-z0-9-]{0,63}$")
-
 /** フォルダの下の行の、枝の形。 */
 internal enum class TreeBranch { MIDDLE, LAST }
 
 /** 枝の縦の線の位置（フォルダのアイコンの中ほど）、横の線の長さ、線の太さ、子の行の始まり。 */
 private val TreeGuideX = PanelTextInset + Dimens.smallIcon / 2
 private val TreeTick = Spacing.m
-private val TreeStroke = 1.dp
+private val TreeStroke = 2.dp
+private val TreeCornerRadius = Spacing.s
 private val TreeChildStart = PanelTextInset + Dimens.smallIcon / 2 + Spacing.m
 
 /** セッションの長押しメニュー（名前を変更・ワークツリーで分岐・アーカイブ・削除）。 */
@@ -839,3 +862,6 @@ private fun SessionMenu(
         )
     }
 }
+
+/** 看板の画像を、画面の透かす元に重ねる順（ガラスのボタンが画像を透かすように）。 */
+private const val HERO_HAZE_Z = 1f

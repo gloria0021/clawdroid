@@ -1,5 +1,16 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import jp.miyavi.android.clawdroid.core.designsystem.GlassPill
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.statusBars
+import jp.miyavi.android.clawdroid.core.designsystem.statusBarFade
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import jp.miyavi.android.clawdroid.core.data.Agent
@@ -195,7 +206,7 @@ internal fun ChatScreen(
             setPinned = viewModel::setPinned,
             loadDiff = viewModel::diff,
             loadDiffSummary = viewModel::diffSummary,
-            forkToFolder = viewModel::forkToFolder,
+            loadBranches = viewModel::branches,
         ),
     )
 }
@@ -231,7 +242,7 @@ data class ChatActions(
     val setPinned: (jp.miyavi.android.clawdroid.core.data.SessionSummary, Boolean) -> Unit = { _, _ -> },
     val loadDiff: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
     val loadDiffSummary: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
-    val forkToFolder: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit = { _, _ -> },
+    val loadBranches: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -347,6 +358,7 @@ fun ChatContent(
                     groupingByAgent = grouping,
                     onGroupingChange = actions.setGrouping,
                     onUnpin = { actions.setPinned(it, false) },
+                    loadBranches = actions.loadBranches,
                     onCreateWorktree = { session, name, base, fork ->
                         scope.launch { drawerState.close() }
                         actions.createWorktree(session, name, base, fork)
@@ -448,8 +460,9 @@ fun ChatContent(
                             onOpenVideo = { openedVideo = it },
                             onRetry = actions.retryHistory,
                             hazeState = hazeState,
-                            // タイトルバーの折りたたみは会話の一覧のスクロールだけに付いていく（入力欄のスクロールは届かない）
-                            modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection),
+                            // 浮くボタンだけの頭は折りたたまない。TopAppBar の無いスクロールの連携を付けると、
+                            // 高さの上限が決まらないままスクロールを全部吸い込んで、一覧が動かなくなるため
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                     Box(Modifier.align(Alignment.BottomCenter).padding(bottom = padding.calculateBottomPadding())) {
@@ -466,19 +479,12 @@ fun ChatContent(
                 actions.rename(current, it)
             }
             SessionAction.DIFF -> if (current != null) SessionDiffSheet(current, hazeState, actions.loadDiff) { sessionAction = null }
-            SessionAction.MOVE -> if (current != null) FolderPickerSheet(
-                hazeState = hazeState,
-                current = current.cwd,
-                load = actions.loadFolderCandidates,
-                listDir = actions.listDir,
-                onPick = { cwd ->
+            SessionAction.WORKTREE -> if (current != null) {
+                WorktreeSheet(current, onDismiss = { sessionAction = null }, loadBranches = actions.loadBranches) { name, base, fork ->
                     sessionAction = null
-                    if (cwd != null && cwd != current.cwd) actions.forkToFolder(current, cwd)
-                },
-                onDismiss = { sessionAction = null },
-                title = R.string.session_move_title,
-                allowDefault = false,
-            )
+                    actions.createWorktree(current, name, base, fork)
+                }
+            }
             null -> Unit
         }
         if (pickingFolder) {
@@ -530,41 +536,62 @@ private fun SessionTitleBar(
     onTogglePin: () -> Unit = {},
     loadDiffSummary: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
 ) {
-    AppTitleBar(
-        hazeState = hazeState,
-        scrollBehavior = scrollBehavior,
-        title = {
-            Text(
-                state.currentSession?.title ?: stringResource(
-                    if (state.currentSessionKey == null) R.string.session_untitled else R.string.session_no_title,
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+    // 試し（マスター指定 2026-11-23）: 帯のガラスをやめ、サイドパネルと同じ「Clawdroid」のガラスのピルと、
+    // ファイル・ターミナル・⋮ の丸いガラスのボタンだけを浮かせる。ピルを押すとサイドパネルが開く
+    // 上端のフェード: 会話を背景色へ溶かし、ステータスバーとボタンを読みやすくする
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarFade()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(start = Spacing.m, end = Spacing.m, top = Spacing.s, bottom = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+    ) {
+        // 左に「Clawdroid」のピルだけ（⋮ の代わり。押すとメニュー）。サイドパネルは左端からのスワイプで開く
+        // （≡ は置かない。マスター指定 2026-11-23）
+        val key = state.currentSessionKey
+        val agentId = state.selectedAgentId
+        val menuLabel = stringResource(R.string.session_more_cd)
+        GlassPill(hazeState = hazeState, contentPadding = PaddingValues(0.dp)) {
+            SessionMoreMenu(
+                session = state.currentSession,
+                onAction = onSessionAction,
+                onTogglePin = onTogglePin,
+                loadDiffSummary = loadDiffSummary,
+                onOpenFiles = if (key != null && agentId != null) ({ navigation.openFiles(key, agentId) }) else null,
+                onOpenTerminal = { navigation.openTerminal(key, agentId, state.currentSession?.cwd) },
+                anchor = { onClick ->
+                    Row(
+                        Modifier
+                            .clickable(onClickLabel = menuLabel, onClick = onClick)
+                            .heightIn(min = Dimens.floatingButtonSize)
+                            .padding(start = Spacing.s, end = Spacing.l),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.launcher_mascot_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.size(Dimens.sidebarAppIcon).graphicsLayer {
+                                scaleX = jp.miyavi.android.clawdroid.feature.chat.sidebar.LauncherForegroundViewportScale
+                                scaleY = jp.miyavi.android.clawdroid.feature.chat.sidebar.LauncherForegroundViewportScale
+                            },
+                        )
+                        Text(
+                            stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = Spacing.xs),
+                        )
+                    }
+                },
             )
-        },
-        navigationIcon = {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(painterResource(R.drawable.ic_huge_menu), stringResource(R.string.sidebar_open_cd))
-            }
-        },
-        actions = {
-            // ファイルとターミナルはアイコンで（タイトルバーのアイコンは 2 つまで。AGENTS.md 2.6）。再起動は設定から
-            val key = state.currentSessionKey
-            val agentId = state.selectedAgentId
-            if (key != null && agentId != null) {
-                IconButton(onClick = { navigation.openFiles(key, agentId) }) {
-                    Icon(painterResource(R.drawable.ic_huge_folder), stringResource(R.string.menu_files))
-                }
-            }
-            IconButton(onClick = { navigation.openTerminal(key, agentId, state.currentSession?.cwd) }) {
-                Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal))
-            }
-            // そのほかの操作は ⋮ に（マスター指定 2026-11-23）
-            state.currentSession?.let { session -> SessionMoreMenu(session, onSessionAction, onTogglePin, loadDiffSummary) }
-        },
-    )
+        }
+    }
 }
+
+
 
 /** 再接続中などの控えめな表示（Edge Cases）。接続済みのときは出さない。 */
 @Composable

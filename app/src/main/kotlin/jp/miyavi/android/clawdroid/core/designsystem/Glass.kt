@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.core.designsystem
 
+import androidx.compose.material3.HorizontalDivider
+
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
@@ -244,6 +246,20 @@ private fun Modifier.blurSurface(hazeState: HazeState, fixedOpacity: SurfaceOpac
     hazeBlur(input = HazeInput.Sources(hazeState), style = style)
 }
 
+/**
+ * 画面の上端に横いっぱいに敷くガラス（タイトルバー、サイドパネルの看板のショーケース）。
+ * 左右と上を画面の外まで広げて描き、見える縁（下）だけで屈折させる。沈めたテーマカラーを 20% で重ねる
+ * （マスター指定 2026-11-23。80% → 20% → 30% → 20%）。
+ */
+fun Modifier.topBandGlass(hazeState: HazeState): Modifier =
+    layout { measurable, constraints ->
+        val bleed = TITLE_BAR_BLEED.roundToPx()
+        val glass = measurable.measure(Constraints.fixed(constraints.maxWidth + bleed * 2, constraints.maxHeight + bleed))
+        layout(constraints.maxWidth, constraints.maxHeight) { glass.place(-bleed, -bleed) }
+    }.hazeSurface(hazeState, TopBandShape, TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME, refract = true)
+
+private val TopBandShape = RoundedCornerShape(0.dp)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppTitleBar(
@@ -253,20 +269,11 @@ fun AppTitleBar(
     actions: @Composable RowScope.() -> Unit,
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    val shape = remember { RoundedCornerShape(0.dp) }
     Box {
         // ガラスの面は、左右と上を画面の外まで広げて描く。屈折は縁で起きるので、見える縁（下）だけが屈折する
         // （画面の端で屈折させると、端に外の何も無い所が引き込まれて透けて見えるため）
         Box(
-            Modifier
-                .matchParentSize()
-                .layout { measurable, constraints ->
-                    val bleed = TITLE_BAR_BLEED.roundToPx()
-                    val glass = measurable.measure(Constraints.fixed(constraints.maxWidth + bleed * 2, constraints.maxHeight + bleed))
-                    layout(constraints.maxWidth, constraints.maxHeight) { glass.place(-bleed, -bleed) }
-                }
-                // 沈めたテーマカラーを 20% で重ねる（マスター指定 2026-11-23。80% → 20% → 30% → 20%）
-                .hazeSurface(hazeState, shape, TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME, refract = true),
+            Modifier.matchParentSize().topBandGlass(hazeState),
         )
         TopAppBar(
             title = title,
@@ -389,6 +396,15 @@ fun AppBottomSheet(
             }
         }
     }
+}
+
+/**
+ * ガラスのメニューの区切り線。メニューの面は明るく透けるので、`outlineVariant` では見えない。
+ * 一段濃い `outline` を使う（マスター指定 2026-11-23）。
+ */
+@Composable
+fun GlassMenuDivider() {
+    HorizontalDivider(Modifier.padding(vertical = Spacing.xs), color = MaterialTheme.colorScheme.outline)
 }
 
 /** 透過効果のメニュー（AGENTS.md 2.7）。透かす元が無い画面では M3 標準の色で描く。 */
