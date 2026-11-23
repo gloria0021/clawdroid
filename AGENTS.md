@@ -58,6 +58,7 @@
 | リンク・強調したい識別子 | `primary` |
 | 本文の下地（角丸の面） | `surface` に `onSurface` を重ねた色（ライト 3% / ダーク 5%） |
 | 補助的な目印 | `tertiary` |
+| サイドパネルのホーム・自動化・並べ方の切り替え | 選んだ行の面と同じ色（`accentContainer().container`。マスター指定 2026-11-23） |
 | 新着・未読の目印 | `primary` |
 | 件数バッジ・チップ | `secondaryContainer` / `onSecondaryContainer` |
 | 検索で一致した語 | 背景 `tertiaryContainer` / 文字 `onTertiaryContainer` |
@@ -84,6 +85,7 @@
 | 設定のセクション見出し | `labelLarge` / `primary` |
 
 - 太字は見出しだけ。本文中の強調に太字を使わない
+- サイドパネルの例外（マスター指定 2026-11-23）: エージェントの名前は `headlineSmall`（2行まで）。ホーム・自動化・並べ方の切り替えの文字は `labelLarge` を 1sp 大きくした太字。履歴の行（更新順・フォルダ別とも）はタイトル `bodyMedium` 1行・時刻 `labelSmall` の1行
 
 ### 2.4 余白・サイズ（4dp グリッド）
 

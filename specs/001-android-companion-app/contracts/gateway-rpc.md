@@ -31,7 +31,10 @@
 | US1 エージェント | `agents.list` | read | タブの一覧 |
 | US1 セッション一覧 | `sessions.subscribe` | read | 初回の一覧＋`sessions.changed` の購読（`sortBy: "activity"`） |
 | | `sessions.list` | read | 再取得・ページ送り |
-| | `sessions.patch` | write | 改名・アーカイブ・既読・スヌーズ |
+| | `sessions.patch` | dynamic | 改名（`label`）・アーカイブ（`archived` ＋ `expectedSessionId`）・ピン留め（`pinned`）・既読 |
+| | `sessions.delete` | dynamic | 削除（確認付き） |
+| US1 セッションのメニュー | `sessions.diff` | read | 変更量（`scope: "all"`、`poll: true`。メニューの合計は `summaryOnly: true`、集計中は取り直す） |
+| US1 補完 | `commands.list` | read | `/` のコマンドと `$` のスキルの候補 |
 | US1 会話 | `chat.startup` | read | 会話を開く（モデルの一覧の準備を待たない） |
 | | `chat.history` | read | 履歴（遡って読み込む） |
 | | `chat.message.get` | read | 1 件の全文（省略された長い応答） |
@@ -39,18 +42,24 @@
 | | `chat.send` | write | 送信（冪等キー付き。添付は `policy.attachments` の上限内） |
 | | `chat.abort` | write | 停止（`sessionId` ＋ `runId`） |
 | US1 承認 | `approval.get` / `approval.resolve`、`exec.approval.*`、`plugin.approval.*` | approvals | 承認・拒否 |
-| US3 新規セッション | `sessions.create` | write | `agentId`・`cwd`・最初のメッセージ |
-| | `fs.listDir` | write | フォルダの選択（返ったパスをそのまま渡す） |
+| US3 新規セッション | `sessions.create` | dynamic | `agentId`・`cwd`・最初のメッセージ |
+| | `projects.list` | read | 直近のフォルダの候補（`includeObserved: true` のチェックアウト。これまでのセッションの作業フォルダと合わせて 5 つ） |
+| | `fs.listDir` | dynamic | フォルダを辿る（返ったパスをそのまま渡す） |
+| US3 並行開発 | `sessions.create` | dynamic | `parentSessionKey`・`cwd`・`worktree: true`・`worktreeName`（空なら Gateway が決め、重なれば番号を付ける）・`worktreeBaseRef`・`fork`。`label` は送らない（同じ名前を断られるため） |
+| | `worktrees.branches` | write | 元にするブランチの候補（`repoRoot` に作業フォルダ。`headBranch` を初期値に。ワークスペースの外は admin が要る） |
 | US4 モデル | `models.list` | read | モデルとエフォートの選択肢 |
-| | `sessions.patch` | write | `model` / `thinkingLevel` |
-| US4 使用量 | `usage.status` | read | プロバイダの使用枠 |
-| | `sessions.usage` | read | セッションの使用量 |
+| | `sessions.patch` | dynamic | `model` / `thinkingLevel` |
+| | `sessions.patch` | dynamic | `permissionMode`（権限） |
+| US4 使用量 | `models.authStatus` / `usage.status` | read | プロバイダの使用枠（`models.authStatus` を優先） |
+| | `sessions.usage` | read | セッションの使用量とコンテキストの内訳（`contextWeight`） |
 | US5 ファイル | `sessions.files.list` / `get` / `set` | read / write | 作業フォルダ（`set` は `expectedHash` で衝突検出） |
+| | `sessions.files.download` | read | ダウンロードの短命のリンク（接続に紐付く。切れたら取り直して Range で続きから） |
 | | `agents.workspace.list` / `get` | read | エージェントのワークスペース（読み取り専用） |
 | US6 ターミナル | `terminal.open` / `input` / `resize` / `close` / `list` / `attach` | admin | PTY |
 | US7 再起動 | `gateway.restart.request` | admin | 再起動の指示 |
 | US8 自動化 | `cron.list` / `get` / `status` | read | 一覧・詳細 |
-| | `cron.add` / `update` / `remove` / `run` | write | 作成・編集・削除・今すぐ実行（`run` は `waitTimeoutMs` で結果を待てる） |
+| | `cron.update` / `remove` / `run` | write | 編集・有効と無効・削除・今すぐ実行（`run` は `waitTimeoutMs` で結果を待てる） |
+| | `cron.add` | write | 作成（未実装） |
 | | `cron.runs` | read | 実行履歴（`view: "summary"`） |
 
 ## イベント
