@@ -2,6 +2,7 @@ package jp.miyavi.android.clawdroid.core.designsystem
 
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -55,9 +56,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.layout
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
@@ -80,14 +84,37 @@ val SURFACE_OPACITY = SurfaceOpacity(glass = 0.5f, blur = 0.3f)
 /** タイトルバー（テーマカラーで色を付ける唯一の面）。色は 20%。 */
 val TITLE_BAR_OPACITY = SurfaceOpacity(glass = 0.2f, blur = 0.2f)
 
-/** タイトルバーの色を暗く沈める割合。 */
-private const val TITLE_BAR_DARKEN = 0.5f
+/** 透過面の色味: 沈めたテーマカラーを背景に重ねる割合（AGENTS.md 2.10。不透明度とは別）。 */
+private const val THEME_TINT_ALPHA = 0.2f
 
-/** メニュー。90% では下が透けず不透明に見えたので 60% に（マスター指定 2026-11-22）。 */
-val MENU_OPACITY = SurfaceOpacity(glass = 0.6f, blur = 0.3f)
+/**
+ * 透過面の色味の彩度（マスター指定 2026-11-23）。テーマカラー（primary）はリンクのため彩度を強めているので、
+ * 色相だけを残して彩度をこの値に置き換え、くすんだニュアンスカラーにする。黒は混ぜない（以前は黒を 50% → 25%）。
+ */
+private const val GLASS_TINT_SATURATION = 0.5f
+
+/** テーマカラーの色相のまま、彩度だけを [GLASS_TINT_SATURATION] にした色。無彩色のテーマ（モダン）は無彩色のまま。 */
+private fun nuanceTint(primary: Color): Color {
+    val hsl = FloatArray(3)
+    androidx.core.graphics.ColorUtils.colorToHSL(primary.toArgb(), hsl)
+    if (hsl[1] > ACHROMATIC_SATURATION) hsl[1] = GLASS_TINT_SATURATION
+    return Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
+}
+
+/** くすみ色に黒（scrim）を混ぜる割合（マスター指定 2026-11-23）。 */
+private const val GLASS_TINT_DARKEN = 0.3f
+
+/** これより彩度の低い色は無彩色と見なす。 */
+private const val ACHROMATIC_SATURATION = 0.08f
+
+/** メニュー・ポップアップ。読みやすさのため 80%（マスター指定 2026-11-23。以前は 60%）。 */
+val MENU_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
 
 /** ボトムシート。読む量が多いので濃くする。 */
 val SHEET_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.3f)
+
+/** タイトルバーのガラスを画面の外へ広げる幅（屈折の縁の幅の最大 36dp より広く）。 */
+private val TITLE_BAR_BLEED = 48.dp
 
 /** ぼかしの強さ 10 のときの半径。強さ 0〜10 を 0〜48dp に当てる（Gerbil と同じ）。 */
 private val BLUR_RADIUS_MAX = 48.dp
@@ -98,8 +125,8 @@ private val BLUR_RADIUS_MAX = 48.dp
  */
 enum class GlassTint { THEME, NEUTRAL, FIELD }
 
-/** 入力欄の面の不透明度（白く見せるため濃くする）。 */
-val FIELD_OPACITY = SurfaceOpacity(glass = 0.9f, blur = 0.9f)
+/** 入力欄（会話の入力欄・ファイル内の検索欄）の面。読みやすさのため 80%（マスター指定 2026-11-23。以前は 90%）。 */
+val FIELD_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
 
 /** 画面の透かす元。メニューや Snackbar が下の内容を透かすために、各画面で渡す。 */
 val LocalScreenHazeState = staticCompositionLocalOf<HazeState?> { null }
@@ -112,15 +139,17 @@ fun Modifier.hazeSurface(
     /** false なら縁の影・光・屈折を付けない（横いっぱいの帯では、縁が線や透けに見えるため）。 */
     rim: Boolean = true,
     tint: GlassTint = GlassTint.NEUTRAL,
+    /** 縁で屈折させるか（既定は [rim] と同じ）。タイトルバーは縁の光と影は付けず、屈折だけさせる。 */
+    refract: Boolean = rim,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     // テーマの色付け（マスター指定 2026-11-22）: テーマカラーを暗く沈めた色を、背景の上に 20% 重ねた色。全部の透過面で同じ色味にする
-    val themed = lerp(colors.primary, colors.scrim, TITLE_BAR_DARKEN)
+    val themed = lerp(nuanceTint(colors.primary), colors.scrim, GLASS_TINT_DARKEN)
     val tintColor = when (tint) {
         // タイトルバー: 沈めた色そのものを 20%（TITLE_BAR_OPACITY）で重ねる
         GlassTint.THEME -> themed
         // ほかの面: 同じ色味を、面ごとの不透明度（読みやすさのため 50〜90%）で重ねる
-        GlassTint.NEUTRAL -> themed.copy(alpha = TITLE_BAR_OPACITY.glass).compositeOver(colors.surface)
+        GlassTint.NEUTRAL -> themed.copy(alpha = THEME_TINT_ALPHA).compositeOver(colors.surface)
         // 入力欄だけは白（マスター指定）
         GlassTint.FIELD -> sheetFieldColor()
     }
@@ -128,7 +157,7 @@ fun Modifier.hazeSurface(
     val base = if (tint == GlassTint.FIELD) sheetFieldColor() else colors.surface
     when (LocalSurfaceStyle.current) {
         SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor, base)
-        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, tintColor, base)
+        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, refract, tintColor, base)
     }
 }
 
@@ -163,6 +192,7 @@ private fun Modifier.glassSurface(
     shape: RoundedCornerShape,
     fixedOpacity: SurfaceOpacity,
     rim: Boolean,
+    refract: Boolean,
     tintColor: Color,
     baseColor: Color,
 ): Modifier = composed {
@@ -172,7 +202,8 @@ private fun Modifier.glassSurface(
     val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else if (darkGlass) 0.28f else 0.16f)
     // 屈折の強さは設定（0〜10）。横いっぱいの帯（rim = false）は屈折させない。縁の屈折が上下の端で下の内容を引き込み、1 ドット透けて見えるため
     val level = LocalGlassLevels.current.refraction.coerceIn(0, 10) / 10f
-    val refraction = if (rim) level else 0f
+    val refraction = if (refract) level else 0f
+    // ガラスはぼかさず、屈折だけで見せる（マスター指定 2026-11-23）
     val glassStyle = remember(shape, rimShadow, rim, refraction) {
         GlassStyle.clear.then {
             shape(shape)
@@ -223,17 +254,31 @@ fun AppTitleBar(
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
     val shape = remember { RoundedCornerShape(0.dp) }
-    TopAppBar(
-        title = title,
-        navigationIcon = navigationIcon,
-        actions = actions,
-        scrollBehavior = scrollBehavior,
-        modifier = Modifier.hazeSurface(hazeState, shape, TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME),
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent,
-            scrolledContainerColor = Color.Transparent,
-        ),
-    )
+    Box {
+        // ガラスの面は、左右と上を画面の外まで広げて描く。屈折は縁で起きるので、見える縁（下）だけが屈折する
+        // （画面の端で屈折させると、端に外の何も無い所が引き込まれて透けて見えるため）
+        Box(
+            Modifier
+                .matchParentSize()
+                .layout { measurable, constraints ->
+                    val bleed = TITLE_BAR_BLEED.roundToPx()
+                    val glass = measurable.measure(Constraints.fixed(constraints.maxWidth + bleed * 2, constraints.maxHeight + bleed))
+                    layout(constraints.maxWidth, constraints.maxHeight) { glass.place(-bleed, -bleed) }
+                }
+                // 沈めたテーマカラーを 20% で重ねる（マスター指定 2026-11-23。80% → 20% → 30% → 20%）
+                .hazeSurface(hazeState, shape, TITLE_BAR_OPACITY, rim = false, tint = GlassTint.THEME, refract = true),
+        )
+        TopAppBar(
+            title = title,
+            navigationIcon = navigationIcon,
+            actions = actions,
+            scrollBehavior = scrollBehavior,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
+            ),
+        )
+    }
 }
 
 /** 透過効果のピル型の面（ボタンやボタンの組・入力欄を載せる）。 */
@@ -245,12 +290,13 @@ fun GlassPill(
     rim: Boolean = true,
     shape: RoundedCornerShape = CircleShape,
     contentPadding: PaddingValues = PaddingValues(Spacing.xs),
+    tint: GlassTint = GlassTint.NEUTRAL,
     content: @Composable RowScope.() -> Unit,
 ) {
     ProvideGlassEnvironment {
         Row(
             modifier = modifier
-                .hazeSurface(hazeState, shape, fixedOpacity, rim)
+                .hazeSurface(hazeState, shape, fixedOpacity, rim, tint)
                 .clip(shape)
                 .padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically,
@@ -305,6 +351,8 @@ fun AppBottomSheet(
     hazeState: HazeState,
     sheetState: SheetState = rememberModalBottomSheetState(),
     contentModifier: Modifier = Modifier,
+    /** 指定すると、シートを [hazeState] の透かす元にも加える（シートの上に別の窓で出す面から、シートが透けて見える）。 */
+    hazeSourceZIndex: Float? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val corner = MaterialTheme.shapes.extraLarge
@@ -330,6 +378,8 @@ fun AppBottomSheet(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = maxHeight)
+                    // 透かす元の内側にシート自身の面を置く。シートの面は自分より下（会話）だけを透かす
+                    .then(if (hazeSourceZIndex != null) Modifier.hazeSource(hazeState, zIndex = hazeSourceZIndex) else Modifier)
                     .sheetHazeSurface(hazeState, sheetShape)
                     .clip(sheetShape)
                     .then(contentModifier),

@@ -146,35 +146,45 @@ class GatewayClient(
         _state.value = ConnectionState.NotConfigured
     }
 
-    /** 待ち時間を飛ばしてすぐ接続し直す（ネットワークの復帰・利用者の操作）。 */
+    /**
+     * 利用者の「接続し直す」。待ち時間を飛ばすだけでなく、進行中の試行も捨てて新しいソケットで始め直す。
+     * スリープ明けなどで経路が切れていた間に始めた試行は、TCP や TLS の再送の間隔が延びて長く固まることがあり、
+     * それが終わるのを待たない（アプリを起動し直すと直るのはこの差）。
+     */
     fun reconnectNow() {
-        if (loopJob?.isActive == true) reconnectSignal.trySend(Unit) else launchLoop()
+        when (_state.value) {
+            is ConnectionState.Connected -> probeConnection()
+            else -> launchLoop()
+        }
     }
 
-    /** 復帰時は再接続の待ち時間を飛ばし、接続中のソケットには応答があるか確かめる。 */
+    /** 復帰時は、再接続中なら新しいソケットで始め直し、接続中のソケットには応答があるか確かめる。 */
     fun onForeground() {
         when (_state.value) {
-            is ConnectionState.Reconnecting, ConnectionState.Restarting -> reconnectSignal.trySend(Unit)
-            is ConnectionState.Connected -> {
-                val connectionSocket = socket ?: return
-                scope.launch {
-                    val responds = withTimeoutOrNull(FOREGROUND_PROBE_TIMEOUT_MS) {
-                        try {
-                            request("health")
-                            true
-                        } catch (_: GatewayRpcException) {
-                            true // RPC エラーでも WebSocket の応答は届いている。
-                        } catch (_: GatewayNotConnectedException) {
-                            false
-                        }
-                    } == true
-                    if (!responds && socket === connectionSocket && _state.value is ConnectionState.Connected) {
-                        reconnectSignal.trySend(Unit)
-                        connectionSocket.cancel()
-                    }
-                }
-            }
+            is ConnectionState.Reconnecting, ConnectionState.Restarting -> launchLoop()
+            is ConnectionState.Connected -> probeConnection()
             else -> Unit
+        }
+    }
+
+    /** 接続中のソケットに応答があるか確かめ、無ければ閉じて接続し直す。 */
+    private fun probeConnection() {
+        val connectionSocket = socket ?: return
+        scope.launch {
+            val responds = withTimeoutOrNull(FOREGROUND_PROBE_TIMEOUT_MS) {
+                try {
+                    request("health")
+                    true
+                } catch (_: GatewayRpcException) {
+                    true // RPC エラーでも WebSocket の応答は届いている。
+                } catch (_: GatewayNotConnectedException) {
+                    false
+                }
+            } == true
+            if (!responds && socket === connectionSocket && _state.value is ConnectionState.Connected) {
+                reconnectSignal.trySend(Unit)
+                connectionSocket.cancel()
+            }
         }
     }
 
@@ -274,8 +284,13 @@ class GatewayClient(
     // ---- 接続のループ ----
 
     private fun launchLoop() {
-        loopJob?.cancel()
-        loopJob = scope.launch { runLoop() }
+        val previous = loopJob
+        previous?.cancel()
+        // 前の試行の後片付け（ソケットを閉じる・待ちの要求を失敗にする）が、新しい接続に重ならないように待つ
+        loopJob = scope.launch {
+            previous?.join()
+            runLoop()
+        }
     }
 
     private suspend fun runLoop() {
@@ -360,7 +375,8 @@ class GatewayClient(
         }
         try {
             // 1. connect.challenge を待つ
-            val challenge = withTimeoutOrNull(handshakeTimeoutMs) {
+            // ソケットを開くところ（DNS・TCP・TLS・アップグレード）も含めて待つ。読み取りの時間切れは無い設定なので、ここで区切る
+            val challenge = withTimeoutOrNull(minOf(handshakeTimeoutMs, OPEN_TIMEOUT_MS)) {
                 while (true) {
                     when (val s = signals.receive()) {
                         is Signal.Text -> {
@@ -559,6 +575,8 @@ class GatewayClient(
         const val MAX_INBOUND_MEDIA_BYTES = 20L * 1024 * 1024
         private val INBOUND_MEDIA = Regex("^media://inbound/[^/?#\\\\]+$", RegexOption.IGNORE_CASE)
         private const val FOREGROUND_PROBE_TIMEOUT_MS = 3_000L
+        /** ソケットを開いて connect.challenge が届くまでの上限。 */
+        private const val OPEN_TIMEOUT_MS = 15_000L
         private const val NORMAL_CLOSURE = 1000
 
         fun backoffMs(attempt: Int): Long =

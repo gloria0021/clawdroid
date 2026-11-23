@@ -1,5 +1,19 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.runtime.LaunchedEffect
+import kotlin.math.exp
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.lerp
@@ -182,7 +196,13 @@ fun ComposerPill(
             ) {
                 val textStyle = bodyTextStyle().copy(color = LocalContentColor.current)
                 if (state.text.isEmpty()) {
-                    Text(stringResource(R.string.chat_input_placeholder), style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 聞き取り中は、途中の結果（まだ無ければ「聞き取り中…」）を入力欄の位置に薄く出す
+                    val hint = when {
+                        !voice.listening -> stringResource(R.string.chat_input_placeholder)
+                        voice.partial.isNotBlank() -> voice.partial
+                        else -> stringResource(R.string.chat_voice_listening)
+                    }
+                    Text(hint, style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BasicTextField(
                     value = fieldValue,
@@ -198,43 +218,153 @@ fun ComposerPill(
                 )
             }
             val canSend = state.text.isNotBlank() || state.images.isNotEmpty()
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-            ) {
-                IconButton(onClick = onAttach, enabled = enabled) {
-                    Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
-                }
-                ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession)
-                Spacer(Modifier.weight(1f))
-                when {
-                    // 実行中でも入力があれば送れる（steer で差し込む）。入力が空のときだけ停止を出す
-                    running && !canSend -> FilledIconButton(onClick = onStop) {
-                        Icon(painterResource(R.drawable.ic_huge_stop), contentDescription = stringResource(R.string.chat_stop_cd))
-                    }
-                    !canSend && voice.available -> {
-                        val micColor by animateColorAsState(
-                            if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                            animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
-                            label = "micColor",
-                        )
-                        IconButton(onClick = voice::toggle, enabled = enabled) {
-                            Icon(
-                                painterResource(R.drawable.ic_huge_mic),
-                                contentDescription = stringResource(if (voice.listening) R.string.chat_mic_listening_cd else R.string.chat_mic_cd),
-                                tint = micColor,
-                            )
+            // 送信ボタンが角に寄りすぎないよう、右と下にも余白を取る（マスター指定 2026-11-23）
+            val rowModifier = Modifier.fillMaxWidth().padding(start = Spacing.xs, end = Spacing.s, bottom = Spacing.s)
+            // 聞き取り中は、下の行が「やめる・声の波形・終える・終えて送信」に変わる。行どうしはフェードで入れ替える
+            val motion = MaterialTheme.motionScheme
+            AnimatedContent(
+                targetState = voice.listening,
+                transitionSpec = { fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
+                label = "composerVoiceRow",
+            ) { listening ->
+                if (listening) {
+                    VoiceRow(voice = voice, enabled = enabled, onSend = onSend, modifier = rowModifier)
+                } else {
+                    Row(
+                        rowModifier,
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        IconButton(onClick = onAttach, enabled = enabled) {
+                            Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
                         }
-                    }
-                    else -> FilledIconButton(onClick = onSend, enabled = enabled && canSend && !state.sending && !state.updatingSettings) {
-                        Icon(painterResource(R.drawable.ic_huge_send), contentDescription = stringResource(R.string.chat_send_cd))
+                        ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession)
+                        Spacer(Modifier.weight(1f))
+                        // 音声入力は送信ボタンの左にいつも置く（入力の途中から言い足せる）
+                        if (voice.available) {
+                            IconButton(onClick = voice::toggle, enabled = enabled) {
+                                Icon(painterResource(R.drawable.ic_huge_mic), contentDescription = stringResource(R.string.chat_mic_cd))
+                            }
+                        }
+                        if (running && !canSend) {
+                            // 実行中でも入力があれば送れる（steer で差し込む）。入力が空のときだけ停止を出す
+                            FilledIconButton(onClick = onStop) {
+                                Icon(painterResource(R.drawable.ic_huge_stop), contentDescription = stringResource(R.string.chat_stop_cd))
+                            }
+                        } else {
+                            FilledIconButton(onClick = onSend, enabled = enabled && canSend && !state.sending && !state.updatingSettings) {
+                                Icon(painterResource(R.drawable.ic_huge_send), contentDescription = stringResource(R.string.chat_send_cd))
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/** 聞き取り中の行。左にやめる、まん中に声の大きさの波形、右に終える（入力欄に入れる）と終えて送信。 */
+@Composable
+private fun VoiceRow(voice: VoiceInputState, enabled: Boolean, onSend: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        IconButton(onClick = voice::cancel) {
+            Icon(painterResource(R.drawable.ic_huge_close), contentDescription = stringResource(R.string.chat_voice_cancel_cd))
+        }
+        VoiceWave(voice.levels, Modifier.weight(1f).height(Dimens.voiceWaveHeight))
+        FilledTonalIconButton(onClick = voice::finish) {
+            Icon(painterResource(R.drawable.ic_huge_stop), contentDescription = stringResource(R.string.chat_voice_done_cd))
+        }
+        FilledIconButton(onClick = { voice.finishAndThen(onSend) }, enabled = enabled) {
+            Icon(painterResource(R.drawable.ic_huge_send), contentDescription = stringResource(R.string.chat_voice_send_cd))
+        }
+    }
+}
+
+/**
+ * 声の大きさの波形。右端がいまの声で、一定の間隔で左へ流れる。認識サービスの値は間隔がばらつくので、
+ * 毎フレームなめらかに追わせ、決まった間隔で履歴に積み、そのあいだはなめらかにずらす（カクつかせない）。
+ * 黙っていれば点の列のまま。聞き取り中だけ動かし、読むのは描画の中だけ（再構成は起こさない。AGENTS.md 2.8）。
+ */
+@Composable
+private fun VoiceWave(levels: VoiceLevels, modifier: Modifier = Modifier) {
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    val loud = MaterialTheme.colorScheme.onSurface
+    val density = LocalDensity.current
+    val bar = with(density) { Dimens.voiceWaveBar.toPx() }
+    val pitch = bar + with(density) { Dimens.voiceWaveGap.toPx() }
+    val wave = remember { WaveHistory() }
+    val frame = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(levels) {
+        var last = 0L
+        var lastSample = 0L
+        while (true) {
+            withFrameNanos { now ->
+                if (last == 0L) {
+                    last = now
+                    lastSample = now
+                }
+                val dt = (now - last) / 1_000_000_000f
+                last = now
+                wave.current += (levels.target - wave.current) * (1f - exp(-dt * VOICE_WAVE_SMOOTHING))
+                while (now - lastSample >= VOICE_WAVE_SAMPLE_NS) {
+                    wave.push(wave.current)
+                    lastSample += VOICE_WAVE_SAMPLE_NS
+                }
+                wave.phase = (now - lastSample).toFloat() / VOICE_WAVE_SAMPLE_NS
+                frame.longValue = now
+            }
+        }
+    }
+    Spacer(
+        modifier
+            .clearAndSetSemantics { }
+            .drawBehind {
+                frame.longValue // 毎フレーム描き直す（描画だけ）
+                val center = size.height / 2
+                val count = (size.width / pitch).toInt() + 2
+                for (age in -1 until count) {
+                    // age = -1 は、いま積もうとしている声（右端から出てくる）
+                    val level = if (age < 0) wave.current else wave.at(age)
+                    val x = size.width - bar / 2 - (age + wave.phase) * pitch
+                    if (x < bar / 2 || x > size.width - bar / 2) continue
+                    val height = bar + (size.height - bar) * level
+                    drawLine(
+                        color = lerp(quiet.copy(alpha = VOICE_WAVE_QUIET_ALPHA), loud, level),
+                        start = Offset(x, center - (height - bar) / 2),
+                        end = Offset(x, center + (height - bar) / 2),
+                        strokeWidth = bar,
+                        cap = StrokeCap.Round,
+                    )
+                }
+            },
+    )
+}
+
+/** 波形の履歴（新しい順）。描画の中から読むだけなので、状態にしない。 */
+private class WaveHistory {
+    private val samples = FloatArray(VOICE_WAVE_CAPACITY)
+    private var head = 0
+    private var size = 0
+    var current = 0f
+    var phase = 0f
+
+    fun push(level: Float) {
+        samples[head] = level
+        head = (head + 1) % VOICE_WAVE_CAPACITY
+        size = minOf(size + 1, VOICE_WAVE_CAPACITY)
+    }
+
+    fun at(age: Int): Float = if (age >= size) 0f else samples[(head - 1 - age + VOICE_WAVE_CAPACITY) % VOICE_WAVE_CAPACITY]
+}
+
+/** 波形が 1 本ずれる間隔（ナノ秒）。 */
+private const val VOICE_WAVE_SAMPLE_NS = 60_000_000L
+/** 声の大きさに追いつく速さ（大きいほど速い）。 */
+private const val VOICE_WAVE_SMOOTHING = 18f
+private const val VOICE_WAVE_CAPACITY = 160
+
+/** 声が無いところの点の濃さ。 */
+private const val VOICE_WAVE_QUIET_ALPHA = 0.5f
 
 /**
  * 補完の候補の一覧（コマンド・スキル）。受け付け待ちの行と同じガラスの面に、名前（primary）と説明を並べる。

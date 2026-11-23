@@ -49,4 +49,12 @@ object Dimens {
     val modelPillMaxWidth = 200.dp
     /** 入力欄の上に出すスラッシュコマンドの候補の最大の高さ（超えると候補の中でスクロール）。 */
     val slashMenuMaxHeight = 280.dp
+    /** 聞き取り中の声の波形の高さ・線の太さ・間隔。 */
+    val voiceWaveHeight = 32.dp
+    val voiceWaveBar = 3.dp
+    val voiceWaveGap = 3.dp
+    /** 高速スクロールバーのつまみ（ふだん / つかんだとき）と長さ。 */
+    val scrollbarThin = 4.dp
+    val scrollbarThick = 8.dp
+    val scrollbarThumbLength = 48.dp
 }

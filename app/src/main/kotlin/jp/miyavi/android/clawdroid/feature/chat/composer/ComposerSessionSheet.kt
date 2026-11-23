@@ -1,5 +1,14 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.CircleShape
 import jp.miyavi.android.clawdroid.core.data.providerBrand
 import jp.miyavi.android.clawdroid.core.data.ProviderBrand
@@ -12,16 +21,19 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
-import jp.miyavi.android.clawdroid.core.designsystem.SurfaceOpacity
 import jp.miyavi.android.clawdroid.core.designsystem.GlassPanel
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.fadeIn
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import jp.miyavi.android.clawdroid.core.designsystem.MENU_OPACITY
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedVisibility
@@ -38,26 +50,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -68,10 +77,7 @@ import jp.miyavi.android.clawdroid.core.data.ModelCatalog
 import jp.miyavi.android.clawdroid.core.data.ProviderUsage
 import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet
-import jp.miyavi.android.clawdroid.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.designsystem.expandEnter
@@ -110,67 +116,34 @@ fun ComposerSessionSheet(
     val catalog by produceState<ModelCatalog?>(null, wantCatalog, agent?.id, session?.key) {
         if (wantCatalog && agent != null) value = loadModels(agent.id, session?.key) ?: ModelCatalog(canReset = false)
     }
-    // 選択肢の面がシートの中身を透かせるように、シートの面を透かす元にする
-    val sheetHaze = rememberHazeState()
     var openSetting by remember { mutableStateOf<SessionSetting?>(null) }
-    var rowBottom by remember { mutableIntStateOf(0) }
-    BackHandler(enabled = openSetting != null) { openSetting = null }
 
-    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState) {
+    // シートを画面の透かす元にも加える（前面に重ねる）。ポップアップはシートより上の窓に出て、シートと後ろの会話の両方を透かす
+    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState, hazeSourceZIndex = SHEET_HAZE_Z_INDEX) {
         Surface(
             color = sheetFieldColor(),
             shape = MaterialTheme.shapes.large,
             modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
         ) {
-            Box(Modifier.verticalScroll(rememberScrollState())) {
-                Column(
-                    Modifier.hazeSource(sheetHaze).padding(Spacing.l),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.m),
-                ) {
-                    // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すと選択肢の面が重なる
-                    SettingIconRow(
-                        agent = agent,
-                        session = session,
-                        model = model,
-                        effort = effort,
-                        permission = permission,
-                        availability = availability,
-                        onOpen = { setting ->
-                            if (setting != SessionSetting.PERMISSIONS) wantCatalog = true
-                            openSetting = if (openSetting == setting) null else setting
-                        },
-                        modifier = Modifier.onPlaced { rowBottom = (it.positionInParent().y + it.size.height).toInt() },
-                    )
-                    Usage(session = session, breakdown = breakdown, providers = providers)
-                }
-                // 選択肢: 外を押すと閉じる。面は設定の行のすぐ下に重ねる（同じ画面の上なので下が透ける）
-                if (openSetting != null) {
-                    Box(
-                        Modifier.matchParentSize().clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { openSetting = null },
-                    )
-                }
-                val visible = remember { MutableTransitionState(false) }
-                var shown by remember { mutableStateOf<SessionSetting?>(null) }
-                LaunchedEffect(openSetting) {
-                    if (openSetting != null) shown = openSetting
-                    visible.targetState = openSetting != null
-                }
-                val density = LocalDensity.current
-                androidx.compose.animation.AnimatedVisibility(
-                    visibleState = visible,
-                    enter = expandEnter(),
-                    exit = shrinkExit(),
-                    modifier = Modifier
-                        .padding(top = with(density) { rowBottom.toDp() } + Spacing.l + Spacing.xs)
-                        .padding(horizontal = Spacing.l),
-                ) {
-                    val setting = shown
-                    if (setting != null && agent != null) {
-                        ProvideScreenHaze(sheetHaze) {
-                            GlassPanel(hazeState = sheetHaze, fixedOpacity = SETTING_OPTIONS_OPACITY, modifier = Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(Spacing.l),
+                verticalArrangement = Arrangement.spacedBy(Spacing.m),
+            ) {
+                // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すとそのボタンを中心に選択肢が出る
+                SettingIconRow(
+                    agent = agent,
+                    session = session,
+                    model = model,
+                    effort = effort,
+                    permission = permission,
+                    availability = availability,
+                    onOpen = { setting ->
+                        if (setting != SessionSetting.PERMISSIONS) wantCatalog = true
+                        openSetting = if (openSetting == setting) null else setting
+                    },
+                    popup = { setting ->
+                        SettingPopup(expanded = openSetting == setting, hazeState = hazeState, onDismiss = { openSetting = null }) {
+                            if (agent != null) {
                                 SettingOptionsList(
                                     setting = setting,
                                     options = settingOptions(setting, agent, session, draftOptions, canSelectFull, catalog),
@@ -181,10 +154,54 @@ fun ComposerSessionSheet(
                                 )
                             }
                         }
-                    }
-                }
+                    },
+                )
+                Usage(session = session, breakdown = breakdown, providers = providers)
             }
         }
+    }
+}
+
+/**
+ * 設定の選択肢のポップアップ。押したボタンの中心にポップアップの中心を合わせ、シートからはみ出して上に重なってよい
+ * （画面の端からは出さない）。別の窓なので、外を押すか戻るで閉じる。消える動きを終えてから窓を外す（AGENTS.md 2.8）。
+ */
+@Composable
+private fun SettingPopup(expanded: Boolean, hazeState: HazeState, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val visible = remember { MutableTransitionState(false) }
+    LaunchedEffect(expanded) { visible.targetState = expanded }
+    if (!expanded && visible.isIdle && !visible.currentState) return
+    val density = LocalDensity.current
+    val margin = with(density) { Spacing.s.roundToPx() }
+    val top = WindowInsets.statusBars.getTop(density) + margin
+    val bottom = WindowInsets.navigationBars.getBottom(density) + margin
+    val provider = remember(margin, top, bottom) { CenterOnAnchor(margin, top, bottom) }
+    val motion = MaterialTheme.motionScheme
+    Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+        AnimatedVisibility(
+            visibleState = visible,
+            enter = scaleIn(motion.fastSpatialSpec(), initialScale = MENU_START_SCALE) + fadeIn(motion.defaultEffectsSpec()),
+            exit = scaleOut(motion.fastSpatialSpec(), targetScale = MENU_START_SCALE) + fadeOut(motion.fastEffectsSpec()),
+        ) {
+            GlassPanel(
+                hazeState = hazeState,
+                fixedOpacity = MENU_OPACITY,
+                shape = MaterialTheme.shapes.large as? RoundedCornerShape ?: RoundedCornerShape(Spacing.l),
+                modifier = Modifier.width(IntrinsicSize.Max).widthIn(max = Dimens.settingMenuMaxWidth),
+            ) { content() }
+        }
+    }
+}
+
+/** ボタンの中心にポップアップの中心を合わせ、画面（システムバーの内側）からはみ出す分だけ内側に寄せる。 */
+private class CenterOnAnchor(private val margin: Int, private val top: Int, private val bottom: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        val center = anchorBounds.center
+        val x = (center.x - popupContentSize.width / 2)
+            .coerceAtMost(windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin)
+        val y = (center.y - popupContentSize.height / 2)
+            .coerceAtMost(windowSize.height - popupContentSize.height - bottom).coerceAtLeast(top)
+        return IntOffset(x, y)
     }
 }
 
@@ -416,5 +433,8 @@ private fun windowLabel(label: String): String = when (label.trim().lowercase())
 
 
 
-/** シートの中の設定の選択肢の面（中身の文字が多く読みやすさ優先で 80%）。 */
-private val SETTING_OPTIONS_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
+/** ポップアップが出るときの最初の大きさ（M3 のメニューと同じ 0.8 倍）。 */
+private const val MENU_START_SCALE = 0.8f
+
+/** シートを画面の透かす元に加えるときの重なり順（会話の上）。 */
+private const val SHEET_HAZE_Z_INDEX = 1f

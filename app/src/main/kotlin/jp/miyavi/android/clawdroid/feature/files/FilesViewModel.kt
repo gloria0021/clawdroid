@@ -55,6 +55,14 @@ sealed interface OpenedState {
         val conflict: Boolean = false,
         /** 下書きから戻した。 */
         val restoredDraft: Boolean = false,
+        /** Markdown / HTML ならプレビューできる。 */
+        val preview: PreviewFormat? = null,
+        /** Markdown の塗（ViewModel で一度だけ解析する）。 */
+        val blocks: List<MarkdownBlock> = emptyList(),
+        /** 元の文字を見ている（プレビューできるファイルは、ふだんはプレビュー）。 */
+        val showCode: Boolean = preview == null,
+        /** ファイル内の検索（null なら閉じている）。 */
+        val search: FileSearch? = null,
     ) : OpenedState {
         override val path: String get() = file.path
         val editing: Boolean get() = editText != null
@@ -68,12 +76,22 @@ data class FilesUiState(
     val workspaceRoot: FileRoot.Workspace,
     val root: FileRoot,
     val path: String = "",
-    val listing: ListingState = ListingState.Loading,
+    /** 開いたフォルダごとの一覧（上のフォルダも残し、予測型「戻る」で後ろに見せる）。 */
+    val listings: Map<String, ListingState> = emptyMap(),
     val opened: OpenedState? = null,
     /** 戻るで変更を捨てるかの確認を出している。 */
     val confirmDiscard: Boolean = false,
 ) {
     val atRoot: Boolean get() = path.isEmpty()
+    val listing: ListingState get() = listings[path] ?: ListingState.Loading
+
+    /** 画面の中だけで済む「戻る」（確認・検索・編集）があるか。ページを戻す「戻る」は画面の重なり（予測型「戻る」）に任せる。 */
+    val handlesBackInPage: Boolean
+        get() = confirmDiscard || (opened as? OpenedState.Ready)?.let { it.search != null || it.editing } == true
+
+    /** 根から今のフォルダまでのパス（画面の重なり。根は ""）。 */
+    val folderStack: List<String>
+        get() = if (path.isEmpty()) listOf("") else listOf("") + path.split('/').runningReduce { a, b -> "$a/$b" }
 }
 
 sealed interface FilesEvent {
@@ -109,6 +127,7 @@ class FilesViewModel(
     private var listJob: Job? = null
     private var openJob: Job? = null
     private var draftJob: Job? = null
+    private var searchJob: Job? = null
 
     init {
         load()
@@ -117,7 +136,7 @@ class FilesViewModel(
     fun selectRoot(root: FileRoot) {
         if (root == _state.value.root) return
         openJob?.cancel()
-        _state.update { it.copy(root = root, path = "", opened = null, confirmDiscard = false) }
+        _state.update { it.copy(root = root, path = "", listings = emptyMap(), opened = null, confirmDiscard = false) }
         load()
     }
 
@@ -141,7 +160,10 @@ class FilesViewModel(
         val opened = s.opened
         return when {
             s.confirmDiscard -> { _state.update { it.copy(confirmDiscard = false) }; true }
+            opened is OpenedState.Ready && opened.search != null -> { closeSearch(); true }
             opened is OpenedState.Ready && opened.dirty -> { _state.update { it.copy(confirmDiscard = true) }; true }
+            // 変更していない編集は、そのまま読む表示に戻る
+            opened is OpenedState.Ready && opened.editing -> { stopEditing(); true }
             opened != null -> { closeFile(); true }
             !s.atRoot -> { goUp(); true }
             else -> false
@@ -150,36 +172,44 @@ class FilesViewModel(
 
     fun dismissDiscard() = _state.update { it.copy(confirmDiscard = false) }
 
-    /** 変更を捨てて閉じる（下書きも消す）。 */
+    /** 変更を捨てて、読む表示（プレビュー / コード）に戻る（下書きも消す）。 */
     fun discardAndClose() {
-        val ready = _state.value.opened as? OpenedState.Ready
         _state.update { it.copy(confirmDiscard = false) }
-        ready?.let { file -> viewModelScope.launch { drafts.delete(draftKey(file.file)) } }
-        closeFile()
+        stopEditing()
+    }
+
+    /** 編集をやめて読む表示に戻る（変更と下書きは捨てる）。 */
+    private fun stopEditing() {
+        val ready = _state.value.opened as? OpenedState.Ready ?: return
+        draftJob?.cancel()
+        viewModelScope.launch { drafts.delete(draftKey(ready.file)) }
+        updateReady { it.copy(editText = null, cursor = 0, baseHash = it.file.hash, restoredDraft = false, conflict = false) }
     }
 
     fun closeFile() {
         openJob?.cancel()
         draftJob?.cancel()
+        searchJob?.cancel()
         _state.update { it.copy(opened = null) }
     }
 
+    /** 1 つ上のフォルダへ。残っている一覧をそのまま見せ、下のフォルダの一覧は捨てる。 */
     fun goUp() {
         val s = _state.value
-        val parent = (s.listing as? ListingState.Loaded)?.listing?.parentPath ?: s.path.substringBeforeLast('/', "")
-        _state.update { it.copy(path = parent) }
-        load()
+        val parent = s.path.substringBeforeLast('/', "")
+        _state.update { it.copy(path = parent, listings = it.listings.filterKeys { key -> key == parent || parent.startsWith("$key/") || key.isEmpty() }) }
+        if (_state.value.listings[parent] !is ListingState.Loaded) load()
     }
 
     private fun load() {
         listJob?.cancel()
         val s = _state.value
-        _state.update { it.copy(listing = ListingState.Loading) }
+        _state.update { it.copy(listings = it.listings + (s.path to ListingState.Loading)) }
         listJob = viewModelScope.launch {
             val result = runCatchingNonCancel { files.list(s.root, s.path) }
             _state.update { current ->
-                if (current.root != s.root || current.path != s.path) current
-                else current.copy(listing = result?.let(ListingState::Loaded) ?: ListingState.Failed)
+                if (current.root != s.root || s.path !in current.listings) current
+                else current.copy(listings = current.listings + (s.path to (result?.let(ListingState::Loaded) ?: ListingState.Failed)))
             }
         }
     }
@@ -201,23 +231,66 @@ class FilesViewModel(
 
     /** 色分けと下書きの復元をまとめて行い、開いた状態を作る。 */
     private suspend fun readyState(file: OpenedFile): OpenedState.Ready {
-        val text = file.text
-        val spans = if (file.kind == PreviewKind.TEXT && text != null) {
-            withContext(Dispatchers.Default) { CodeHighlighter.spans(file.name, text) }
-        } else {
-            emptyList()
-        }
+        val analyzed = analyze(file, file.text)
         val draft = if (file.editable) drafts.get(draftKey(file)) else null
-        return if (draft != null && draft.content != text) {
-            OpenedState.Ready(file, spans, editText = draft.content, cursor = draft.cursor, baseHash = draft.baseHash, restoredDraft = true)
+        return if (draft != null && draft.content != file.text) {
+            analyzed.copy(editText = draft.content, cursor = draft.cursor, baseHash = draft.baseHash, restoredDraft = true)
         } else {
-            OpenedState.Ready(file, spans)
+            analyzed
+        }
+    }
+
+    /** 色分けと Markdown の解析を Default のスレッドで一度だけ行う。 */
+    private suspend fun analyze(file: OpenedFile, text: String?): OpenedState.Ready {
+        if (file.kind != PreviewKind.TEXT || text == null) return OpenedState.Ready(file, emptyList())
+        val preview = previewFormatOf(file.name)
+        return withContext(Dispatchers.Default) {
+            OpenedState.Ready(
+                file = file,
+                spans = CodeHighlighter.spans(file.name, text),
+                preview = preview,
+                blocks = if (preview == PreviewFormat.MARKDOWN) markdownBlocks(text) else emptyList(),
+            )
         }
     }
 
     fun startEditing() = updateReady { ready ->
         if (!ready.file.editable || ready.editing) ready
-        else ready.copy(editText = ready.file.text.orEmpty(), cursor = 0, baseHash = ready.file.hash)
+        else ready.copy(editText = ready.file.text.orEmpty(), cursor = 0, baseHash = ready.file.hash, search = null)
+    }
+
+    /** プレビュー ⇄ 元の文字。検索の言葉と位置はそのまま引き継ぐ。 */
+    fun toggleCode() = updateReady { if (it.preview == null || it.editing) it else it.copy(showCode = !it.showCode) }
+
+    fun openSearch() = updateReady { if (it.editing || it.file.text == null) it else it.copy(search = it.search ?: FileSearch()) }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        updateReady { it.copy(search = null) }
+    }
+
+    /** 入力はすぐ反映し、一致の検索は間引いて Default のスレッドで行う。 */
+    fun setSearchQuery(query: String) {
+        val ready = _state.value.opened as? OpenedState.Ready ?: return
+        val text = ready.file.text ?: return
+        updateReady { it.copy(search = (it.search ?: FileSearch()).copy(query = query)) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            if (query.isNotEmpty()) delay(SEARCH_DEBOUNCE_MS)
+            val matches = withContext(Dispatchers.Default) { findMatches(text, query) }
+            updateReady { r ->
+                val search = r.search
+                if (search == null || search.query != query || r.path != ready.path) r
+                else r.copy(search = search.copy(matchedQuery = query, matches = matches, current = 0))
+            }
+        }
+    }
+
+    /** 次（[step] = 1）/ 前（-1）の一致へ。端では反対側に回る。 */
+    fun moveMatch(step: Int) = updateReady { r ->
+        val search = r.search
+        if (search == null || search.matches.isEmpty()) r
+        else r.copy(search = search.copy(current = Math.floorMod(search.current + step, search.matches.size)))
     }
 
     fun edit(text: String, cursor: Int) {
@@ -253,9 +326,9 @@ class FilesViewModel(
                 is SaveResult.Saved -> {
                     draftJob?.cancel()
                     drafts.delete(draftKey(ready.file))
-                    val spans = withContext(Dispatchers.Default) { CodeHighlighter.spans(result.file.name, content) }
                     val saved = result.file.copy(text = result.file.text ?: content)
-                    _state.update { s -> if (s.opened?.path == ready.path) s.copy(opened = OpenedState.Ready(saved, spans)) else s }
+                    val reopened = analyze(saved, saved.text).let { it.copy(showCode = it.preview == null || ready.showCode) }
+                    _state.update { s -> if (s.opened?.path == ready.path) s.copy(opened = reopened) else s }
                     _events.tryEmit(FilesEvent.Saved)
                 }
                 SaveResult.Conflict -> updateReady { it.copy(saving = false, conflict = true) }
@@ -315,5 +388,6 @@ class FilesViewModel(
 
     private companion object {
         const val DRAFT_SAVE_DEBOUNCE_MS = 400L
+        const val SEARCH_DEBOUNCE_MS = 150L
     }
 }

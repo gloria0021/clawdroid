@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -72,6 +73,8 @@ data class MessageUi(
     val elapsedMs: Long? = null,
     /** この行の上に出すモデルの切り替え。 */
     val modelChange: ModelChange? = null,
+    /** 本文（Text の部分）を解析した結果。部分と同じ順。スクロール中に解析しないよう、ViewModel で先に作る。 */
+    val markdown: List<com.mikepenz.markdown.model.State> = emptyList(),
 )
 
 /** 入力欄の状態。 */
@@ -140,10 +143,15 @@ class ChatViewModel(
 
     private val chatState = currentChat.flatMapLatest { it?.state ?: flowOf(null) }
 
+    /** 解析済みの本文（同じ文はもう一度解析しない）。 */
+    private val markdownCache = MarkdownCache()
+
+    // 整形と Markdown の解析はメインスレッドの外で行い、スクロール中の項目の組み立てを軽くする（AGENTS.md 1）
     private val formattedMessages = chatState
         .map { it?.messages.orEmpty() }
         .distinctUntilChanged()
-        .map { formatMessages(it, timeFormatter) }
+        .map { messages -> formatMessages(messages, timeFormatter).map { it.copy(markdown = markdownCache.parse(it.message)) } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val state: StateFlow<ChatScreenState> = combine(
@@ -553,4 +561,17 @@ internal fun formatMessages(messages: List<ChatMessage>, timeFormatter: (Long) -
         }
         MessageUi(message, message.timestamp?.let(timeFormatter), elapsed, modelChange)
     }
+}
+
+/** 本文の Markdown の解析結果を文ごとに覚えておく（解析し直さない）。会話を切り替えても、古い分は数を限って捨てる。 */
+internal class MarkdownCache(private val limit: Int = 2_000) {
+    private val cache = object : LinkedHashMap<String, com.mikepenz.markdown.model.State>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, com.mikepenz.markdown.model.State>?) = size > limit
+    }
+
+    @Synchronized
+    fun parse(message: ChatMessage): List<com.mikepenz.markdown.model.State> =
+        message.parts.filterIsInstance<jp.miyavi.android.clawdroid.core.data.MessagePart.Text>().map { part ->
+            cache.getOrPut(part.markdown) { com.mikepenz.markdown.model.parseMarkdown(part.markdown) }
+        }
 }

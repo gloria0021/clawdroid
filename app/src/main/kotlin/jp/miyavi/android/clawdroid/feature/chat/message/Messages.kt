@@ -52,8 +52,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
-import com.mikepenz.markdown.m3.markdownTypography
-import com.mikepenz.markdown.model.markdownPadding
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
@@ -62,6 +60,8 @@ import jp.miyavi.android.clawdroid.core.data.ModelChange
 import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
+import jp.miyavi.android.clawdroid.core.designsystem.appMarkdownPadding
+import jp.miyavi.android.clawdroid.core.designsystem.appMarkdownTypography
 import jp.miyavi.android.clawdroid.core.designsystem.bodyContainerColor
 import jp.miyavi.android.clawdroid.core.designsystem.bodyTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.codeTextStyle
@@ -117,6 +117,8 @@ fun UserMessage(
 @Composable
 fun AssistantMessage(
     message: ChatMessage,
+    /** 本文の解析結果（Text の部分と同じ順）。無ければその場で解析する。 */
+    markdown: List<com.mikepenz.markdown.model.State> = emptyList(),
     agent: Agent?,
     /** この応答の前に続いたツールの実行（応答の見出しの行にまとめて出す）。 */
     precedingTools: List<MessagePart.ToolCall> = emptyList(),
@@ -142,9 +144,10 @@ fun AssistantMessage(
         }) else null,
     ) {
         if (tools.isNotEmpty()) ToolDetails(tools, toolsOpen)
+        var textIndex = 0
         message.parts.forEach { part ->
             when (part) {
-                is MessagePart.Text -> MarkdownText(part.markdown)
+                is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
                 is MessagePart.Image -> MessageImage(part, onOpenImage)
                 is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
                 is MessagePart.ToolCall -> Unit
@@ -322,18 +325,14 @@ fun ToolDetails(parts: List<MessagePart.ToolCall>, expanded: Boolean, modifier: 
 }
 
 @Composable
-private fun MarkdownText(markdown: String) {
+private fun MarkdownText(markdown: String, parsed: com.mikepenz.markdown.model.State?) {
     SelectionContainer {
-        Markdown(
-            content = markdown,
-            colors = markdownColor(),
-            typography = markdownTypography(
-                text = bodyTextStyle(),
-                paragraph = bodyTextStyle(),
-                code = codeTextStyle(),
-            ),
-            padding = markdownPadding(listItemTop = Spacing.xs, listItemBottom = Spacing.xs),
-        )
+        if (parsed != null) {
+            // 解析済み（ViewModel で作った）。組み立てるだけ
+            Markdown(state = parsed, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding())
+        } else {
+            Markdown(content = markdown, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding())
+        }
     }
 }
 
@@ -403,13 +402,26 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
 /** Base64 の画像を一度だけ復号する。 */
 @Composable
 fun rememberBase64Bitmap(base64: String?): ImageBitmap? = remember(base64) {
-    base64?.let {
-        runCatching {
-            val bytes = Base64.decode(it.substringAfter("base64,"), Base64.DEFAULT)
+    // その場で展開する（後から届くと高さが変わり、スクロール位置が飛ぶため）。一度展開した画像は覚えておき、
+    // スクロールで画面に入り直したときは展開し直さない
+    base64?.let { data ->
+        Base64BitmapCache.get(data) ?: runCatching {
+            val bytes = Base64.decode(data.substringAfter("base64,"), Base64.DEFAULT)
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-        }.getOrNull()
+        }.getOrNull()?.also { Base64BitmapCache.put(data, it) }
     }
 }
+
+/** 展開した base64 の画像（数を限って覚えておく）。 */
+private object Base64BitmapCache {
+    private val cache = android.util.LruCache<String, ImageBitmap>(BASE64_BITMAP_CACHE_SIZE)
+    fun get(key: String): ImageBitmap? = cache.get(key)
+    fun put(key: String, bitmap: ImageBitmap) {
+        cache.put(key, bitmap)
+    }
+}
+
+private const val BASE64_BITMAP_CACHE_SIZE = 32
 
 /** 利用者の面の最大幅（本文の最大幅に対する割合）。 */
 private const val USER_BUBBLE_MAX_FRACTION = 0.8f

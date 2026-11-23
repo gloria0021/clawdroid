@@ -35,6 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
@@ -117,6 +122,8 @@ fun AppNavigation(container: AppContainer) {
 @Composable
 private fun MainNavigation(container: AppContainer) {
     val backStack = rememberNavBackStack(ChatRoute)
+    // ファイルとターミナルの状態は会話ごとに残す（閉じて開き直すと続きから）。画面より長く生きるようアクティビティに置く
+    val workStores: WorkStores = viewModel()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -206,51 +213,68 @@ private fun MainNavigation(container: AppContainer) {
             }
             entry<TerminalRoute> { route ->
                 val gate = rememberNavGate(onBack = { backStack.pop() })
-                val vm: jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer {
-                            jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel(
-                                repository = jp.miyavi.android.clawdroid.core.data.TerminalRepository(
-                                    container.gateway,
-                                    jp.miyavi.android.clawdroid.core.data.SharedPreferencesTerminalIdStore(
-                                        context.getSharedPreferences("terminal_ids", android.content.Context.MODE_PRIVATE),
+                WithWorkStore(workStores, route.sessionKey, route.agentId) {
+                    val vm: jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel = viewModel(
+                        factory = viewModelFactory {
+                            initializer {
+                                jp.miyavi.android.clawdroid.feature.terminal.TerminalViewModel(
+                                    repository = jp.miyavi.android.clawdroid.core.data.TerminalRepository(
+                                        container.gateway,
+                                        jp.miyavi.android.clawdroid.core.data.SharedPreferencesTerminalIdStore(
+                                            context.getSharedPreferences("terminal_ids", android.content.Context.MODE_PRIVATE),
+                                        ),
                                     ),
-                                ),
-                                gateway = container.gateway,
-                                // 会話ごとに 1 つ。会話の無いときはエージェントごと
-                                conversationKey = route.sessionKey ?: "agent:${route.agentId.orEmpty()}",
-                                agentId = route.agentId,
-                                cwd = route.cwd,
-                            )
-                        }
-                    },
-                )
-                jp.miyavi.android.clawdroid.feature.terminal.TerminalScreen(
-                    viewModel = vm,
-                    cwd = route.cwd,
-                    onBack = { gate.run { backStack.pop() } },
-                    onEnd = { vm.end { gate.run { backStack.pop() } } },
-                )
+                                    gateway = container.gateway,
+                                    // 会話ごとに 1 つ。会話の無いときはエージェントごと
+                                    conversationKey = route.sessionKey ?: "agent:${route.agentId.orEmpty()}",
+                                    agentId = route.agentId,
+                                    cwd = route.cwd,
+                                )
+                            }
+                        },
+                    )
+                    val sessionKey = route.sessionKey
+                    val agentId = route.agentId
+                    jp.miyavi.android.clawdroid.feature.terminal.TerminalScreen(
+                        viewModel = vm,
+                        cwd = route.cwd,
+                        onBack = { gate.run { backStack.pop() } },
+                        onEnd = { vm.end { gate.run { backStack.pop() } } },
+                        // 会話に戻らずにファイルへ（画面ごと入れ替える。戻ると会話）
+                        onSwitchToFiles = if (sessionKey != null && agentId != null) {
+                            { gate.run { backStack.replaceTop(FilesRoute(sessionKey, agentId)) } }
+                        } else null,
+                    )
+                }
             }
             entry<FilesRoute> { route ->
                 val gate = rememberNavGate(onBack = { backStack.pop() })
-                val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
-                val vm: jp.miyavi.android.clawdroid.feature.files.FilesViewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer {
-                            jp.miyavi.android.clawdroid.feature.files.FilesViewModel(
-                                files = files,
-                                downloader = jp.miyavi.android.clawdroid.core.data.FileDownloader(files, container.gateway, context.contentResolver),
-                                drafts = container.database.fileDrafts(),
-                                sessionKey = route.sessionKey,
-                                agentId = route.agentId,
-                                // 会話には必ず Gateway の作業フォルダ（無ければエージェントのワークスペース）がある
-                                hasWorkingFolder = true,
-                            )
-                        }
-                    },
-                )
-                jp.miyavi.android.clawdroid.feature.files.FilesScreen(vm) { gate.run { backStack.pop() } }
+                WithWorkStore(workStores, route.sessionKey, route.agentId) {
+                    val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
+                    val vm: jp.miyavi.android.clawdroid.feature.files.FilesViewModel = viewModel(
+                        factory = viewModelFactory {
+                            initializer {
+                                jp.miyavi.android.clawdroid.feature.files.FilesViewModel(
+                                    files = files,
+                                    downloader = jp.miyavi.android.clawdroid.core.data.FileDownloader(files, container.gateway, context.contentResolver),
+                                    drafts = container.database.fileDrafts(),
+                                    sessionKey = route.sessionKey,
+                                    agentId = route.agentId,
+                                    // 会話には必ず Gateway の作業フォルダ（無ければエージェントのワークスペース）がある
+                                    hasWorkingFolder = true,
+                                )
+                            }
+                        },
+                    )
+                    jp.miyavi.android.clawdroid.feature.files.FilesScreen(
+                        viewModel = vm,
+                        onSwitchToTerminal = {
+                            val cwd = container.sessions.find(route.sessionKey)?.cwd
+                            gate.run { backStack.replaceTop(TerminalRoute(route.sessionKey, route.agentId, cwd)) }
+                        },
+                        onBack = { gate.run { backStack.pop() } },
+                    )
+                }
             }
             entry<UsageRoute> { ComingSoon(R.string.usage_title) { backStack.pop() } }
         },
@@ -311,6 +335,11 @@ private fun NavBackStack<NavKey>.push(route: NavKey) {
 }
 
 /** 最初の画面（会話）は消さない。 */
+/** いちばん上の画面を入れ替える（ファイル ⇄ ターミナル。戻ると下の画面）。 */
+private fun NavBackStack<NavKey>.replaceTop(route: NavKey) {
+    if (isEmpty()) add(route) else set(lastIndex, route)
+}
+
 private fun NavBackStack<NavKey>.pop() {
     if (size > 1) removeAt(lastIndex)
 }
@@ -339,3 +368,35 @@ internal fun popTransition(): ContentTransform = ContentTransform(
 private const val PARALLAX_DIVISOR = 4
 private const val PARALLAX_ALPHA = 0.9f
 
+/**
+ * ファイルとターミナルの ViewModel を、画面ではなく会話ごとの入れ物に置く。画面を閉じても残り、
+ * 同じ会話で開き直すと続きから。別の会話で開くと、前の会話の分は捨てる（ターミナルの接続も離す）。
+ */
+@Composable
+private fun WithWorkStore(stores: WorkStores, sessionKey: String?, agentId: String?, content: @Composable () -> Unit) {
+    val key = "${sessionKey.orEmpty()}|${agentId.orEmpty()}"
+    val owner = remember(key) {
+        val store = stores.storeFor(key)
+        object : ViewModelStoreOwner {
+            override val viewModelStore: ViewModelStore = store
+        }
+    }
+    CompositionLocalProvider(LocalViewModelStoreOwner provides owner, content = content)
+}
+
+/** 会話ごとの ViewModel の入れ物（いまの会話の 1 つだけを持つ）。 */
+class WorkStores : ViewModel() {
+    private var key: String? = null
+    private var store = ViewModelStore()
+
+    fun storeFor(key: String): ViewModelStore {
+        if (key != this.key) {
+            store.clear()
+            store = ViewModelStore()
+            this.key = key
+        }
+        return store
+    }
+
+    override fun onCleared() = store.clear()
+}

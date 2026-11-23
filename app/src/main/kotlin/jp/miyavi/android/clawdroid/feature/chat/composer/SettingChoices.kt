@@ -62,6 +62,8 @@ internal fun SettingIconRow(
     availability: SettingAvailability,
     onOpen: (SessionSetting) -> Unit,
     modifier: Modifier = Modifier,
+    /** ボタンに重ねるポップアップ（ボタンの位置を起点に出す）。 */
+    popup: @Composable (SessionSetting) -> Unit = {},
 ) {
     val defaultLabel = stringResource(R.string.chat_setting_default)
     val permissionChoice = PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default
@@ -77,16 +79,18 @@ internal fun SettingIconRow(
                 SessionSetting.EFFORT -> availability.effort
                 SessionSetting.PERMISSIONS -> availability.permissions
             }
-            SettingIconButton(
-                setting = setting,
-                icon = icon,
-                value = value,
-                enabled = enabled && agent != null,
-                onOpen = { onOpen(setting) },
-                // 実行権限はアイコンだけ（ラベルは読み上げとメニューで分かる）
-                showValue = setting != SessionSetting.PERMISSIONS,
-                modifier = if (setting == SessionSetting.PERMISSIONS) Modifier else Modifier.weight(1f),
-            )
+            Box(if (setting == SessionSetting.PERMISSIONS) Modifier else Modifier.weight(1f)) {
+                SettingIconButton(
+                    setting = setting,
+                    icon = icon,
+                    value = value,
+                    enabled = enabled && agent != null,
+                    onOpen = { onOpen(setting) },
+                    // 実行権限はアイコンだけ（ラベルは読み上げとメニューで分かる）
+                    showValue = setting != SessionSetting.PERMISSIONS,
+                )
+                popup(setting)
+            }
         }
     }
 }
@@ -126,8 +130,8 @@ private fun SettingIconButton(
 }
 
 /**
- * 設定の選択肢の一覧（シートの中に重ねるガラスの面に載せる）。
- * ポップアップ（別のウィンドウ）ではシートの中身を透かせないため、同じ画面の上に重ねて出す。
+ * 設定の選択肢の一覧（押したボタンを中心に出すポップアップの中身）。
+ * 本物のポップアップ（別のウィンドウ）ではシートの中身を透かせないため、同じ画面の上に重ねて出す。
  */
 @Composable
 internal fun SettingOptionsList(setting: SessionSetting, options: List<SettingOption>?, onSelect: (String?) -> Unit) {

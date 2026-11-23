@@ -1,5 +1,11 @@
 package jp.miyavi.android.clawdroid.feature.files
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clipToBounds
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.ui.NavDisplay
+import jp.miyavi.android.clawdroid.navigation.popTransition
+import jp.miyavi.android.clawdroid.navigation.pushTransition
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -9,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -30,13 +37,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -45,6 +55,7 @@ import jp.miyavi.android.clawdroid.core.data.DownloadSource
 import jp.miyavi.android.clawdroid.core.data.FileRoot
 import jp.miyavi.android.clawdroid.core.data.MessagePart
 import jp.miyavi.android.clawdroid.core.designsystem.AppTitleBar
+import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.FloatingIconButton
 import jp.miyavi.android.clawdroid.core.designsystem.GlassSnackbarHost
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
@@ -52,7 +63,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
 
 /** ファイルビューアの ViewModel をつなぐ部分（spec 002）。 */
 @Composable
-fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
+fun FilesScreen(viewModel: FilesViewModel, onSwitchToTerminal: (() -> Unit)? = null, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -107,6 +118,12 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
         onOverwrite = { viewModel.save(overwrite = true) },
         onReload = viewModel::reloadDiscarding,
         onDismissConflict = viewModel::dismissConflict,
+        onToggleCode = viewModel::toggleCode,
+        onOpenSearch = viewModel::openSearch,
+        onSearchQuery = viewModel::setSearchQuery,
+        onMoveMatch = viewModel::moveMatch,
+        onCloseSearch = viewModel::closeSearch,
+        onSwitchToTerminal = onSwitchToTerminal,
     )
 }
 
@@ -129,12 +146,21 @@ internal fun FilesContent(
     onOverwrite: () -> Unit,
     onReload: () -> Unit,
     onDismissConflict: () -> Unit,
+    onToggleCode: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    onSearchQuery: (String) -> Unit = {},
+    onMoveMatch: (Int) -> Unit = {},
+    onCloseSearch: () -> Unit = {},
+    /** パネルの中ではターミナルへの切り替え（編集中は出さない。TopAppBar のアイコンは 2 つまで）。 */
+    onSwitchToTerminal: (() -> Unit)? = null,
 ) {
     val hazeState = rememberHazeState()
+    val htmlFind = remember { HtmlFindState() }
     val opened = state.opened
     val ready = opened as? OpenedState.Ready
-    // 戻るは 1 段ずつ（ファイル → 一覧 → 上のフォルダ）。根の一覧で戻ると画面を閉じる（予測型「戻る」に任せる）
-    BackHandler(enabled = opened != null || !state.atRoot || state.confirmDiscard, onBack = onBack)
+    // 確認・検索・編集はページの中で戻す。ファイル → 一覧 → 上のフォルダは下の重なり（予測型「戻る」）で 1 段ずつ。
+    // 根の一覧で戻ると画面ごと閉じる（外側の予測型「戻る」）
+    BackHandler(enabled = state.handlesBackInPage, onBack = onBack)
     var overlayImage by remember { mutableStateOf<MessagePart.Image?>(null) }
 
     Scaffold(
@@ -164,54 +190,99 @@ internal fun FilesContent(
                         modifier = Modifier.padding(start = Spacing.s))
                 },
                 actions = {
-                    // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: 編集 / 保存 と ダウンロード
+                    // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: 保存（編集中）とダウンロード。編集は下のピル
                     if (ready != null) {
                         if (ready.editing) {
                             IconButton(onClick = onSave, enabled = ready.dirty && !ready.saving) {
                                 Icon(painterResource(R.drawable.ic_huge_check), stringResource(R.string.files_save_cd))
                             }
-                        } else if (ready.file.editable) {
-                            IconButton(onClick = onStartEditing) { Icon(painterResource(R.drawable.ic_huge_edit), stringResource(R.string.files_edit_cd)) }
                         }
                         IconButton(onClick = onDownload) { Icon(painterResource(R.drawable.ic_huge_download), stringResource(R.string.files_download_cd)) }
+                    }
+                    if (onSwitchToTerminal != null && ready?.editing != true) {
+                        IconButton(onClick = onSwitchToTerminal) { Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal)) }
                     }
                 },
             )
         },
         snackbarHost = { GlassSnackbarHost(snackbar, Modifier.navigationBarsPadding()) },
     ) { padding ->
-        Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
-            val listPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.l)
-            // 一覧 ⇄ 開いたファイル、フォルダの移動は、新しい側だけをフェードで出す（AGENTS.md 2.8）
-            FadeInOnChange(key = opened?.path ?: "list:${state.root}:${state.path}") {
-                when {
-                    opened is OpenedState.Loading -> LoadingOrFailed(failed = false, message = R.string.files_open_failed, onRetry = onRetry)
-                    opened is OpenedState.Failed -> LoadingOrFailed(
-                        failed = true,
-                        message = if (opened.missing) R.string.files_missing else R.string.files_open_failed,
-                        onRetry = onRetry,
-                    )
-                    ready != null -> FileViewer(
-                        state = ready,
-                        contentPadding = listPadding,
-                        onEdit = onEdit,
-                        onOpenImage = { overlayImage = MessagePart.Image(url = null, base64 = ready.file.imageBase64, mimeType = ready.file.mimeType) },
-                        onDownload = onDownload,
-                    )
-                    else -> Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                        if (state.sessionRoot != null) RootSwitcher(state, onSelectRoot)
-                        when (val listing = state.listing) {
-                            ListingState.Loading -> LoadingOrFailed(failed = false, message = R.string.files_load_failed, onRetry = onRetry)
-                            ListingState.Failed -> LoadingOrFailed(failed = true, message = R.string.files_load_failed, onRetry = onRetry)
-                            is ListingState.Loaded -> FileList(
-                                listing = listing.listing,
-                                contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + Spacing.l),
-                                onOpen = onOpen,
-                                onDownload = onDownloadEntry,
-                            )
+        // 文字のファイルを読んでいるあいだだけ、下に操作を浮かせる（編集中は出さない）
+        val showControls = ready != null && !ready.editing && ready.file.text != null
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
+                val controlsSpace = if (showControls) Dimens.floatingButtonSize + Spacing.l else 0.dp
+                val listPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.l + controlsSpace)
+                // フォルダとファイルはページとして重ねる（Gerbil の板 → スレと同じ）。予測型「戻る」で下のページが見える
+                val pages = remember(state.folderStack, opened?.path) {
+                    state.folderStack.map { FilesPage.Folder(it) } + listOfNotNull(opened?.path?.let(FilesPage::File))
+                }
+                // NavDisplay はページの中身を作ったときの値で持ち続けるので、毎回いまの状態を読む中身を渡す
+                // （渡さないと一覧が読み込み中のまま更新されない）
+                val pageContent by rememberUpdatedState<@Composable (FilesPage) -> Unit> { page ->
+                    when (page) {
+                        is FilesPage.File -> FilePage(
+                            state = state,
+                            contentPadding = listPadding,
+                            htmlFind = htmlFind,
+                            onRetry = onRetry,
+                            onEdit = onEdit,
+                            onOpenImage = { image -> overlayImage = image },
+                            onDownload = onDownload,
+                        )
+                        is FilesPage.Folder -> Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+                            if (state.sessionRoot != null) RootSwitcher(state, onSelectRoot)
+                            when (val listing = state.listings[page.path] ?: ListingState.Loading) {
+                                ListingState.Loading -> LoadingOrFailed(failed = false, message = R.string.files_load_failed, onRetry = onRetry)
+                                ListingState.Failed -> LoadingOrFailed(failed = true, message = R.string.files_load_failed, onRetry = onRetry)
+                                is ListingState.Loaded -> FileList(
+                                    listing = listing.listing,
+                                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + Spacing.l),
+                                    onOpen = onOpen,
+                                    onDownload = onDownloadEntry,
+                                )
+                            }
                         }
                     }
                 }
+                NavDisplay(
+                    backStack = pages,
+                    onBack = onBack,
+                    modifier = Modifier.fillMaxSize().clipToBounds().background(MaterialTheme.colorScheme.surface),
+                    transitionSpec = { pushTransition() },
+                    popTransitionSpec = { popTransition() },
+                    predictivePopTransitionSpec = { _ -> popTransition() },
+                    entryProvider = { page -> NavEntry(page) { pageContent(page) } },
+                )
+            }
+            if (showControls && ready != null) {
+                val htmlPreview = ready.preview == PreviewFormat.HTML && !ready.showCode
+                FileControls(
+                    hazeState = hazeState,
+                    state = FileControlsState(
+                        canToggleCode = ready.preview != null,
+                        showCode = ready.showCode,
+                        editable = ready.file.editable,
+                        search = ready.search,
+                        htmlCounts = if (htmlPreview) htmlFind.active to htmlFind.count else null,
+                    ),
+                    actions = remember(htmlPreview, onToggleCode, onStartEditing, onOpenSearch, onSearchQuery, onMoveMatch, onCloseSearch) {
+                        FileControlsActions(
+                            onToggleCode = onToggleCode,
+                            onEdit = onStartEditing,
+                            onOpenSearch = onOpenSearch,
+                            onQuery = onSearchQuery,
+                            onPrevious = { if (htmlPreview) htmlFind.next(forward = false) else onMoveMatch(-1) },
+                            onNext = { if (htmlPreview) htmlFind.next(forward = true) else onMoveMatch(1) },
+                            onCloseSearch = onCloseSearch,
+                        )
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(Spacing.l),
+                )
             }
         }
     }
@@ -234,6 +305,45 @@ internal fun FilesContent(
             confirmButton = { TextButton(onClick = onOverwrite) { Text(stringResource(R.string.files_conflict_overwrite)) } },
             dismissButton = { TextButton(onClick = onReload) { Text(stringResource(R.string.files_conflict_reload)) } },
         )
+    }
+}
+
+/** ファイルビューアの中のページ（フォルダの一覧と開いたファイル）。 */
+private sealed interface FilesPage {
+    data class Folder(val path: String) : FilesPage
+    data class File(val path: String) : FilesPage
+}
+
+/** 開いたファイルのページ。プレビュー ⇄ コードは新しい側だけをフェードで出す（AGENTS.md 2.8）。 */
+@Composable
+private fun FilePage(
+    state: FilesUiState,
+    contentPadding: PaddingValues,
+    htmlFind: HtmlFindState,
+    onRetry: () -> Unit,
+    onEdit: (String, Int) -> Unit,
+    onOpenImage: (MessagePart.Image) -> Unit,
+    onDownload: () -> Unit,
+) {
+    val opened = state.opened ?: return
+    val ready = opened as? OpenedState.Ready
+    FadeInOnChange(key = "${opened.path}:${ready?.showCode}") {
+        when {
+            opened is OpenedState.Loading -> LoadingOrFailed(failed = false, message = R.string.files_open_failed, onRetry = onRetry)
+            opened is OpenedState.Failed -> LoadingOrFailed(
+                failed = true,
+                message = if (opened.missing) R.string.files_missing else R.string.files_open_failed,
+                onRetry = onRetry,
+            )
+            ready != null -> FileViewer(
+                state = ready,
+                contentPadding = contentPadding,
+                htmlFind = htmlFind,
+                onEdit = onEdit,
+                onOpenImage = { onOpenImage(MessagePart.Image(url = null, base64 = ready.file.imageBase64, mimeType = ready.file.mimeType)) },
+                onDownload = onDownload,
+            )
+        }
     }
 }
 

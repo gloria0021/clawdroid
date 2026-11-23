@@ -27,15 +27,21 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.foundation.background
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import java.util.Properties
+import jp.miyavi.android.clawdroid.core.designsystem.TerminalPalette
+import jp.miyavi.android.clawdroid.core.designsystem.terminalChromeScheme
+import jp.miyavi.android.clawdroid.core.designsystem.terminalPalette
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.termux.terminal.TerminalColors
 import com.termux.terminal.TerminalSession
-import com.termux.terminal.TextStyle
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 import dev.chrisbanes.haze.hazeSource
@@ -56,12 +62,21 @@ import jp.miyavi.android.clawdroid.core.designsystem.shrinkExit
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TerminalScreen(viewModel: TerminalViewModel, cwd: String?, onBack: () -> Unit, onEnd: () -> Unit) {
+fun TerminalScreen(
+    viewModel: TerminalViewModel,
+    cwd: String?,
+    onBack: () -> Unit,
+    onEnd: () -> Unit,
+    /** パネルの中ではファイルへの切り替え。 */
+    onSwitchToFiles: (() -> Unit)? = null,
+) {
     val status by viewModel.status.collectAsStateWithLifecycle()
     val ctrlArmed by viewModel.ctrlArmed.collectAsStateWithLifecycle()
     val hazeState = rememberHazeState()
     val colors = MaterialTheme.colorScheme
     val textSizePx = with(LocalDensity.current) { codeTextStyle().fontSize.toPx() }.toInt()
+    // ターミナルの配色（背景はダークグレー固定、ANSI はテーマカラーを混ぜたニュアンスカラー）
+    val palette = remember(colors.primary) { terminalPalette(colors.primary) }
 
     Scaffold(
         containerColor = colors.surface,
@@ -83,21 +98,23 @@ fun TerminalScreen(viewModel: TerminalViewModel, cwd: String?, onBack: () -> Uni
                     if (status == TerminalStatus.Connected) {
                         IconButton(onClick = onEnd) { Icon(painterResource(R.drawable.ic_huge_stop), stringResource(R.string.terminal_end_cd)) }
                     }
+                    if (onSwitchToFiles != null) {
+                        IconButton(onClick = onSwitchToFiles) { Icon(painterResource(R.drawable.ic_huge_folder), stringResource(R.string.menu_files)) }
+                    }
                 },
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).imePadding().hazeSource(hazeState)) {
+        Column(
+            Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).imePadding()
+                .background(Color(palette.background)).hazeSource(hazeState),
+        ) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 AndroidView(
                     factory = { context -> createTerminalView(context, viewModel, textSizePx) },
                     update = { view ->
-                        // テーマ（ライト / ダーク）に合わせて、既定の背景・文字色・カーソルを当てる
-                        val palette = viewModel.bridge.emulator.mColors.mCurrentColors
-                        palette[TextStyle.COLOR_INDEX_BACKGROUND] = colors.surface.toArgb()
-                        palette[TextStyle.COLOR_INDEX_FOREGROUND] = colors.onSurface.toArgb()
-                        palette[TextStyle.COLOR_INDEX_CURSOR] = colors.primary.toArgb()
-                        view.setBackgroundColor(colors.surface.toArgb())
+                        applyTerminalPalette(viewModel.bridge.emulator.mColors, palette)
+                        view.setBackgroundColor(palette.background)
                         view.onScreenUpdated()
                     },
                     modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.s),
@@ -111,18 +128,39 @@ fun TerminalScreen(viewModel: TerminalViewModel, cwd: String?, onBack: () -> Uni
                     StatusPanel(hazeState, status, onReopen = viewModel::reopen, onTakeBack = viewModel::takeBack)
                 }
             }
-            SpecialKeysRow(
-                hazeState = hazeState,
-                ctrlArmed = ctrlArmed,
-                onKey = viewModel::sendKey,
-                onToggleCtrl = viewModel::toggleCtrl,
-                modifier = Modifier.align(Alignment.CenterHorizontally).navigationBarsPadding().padding(Spacing.s),
-            )
+            // 特殊キーは暗いターミナルの上に浮くので、ターミナルの配色で描く（ライトテーマでも読めるように）
+            val chrome = remember(colors, palette) { terminalChromeScheme(colors, palette) }
+            MaterialTheme(colorScheme = chrome) {
+                SpecialKeysRow(
+                    hazeState = hazeState,
+                    ctrlArmed = ctrlArmed,
+                    onKey = viewModel::sendKey,
+                    onToggleCtrl = viewModel::toggleCtrl,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).navigationBarsPadding().padding(Spacing.s),
+                )
+            }
         }
     }
     // 画面が消えたら、描き直しの知らせを外す（ViewModel は回転を越えて残る）
     DisposableEffect(viewModel) { onDispose { viewModel.onScreenChanged = null; viewModel.onCopy = null; viewModel.onPasteRequest = null } }
 }
+
+/**
+ * 配色を当てる。端末のリセット（RIS・OSC 104）でも戸るように、既定の配色（共有）も差し替えてから
+ * いまの色を既定に戻す。
+ */
+private fun applyTerminalPalette(colors: TerminalColors, palette: TerminalPalette) {
+    val properties = Properties().apply {
+        setProperty("background", palette.background.hex())
+        setProperty("foreground", palette.foreground.hex())
+        setProperty("cursor", palette.cursor.hex())
+        palette.ansi.forEachIndexed { index, color -> setProperty("color$index", color.hex()) }
+    }
+    TerminalColors.COLOR_SCHEME.updateWith(properties)
+    colors.reset()
+}
+
+private fun Int.hex(): String = "#%06x".format(this and 0xFFFFFF)
 
 /** 状態の表示（開いている途中・終了・消えた・ほかで開かれた・使えない）と、開き直す・取り戻す操作（FR-025・026）。 */
 @Composable

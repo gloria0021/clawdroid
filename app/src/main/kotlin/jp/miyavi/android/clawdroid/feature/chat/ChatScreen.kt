@@ -109,6 +109,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.UserMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.VideoPreviewSheet
 import jp.miyavi.android.clawdroid.feature.chat.message.rememberChatLinkOpener
 import jp.miyavi.android.clawdroid.feature.chat.message.webUri
+import jp.miyavi.android.clawdroid.core.designsystem.FastScroller
 import jp.miyavi.android.clawdroid.feature.chat.sidebar.SidePanel
 import kotlinx.coroutines.launch
 
@@ -404,8 +405,9 @@ fun ChatContent(
                             onOpenImage = { openedImage = it },
                             onOpenVideo = { openedVideo = it },
                             onRetry = actions.retryHistory,
+                            hazeState = hazeState,
                             // タイトルバーの折りたたみは会話の一覧のスクロールだけに付いていく（入力欄のスクロールは届かない）
-                            modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection).hazeSource(hazeState),
+                            modifier = Modifier.fillMaxSize().nestedScroll(titleBarScroll.nestedScrollConnection),
                         )
                     }
                     Box(Modifier.align(Alignment.BottomCenter).padding(bottom = padding.calculateBottomPadding())) {
@@ -518,8 +520,11 @@ private fun MessageList(
     onOpenImage: (MessagePart.Image) -> Unit,
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
+    hazeState: dev.chrisbanes.haze.HazeState,
     modifier: Modifier = Modifier,
 ) {
+    // 透かす元は会話の中身だけ（高速スクロールの吹き出しは透かす側なので、元に含めない）
+    val sourceModifier = modifier.hazeSource(hazeState)
     val chat = state.chat
     val agent = state.currentSession?.agentId?.let { id -> state.agents.agents.firstOrNull { it.id == id } }
         ?: state.selectedAgent
@@ -554,7 +559,7 @@ private fun MessageList(
     val latestFirst = rows.asReversed()
     when {
         state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && messages.isEmpty() && live == null) -> {
-            Box(modifier, contentAlignment = Alignment.Center) {
+            Box(sourceModifier, contentAlignment = Alignment.Center) {
                 Text(
                     stringResource(R.string.chat_empty_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -563,16 +568,27 @@ private fun MessageList(
                 )
             }
         }
-        chat == null || (chat.loading && messages.isEmpty()) -> Box(modifier, contentAlignment = Alignment.Center) { LoadingIndicator() }
-        chat.error != null && messages.isEmpty() -> Box(modifier, contentAlignment = Alignment.Center) {
+        chat == null || (chat.loading && messages.isEmpty()) -> Box(sourceModifier, contentAlignment = Alignment.Center) { LoadingIndicator() }
+        chat.error != null && messages.isEmpty() -> Box(sourceModifier, contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.chat_load_failed), style = MaterialTheme.typography.bodyLarge)
                 TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
             }
         }
-        else -> LazyColumn(
-            state = listState,
+        // 右端の高速スクロールバー。古い方へ一気に戻れる。吹き出しはその位置の日時
+        else -> FastScroller(
+            listState = listState,
+            itemCount = latestFirst.size + 1,
+            label = { index -> if (index == 0) null else latestFirst.getOrNull(index - 1)?.last()?.timeLabel },
+            hazeState = hazeState,
+            reverseLayout = true,
+            topInset = contentPadding.calculateTopPadding(),
+            bottomInset = contentPadding.calculateBottomPadding(),
             modifier = modifier,
+        ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
             contentPadding = contentPadding,
             reverseLayout = true,
             verticalArrangement = Arrangement.Top,
@@ -616,6 +632,7 @@ private fun MessageList(
                     }
                     ChatMessage.Role.ASSISTANT, ChatMessage.Role.SYSTEM -> AssistantMessage(
                         message = message,
+                        markdown = item.markdown,
                         agent = agent,
                         precedingTools = precedingTools,
                         timeLabel = item.timeLabel,
@@ -631,6 +648,7 @@ private fun MessageList(
                 }
             }
 
+        }
         }
     }
 }

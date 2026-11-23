@@ -1,6 +1,7 @@
 package jp.miyavi.android.clawdroid.testing
 
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import jp.miyavi.android.clawdroid.core.gateway.Frames
 import jp.miyavi.android.clawdroid.core.gateway.obj
 import jp.miyavi.android.clawdroid.core.gateway.string
@@ -50,6 +51,13 @@ class FakeGateway {
 
     fun enqueue(behavior: ConnectBehavior) {
         server.enqueue(MockResponse.Builder().webSocketUpgrade(listenerFor(behavior)).build())
+    }
+
+    /** アップグレードの応答を [delayMs] のあいだ返さない接続（経路が切れて固まった試行の再現）。 */
+    fun enqueueStalled(delayMs: Long, behavior: ConnectBehavior = ConnectBehavior.Accept(deviceToken = "stalled")) {
+        server.enqueue(
+            MockResponse.Builder().headersDelay(delayMs, TimeUnit.MILLISECONDS).webSocketUpgrade(listenerFor(behavior)).build(),
+        )
     }
 
     /** 接続中のすべてのクライアントにイベントを送る。 */

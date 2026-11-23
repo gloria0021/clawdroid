@@ -153,6 +153,40 @@ class GatewayClientTest {
         assertEquals(2, gateway.connectParams.size)
     }
 
+    @Test fun reconnectNow_abandonsAStalledAttempt() {
+        gateway.enqueueStalled(delayMs = 4_000)
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "fresh"))
+        await { client.connect(gateway.url, "t") }
+        Thread.sleep(300)
+
+        val started = System.nanoTime()
+        client.reconnectNow()
+        await { client.awaitConnected() }
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+
+        // 固まった試行（4 秒）の終わりを待たず、新しいソケットでつながる
+        assertTrue("elapsed=${elapsedMs}ms", elapsedMs < 2_000)
+        assertEquals("fresh", secrets.connection?.deviceToken)
+    }
+
+    @Test fun foreground_whileReconnecting_startsAFreshAttempt() {
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "first"))
+        gateway.enqueueStalled(delayMs = 4_000)
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "fresh"))
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+
+        gateway.closeAll()
+        await { client.state.first { it is ConnectionState.Reconnecting } }
+        Thread.sleep(1_300) // 再接続の 1 本目（固まる試行）に入るまで待つ
+
+        val started = System.nanoTime()
+        client.onForeground()
+        await { client.state.first { it is ConnectionState.Connected && secrets.connection?.deviceToken == "fresh" } }
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        assertTrue("elapsed=${elapsedMs}ms", elapsedMs < 2_000)
+    }
+
     @Test fun events_areDelivered_exceptTick() {
         gateway.enqueue(ConnectBehavior.Accept())
         await { client.connect(gateway.url, "t") }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,8 +56,10 @@ internal fun SpecialKeysRow(
 
 @Composable
 private fun TextKey(label: String, description: String, onClick: () -> Unit) {
+    // Esc・Tab も矢印と同じ文字色（強調の色にしない）
     TextButton(
         onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
         modifier = Modifier.heightIn(min = Dimens.minTouchTarget).widthIn(min = Dimens.minTouchTarget).semantics { contentDescription = description },
     ) { Text(label, style = MaterialTheme.typography.labelLarge) }
 }

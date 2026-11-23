@@ -9,6 +9,7 @@ plugins {
 android {
     namespace = "jp.miyavi.android.clawdroid"
     compileSdk = 37
+    ndkVersion = "27.1.12297006"
 
     defaultConfig {
         applicationId = "jp.miyavi.android.clawdroid"
@@ -45,6 +46,19 @@ android {
     androidResources {
         generateLocaleConfig = true
         localeFilters += listOf("ja", "en")
+    }
+
+    // Termux の libtermux.so（4KB 境界）を、16KB 境界で作った同名のライブラリに置き換える（src/main/cpp/termux_jni.c）
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+    packaging {
+        jniLibs {
+            pickFirsts += "lib/*/libtermux.so"
+        }
     }
 
     testOptions {

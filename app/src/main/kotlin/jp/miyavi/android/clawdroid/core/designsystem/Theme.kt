@@ -129,15 +129,20 @@ fun ClawdroidTheme(
 ) {
     val dark = settings.appearance.isDark(isSystemInDarkTheme())
     val base = baseScheme(settings.theme, settings.customSeedArgb, dark)
-    val tinted = remember(base, dark) { tintedScheme(base, dark) }
+    // モダンは面を黒へ寄せず、明るい無彩色のまま（マスター指定 2026-11-23: 濃すぎたので薄く）
+    val tinted = remember(base, dark, settings.theme) {
+        if (settings.theme == AppTheme.MODERN) softModernScheme(base, dark) else tintedScheme(base, dark)
+    }
     // OpenClaw: 面は Suna と同じ塗り方（赤みの落ち着いたオフホワイト）、赤はアクセントと利用者のメッセージの面だけ
     val red = if (settings.theme == AppTheme.OPENCLAW) {
         rememberDynamicColorScheme(seedColor = if (dark) OpenClawSeedDark else OpenClawSeedLight, isDark = dark, style = PaletteStyle.Fidelity)
     } else null
     val scheme = remember(tinted, red, dark) { if (red == null) tinted else withRedAccent(tinted, red, dark) }
-    // OpenClaw の強い色の面は、送信ボタンの赤（primary）を背景に溶かしたくすみ色（ニュアンスカラー）
+    // OpenClaw の強い色の面は、送信ボタンの赤（primary）を背景に溶かしたくすみ色（ニュアンスカラー）。モダンも同じ塗り方の灰色
     val accent = if (red != null) {
         AccentContainer(lerp(scheme.primary, scheme.surface, if (dark) NUANCE_MIX_DARK else NUANCE_MIX_LIGHT), scheme.onSurface)
+    } else if (settings.theme == AppTheme.MODERN) {
+        AccentContainer(lerp(scheme.primary, scheme.surface, if (dark) MODERN_ACCENT_MIX_DARK else MODERN_ACCENT_MIX_LIGHT), scheme.onSurface)
     } else {
         AccentContainer(scheme.primaryContainer, scheme.onPrimaryContainer)
     }
@@ -228,6 +233,30 @@ val LocalAccentContainer = staticCompositionLocalOf { AccentContainer(Color.Unsp
 fun accentContainer(): AccentContainer = LocalAccentContainer.current.takeIf { it.container != Color.Unspecified }
     ?: AccentContainer(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
 
+/**
+ * モダンを薄くする。背景は黒い primaryContainer へ寄せず、明るい無彩色の面へ持ち上げる（OpenClaw と同じ持ち上げ方）。
+ * 強調の色（送信ボタン・リンク・透過面の色味の元）は真っ黒ではなく、背景に対して AA を保てる範囲で明るい灰色にする。
+ */
+internal fun softModernScheme(base: ColorScheme, dark: Boolean): ColorScheme {
+    val background = if (dark) base.surface else lerp(base.surface, base.surfaceContainerLowest, OPENCLAW_BACKGROUND_LIFT)
+    val bg = background.toArgb()
+    var lightness = if (dark) MODERN_PRIMARY_START_DARK else MODERN_PRIMARY_START_LIGHT
+    var primary = ColorUtils.HSLToColor(floatArrayOf(0f, 0f, lightness))
+    repeat(20) {
+        if (ColorUtils.calculateContrast(primary, bg) >= LINK_MIN_CONTRAST) return@repeat
+        lightness = (if (dark) lightness + 0.02f else lightness - 0.02f).coerceIn(0f, 1f)
+        primary = ColorUtils.HSLToColor(floatArrayOf(0f, 0f, lightness))
+    }
+    return base.copy(surface = background, background = background, primary = Color(primary))
+}
+
+/** モダンの強調の色を探し始める明るさ（ここから AA を満たすまで背景と離していく）。 */
+private const val MODERN_PRIMARY_START_LIGHT = 0.46f
+private const val MODERN_PRIMARY_START_DARK = 0.66f
+/** モダンの強い色の面で、強調の灰色を背景に溶かす割合（大きいほど淡い）。 */
+private const val MODERN_ACCENT_MIX_LIGHT = 0.8f
+private const val MODERN_ACCENT_MIX_DARK = 0.7f
+
 /** モダンはモノクロだが、エラーだけは標準の赤を残す（FR-085）。 */
 internal fun withStandardError(mono: ColorScheme, dark: Boolean): ColorScheme {
     val standard = if (dark) darkColorScheme() else lightColorScheme()
@@ -292,3 +321,68 @@ fun bodyTextStyle(): TextStyle {
 @Composable
 @ReadOnlyComposable
 fun codeTextStyle(): TextStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+
+/** ターミナルの配色（ARGB）。[ansi] は 0〜15 番（8〜15 は明るい側）。 */
+@androidx.compose.runtime.Immutable
+data class TerminalPalette(val background: Int, val foreground: Int, val cursor: Int, val ansi: List<Int>)
+
+/**
+ * ターミナルの配色（マスター指定 2026-11-23）。背景はテーマに関係なく黒に近いダークグレー（#212121）。
+ * ANSI の色は彩度を落としたニュアンスカラーにして、テーマカラーを少し混ぜてアプリの色味に寄せる。
+ * どの文字色も背景に対して WCAG AA（4.5:1）以上（0 番の黒は背景色として使われる前提で除く）。
+ */
+fun terminalPalette(primary: Color): TerminalPalette {
+    val hsl = FloatArray(3).also { ColorUtils.colorToHSL(primary.toArgb(), it) }
+    val accentHue = hsl[0]
+    fun nuance(hue: Float, saturation: Float, lightness: Float): Int {
+        val muted = Color(ColorUtils.HSLToColor(floatArrayOf(hue, saturation, lightness)))
+        val accent = Color(ColorUtils.HSLToColor(floatArrayOf(accentHue, saturation, lightness)))
+        return lerp(muted, accent, TERMINAL_ACCENT_MIX).toArgb()
+    }
+    fun gray(lightness: Float): Int = nuance(0f, 0f, lightness)
+    // 赤・緑・黄・青・紫・水色の色相（黄は黄土、紫は藤色寄り）
+    val hues = listOf(8f, 140f, 42f, 215f, 300f, 182f)
+    val normal = hues.map { nuance(it, TERMINAL_SATURATION, TERMINAL_LIGHTNESS) }
+    val bright = hues.map { nuance(it, TERMINAL_BRIGHT_SATURATION, TERMINAL_BRIGHT_LIGHTNESS) }
+    return TerminalPalette(
+        background = TerminalBackground.toArgb(),
+        foreground = gray(0.84f),
+        // カーソルはテーマカラーを暗い背景で見える明るさにしたもの
+        cursor = Color(ColorUtils.HSLToColor(floatArrayOf(accentHue, hsl[1].coerceAtMost(0.6f), 0.72f))).toArgb(),
+        ansi = listOf(gray(0.30f)) + normal + listOf(gray(0.77f), gray(0.54f)) + bright + listOf(gray(0.93f)),
+    )
+}
+
+/** ターミナルの背景（マスター指定 2026-11-23: #212121 ぐらいの、黒に近いダークグレー）。 */
+private val TerminalBackground = Color(0xFF212121)
+private const val TERMINAL_SATURATION = 0.30f
+private const val TERMINAL_LIGHTNESS = 0.66f
+private const val TERMINAL_BRIGHT_SATURATION = 0.38f
+private const val TERMINAL_BRIGHT_LIGHTNESS = 0.76f
+/** ANSI の色にテーマカラー（同じ彩度・明るさ）を混ぜる割合。 */
+private const val TERMINAL_ACCENT_MIX = 0.15f
+
+/**
+ * ターミナルの上に浮く部品（特殊キーの行）の配色。ターミナルの背景はテーマに関係なく暗いので、
+ * アプリの配色をもとに面・文字・強調だけをターミナルの配色に置き換える（ガラスの色味もここから作られる）。
+ */
+fun terminalChromeScheme(base: ColorScheme, palette: TerminalPalette): ColorScheme {
+    val background = Color(palette.background)
+    val foreground = Color(palette.foreground)
+    val accent = Color(palette.cursor)
+    return base.copy(
+        surface = background,
+        onSurface = foreground,
+        onSurfaceVariant = Color(palette.ansi[7]),
+        surfaceContainerHighest = lerp(background, foreground, TERMINAL_CHROME_RAISED),
+        primary = accent,
+        onPrimary = background,
+        secondaryContainer = lerp(background, accent, TERMINAL_CHROME_SELECTED),
+        onSecondaryContainer = foreground,
+    )
+}
+
+/** 押していないキーの面（背景に文字色を混ぜる割合）。 */
+private const val TERMINAL_CHROME_RAISED = 0.16f
+/** 押したままのキー（Ctrl）の面（背景にテーマカラーを混ぜる割合）。 */
+private const val TERMINAL_CHROME_SELECTED = 0.45f
