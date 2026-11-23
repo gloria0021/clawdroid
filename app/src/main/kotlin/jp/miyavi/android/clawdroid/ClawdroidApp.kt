@@ -50,6 +50,15 @@ class AppContainer(app: Application) {
     val gatewayControl = GatewayControlRepository(gateway)
     internal val approvals = jp.miyavi.android.clawdroid.core.data.ApprovalsRepository(gateway, appScope)
     internal val questions = jp.miyavi.android.clawdroid.core.data.QuestionsRepository(gateway, appScope)
+
+    /** アプリ全体のダウンロード（ファイルビューアを閉じても、画面を消しても続く）。 */
+    val downloads = jp.miyavi.android.clawdroid.core.data.DownloadCenter(
+        context = app,
+        scope = appScope,
+        downloader = jp.miyavi.android.clawdroid.core.data.FileDownloader(
+            jp.miyavi.android.clawdroid.core.data.FilesRepository(gateway), gateway, app.contentResolver,
+        ),
+    )
 }
 
 class ClawdroidApp : Application() {

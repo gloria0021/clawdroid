@@ -1,5 +1,6 @@
 package jp.miyavi.android.clawdroid.core.data
 
+import jp.miyavi.android.clawdroid.core.gateway.int
 import jp.miyavi.android.clawdroid.core.gateway.long
 import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
@@ -248,6 +249,79 @@ class SessionsRepository(
 
     suspend fun markRead(session: SessionSummary) = patch(session) { put("unread", false) }
 
+    /** ピン留めする・外す。先に手元の一覧で変え、失敗したら取り直す。 */
+    suspend fun setPinned(session: SessionSummary, pinned: Boolean) {
+        val agentId = session.agentId
+        if (agentId != null) _sessions.update { all ->
+            val current = all[agentId] ?: return@update all
+            all + (agentId to current.copy(sessions = current.sessions.map { if (it.key == session.key) it.copy(pinned = pinned) else it }))
+        }
+        try {
+            patch(session) {
+                put("pinned", pinned)
+                session.sessionId?.let { put("expectedSessionId", it) }
+            }
+        } catch (e: Exception) {
+            agentId?.let { refresh(it) }
+            throw e
+        }
+    }
+
+    /**
+     * 会話を引き継いで、別の作業フォルダのセッションを作る（作業フォルダはあとから変えられないため。`sessions.patch` に cwd は無い）。
+     * 作られた key を返す。
+     */
+    suspend fun forkToFolder(parent: SessionSummary, agentId: String, cwd: String): String? {
+        val result = gateway.request("sessions.create", buildJsonObject {
+            put("agentId", agentId)
+            put("parentSessionKey", parent.key)
+            put("fork", true)
+            put("cwd", cwd)
+            // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
+        }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject()
+        refresh(agentId)
+        return result?.string("key") ?: result?.string("sessionKey")
+    }
+
+    /** セッションの作業フォルダの変更（Git の差分。ブランチの分と未コミットの分）。集計中なら少し待って取り直す。 */
+    suspend fun diff(session: SessionSummary, summaryOnly: Boolean = false): SessionDiff? {
+        repeat(DIFF_POLLS) { attempt ->
+            val result = gateway.request("sessions.diff", buildJsonObject {
+                put("sessionKey", session.key)
+                session.agentId?.let { put("agentId", it) }
+                put("scope", "all")
+                put("poll", true)
+                // メニューに合計だけ出すときは、差分の中身を取らない（軽くする）
+                if (summaryOnly) put("summaryOnly", true)
+            }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject() ?: return null
+            if (result.bool("computing") == true && attempt < DIFF_POLLS - 1) {
+                kotlinx.coroutines.delay(DIFF_POLL_MS)
+                return@repeat
+            }
+            return SessionDiff(
+                branch = result.string("branch"),
+                baseRef = result.string("baseRef"),
+                aheadCount = result.int("aheadCount"),
+                additions = result.int("additions") ?: 0,
+                deletions = result.int("deletions") ?: 0,
+                files = result.array("files").mapNotNull { it as? JsonObject }.map { f ->
+                    DiffFile(
+                        path = f.string("path").orEmpty(),
+                        oldPath = f.string("oldPath"),
+                        status = f.string("status").orEmpty(),
+                        additions = f.int("additions") ?: 0,
+                        deletions = f.int("deletions") ?: 0,
+                        binary = f.bool("binary") == true,
+                        patch = f.string("patch"),
+                    )
+                },
+                unavailable = result.string("unavailableReason"),
+                truncated = result.bool("truncated") == true,
+            )
+        }
+        return null
+    }
+
     suspend fun setOption(key: String, agentId: String, setting: SessionSetting, value: String?) =
         patch(key, agentId) {
             if (value == null) put(setting.wireKey, JsonNull) else put(setting.wireKey, value)
@@ -284,9 +358,93 @@ class SessionsRepository(
         return result?.string("key") ?: result?.string("sessionKey") ?: result?.obj("session")?.string("key")
     }
 
+    /**
+     * 既存のセッションの作業フォルダから、ワークツリーのセッションを分けて作る。ブランチは `openclaw/<name>`
+     * （名前を省くと Gateway が会話のタイトルから付ける）。[fork] なら会話の中身も引き継ぐ。作られた key を返す。
+     */
+    suspend fun createWorktree(parent: SessionSummary, agentId: String, name: String?, baseRef: String?, fork: Boolean): String? {
+        val cwd = parent.cwd ?: return null
+        val result = gateway.request("sessions.create", buildJsonObject {
+            put("agentId", agentId)
+            put("parentSessionKey", parent.key)
+            put("cwd", cwd)
+            put("worktree", true)
+            name?.takeIf(String::isNotBlank)?.let { put("worktreeName", it) }
+            baseRef?.takeIf(String::isNotBlank)?.let { put("worktreeBaseRef", it) }
+            if (fork) put("fork", true)
+            // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
+        }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject()
+        refresh(agentId)
+        return result?.string("key") ?: result?.string("sessionKey")
+    }
+
+    /**
+     * 新しいセッションで選べる作業フォルダの候補（新しく使った順）。これまでのセッションの作業フォルダと、
+     * Gateway が見つけたリポジトリのチェックアウトを合わせる。
+     */
+    suspend fun folderCandidates(agentId: String): List<String> {
+        val fromSessions = (_sessions.value[agentId]?.let { it.sessions + it.archived }.orEmpty())
+            .sortedByDescending { it.updatedAt ?: 0 }
+            .mapNotNull { it.cwd }
+        val observed = runCatching {
+            gateway.request("projects.list", buildJsonObject { put("includeObserved", true) }).asObject()
+        }.getOrNull()
+        val fromProjects = observed?.array("observedProjects").orEmpty()
+            .mapNotNull { it as? JsonObject }
+            .sortedByDescending { it.long("lastUsedAt") ?: 0 }
+            .flatMap { project -> project.array("checkouts").mapNotNull { (it as? JsonObject)?.string("path") } }
+        val recents = observed?.array("recents").orEmpty().mapNotNull { (it as? JsonObject)?.takeIf { r -> r.string("kind") == "folder" }?.string("folder") }
+        // 直近の 5 つまで（マスター指定 2026-11-23）
+        return (recents + fromSessions + fromProjects).map { it.trimEnd('/') }.filter(String::isNotBlank).distinct().take(MAX_FOLDER_CANDIDATES)
+    }
+
+    /** Gateway のマシンのフォルダの中のフォルダ（新しいセッションのフォルダ選択。`fs.listDir`、operator.admin）。 */
+    suspend fun listDir(path: String?): DirListing? {
+        val result = gateway.request("fs.listDir", buildJsonObject { path?.let { put("path", it) } }).asObject() ?: return null
+        return DirListing(
+            path = result.string("path") ?: return null,
+            parent = result.string("parent"),
+            home = result.string("home"),
+            entries = result.array("entries").mapNotNull { it as? JsonObject }.mapNotNull { e ->
+                DirEntry(e.string("name") ?: return@mapNotNull null, e.string("path") ?: return@mapNotNull null, e.bool("hidden") == true)
+            }.sortedWith(compareBy<DirEntry> { it.hidden }.thenBy { it.name.lowercase() }),
+        )
+    }
+
     private companion object {
+        const val MAX_FOLDER_CANDIDATES = 5
+        const val DIFF_POLLS = 10
+        const val DIFF_POLL_MS = 1_000L
+        /** ワークツリーを作るのは時間がかかることがある（リポジトリのコピー）。 */
+        const val WORKTREE_TIMEOUT_MS = 120_000L
         const val LIST_LIMIT = 100
         /** 1 つの一覧で読むページの上限（100 件 × 20）。 */
         const val MAX_PAGES = 20
     }
 }
+
+/** フォルダの一覧（[parent] はファイルシステムの根では null）。 */
+data class DirListing(val path: String, val parent: String?, val home: String?, val entries: List<DirEntry>)
+data class DirEntry(val name: String, val path: String, val hidden: Boolean)
+
+/** セッションの変更（`sessions.diff`）。[unavailable] は Git でない・止まっているなどの理由。 */
+data class SessionDiff(
+    val branch: String?,
+    val baseRef: String?,
+    val aheadCount: Int?,
+    val additions: Int,
+    val deletions: Int,
+    val files: List<DiffFile>,
+    val unavailable: String?,
+    val truncated: Boolean,
+)
+
+data class DiffFile(
+    val path: String,
+    val oldPath: String?,
+    val status: String,
+    val additions: Int,
+    val deletions: Int,
+    val binary: Boolean,
+    val patch: String?,
+)

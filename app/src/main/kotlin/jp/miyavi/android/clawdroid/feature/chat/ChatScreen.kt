@@ -141,16 +141,20 @@ internal fun ChatScreen(
     val sendFailed = stringResource(R.string.chat_send_failed)
     val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
     val retry = stringResource(R.string.action_retry)
+    val worktreeCreating = stringResource(R.string.worktree_creating)
+    val grouping by viewModel.sessionGrouping.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 ChatEvent.SendFailed -> if (snackbar.showSnackbar(sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) viewModel.send()
                 ChatEvent.PendingAlreadyTaken -> snackbar.showSnackbar(pendingAlreadyTaken)
+                ChatEvent.WorktreeCreating -> snackbar.showSnackbar(worktreeCreating)
                 is ChatEvent.Error -> snackbar.showSnackbar(event.message ?: sendFailed)
             }
         }
     }
     ChatContent(
+        grouping = grouping,
         inboundImages = inboundImages,
         state = state,
         composer = composer,
@@ -183,6 +187,15 @@ internal fun ChatScreen(
             updateSetting = viewModel::updateSessionSetting,
             reconnect = viewModel::reconnect,
             preloadAgents = viewModel::preloadAgentSessions,
+            setNewSessionCwd = viewModel::setNewSessionCwd,
+            loadFolderCandidates = viewModel::folderCandidates,
+            listDir = viewModel::listDir,
+            setGrouping = viewModel::setSessionGrouping,
+            createWorktree = viewModel::createWorktree,
+            setPinned = viewModel::setPinned,
+            loadDiff = viewModel::diff,
+            loadDiffSummary = viewModel::diffSummary,
+            forkToFolder = viewModel::forkToFolder,
         ),
     )
 }
@@ -210,6 +223,15 @@ data class ChatActions(
     val updateSetting: (SessionSetting, String?) -> Unit,
     val reconnect: () -> Unit,
     val preloadAgents: () -> Unit = {},
+    val setNewSessionCwd: (String?) -> Unit = {},
+    val loadFolderCandidates: suspend () -> List<String> = { emptyList() },
+    val listDir: suspend (String?) -> jp.miyavi.android.clawdroid.core.data.DirListing? = { null },
+    val setGrouping: (String, jp.miyavi.android.clawdroid.core.settings.SessionGrouping) -> Unit = { _, _ -> },
+    val createWorktree: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String?, String?, Boolean) -> Unit = { _, _, _, _ -> },
+    val setPinned: (jp.miyavi.android.clawdroid.core.data.SessionSummary, Boolean) -> Unit = { _, _ -> },
+    val loadDiff: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
+    val loadDiffSummary: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
+    val forkToFolder: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit = { _, _ -> },
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -225,7 +247,11 @@ fun ChatContent(
     slashCommands: List<jp.miyavi.android.clawdroid.core.data.SlashCommand> = emptyList(),
     hasQuestion: Boolean = false,
     onOpenQuestion: () -> Unit = {},
+    grouping: Map<String, jp.miyavi.android.clawdroid.core.settings.SessionGrouping> = emptyMap(),
 ) {
+    var pickingFolder by rememberSaveable { mutableStateOf(false) }
+    // タイトルバーの ⋮ から開いたもの（名前の変更・変更量・別のフォルダ）
+    var sessionAction by rememberSaveable { mutableStateOf<SessionAction?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val hazeState = rememberHazeState()
@@ -298,7 +324,7 @@ fun ChatContent(
             drawerContent = {
                 // 全画面のサイドパネル（Gemini 型）。開くと画面いっぱいまで広がる
                 SidePanel(
-                    agents = agents,
+                    agents = state.sidebarAgents,
                     selectedAgentId = state.selectedAgentId,
                     onSelectAgent = actions.selectAgent,
                     sessionsByAgent = state.sessionsByAgent,
@@ -318,6 +344,13 @@ fun ChatContent(
                     onDelete = actions.delete,
                     onOpenAutomations = { agent -> scope.launch { drawerState.close() }; navigation.openAutomations(agent) },
                     onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
+                    groupingByAgent = grouping,
+                    onGroupingChange = actions.setGrouping,
+                    onUnpin = { actions.setPinned(it, false) },
+                    onCreateWorktree = { session, name, base, fork ->
+                        scope.launch { drawerState.close() }
+                        actions.createWorktree(session, name, base, fork)
+                    },
                 )
             },
         ) {
@@ -337,6 +370,9 @@ fun ChatContent(
                             state = state,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             navigation = navigation,
+                            onSessionAction = { sessionAction = it },
+                            onTogglePin = { state.currentSession?.let { actions.setPinned(it, !it.pinned) } },
+                            loadDiffSummary = actions.loadDiffSummary,
                         )
                         ConnectionBanner(
                             state.connection,
@@ -382,8 +418,14 @@ fun ChatContent(
             ) { padding ->
                 // 会話は入力欄の裏まで描き、最後の行は入力欄の上に来るよう下の余白で押し上げる
                 Box(Modifier.fillMaxSize()) {
-                    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                    val linkActions = jp.miyavi.android.clawdroid.feature.chat.message.rememberLinkActions(snackbar)
+                    CompositionLocalProvider(
+                        LocalUriHandler provides uriHandler,
+                        jp.miyavi.android.clawdroid.feature.chat.message.LocalLinkActions provides linkActions,
+                    ) {
                         MessageList(
+                            newSessionCwd = composer.newSessionCwd,
+                            onPickFolder = { pickingFolder = true },
                             state = state,
                             listState = listState,
                             contentPadding = PaddingValues(
@@ -417,6 +459,38 @@ fun ChatContent(
             }
         }
         ImageOverlay(image = openedImage, onDismiss = { openedImage = null })
+        val current = state.currentSession
+        when (sessionAction) {
+            SessionAction.RENAME -> if (current != null) SessionRenameDialog(current.title.orEmpty(), onDismiss = { sessionAction = null }) {
+                sessionAction = null
+                actions.rename(current, it)
+            }
+            SessionAction.DIFF -> if (current != null) SessionDiffSheet(current, hazeState, actions.loadDiff) { sessionAction = null }
+            SessionAction.MOVE -> if (current != null) FolderPickerSheet(
+                hazeState = hazeState,
+                current = current.cwd,
+                load = actions.loadFolderCandidates,
+                listDir = actions.listDir,
+                onPick = { cwd ->
+                    sessionAction = null
+                    if (cwd != null && cwd != current.cwd) actions.forkToFolder(current, cwd)
+                },
+                onDismiss = { sessionAction = null },
+                title = R.string.session_move_title,
+                allowDefault = false,
+            )
+            null -> Unit
+        }
+        if (pickingFolder) {
+            FolderPickerSheet(
+                hazeState = hazeState,
+                current = composer.newSessionCwd,
+                load = actions.loadFolderCandidates,
+                listDir = actions.listDir,
+                onPick = { pickingFolder = false; actions.setNewSessionCwd(it) },
+                onDismiss = { pickingFolder = false },
+            )
+        }
         openedVideo?.let { VideoPreviewSheet(it, hazeState) { openedVideo = null } }
         if (showSessionSheet) {
             ComposerSessionSheet(
@@ -452,6 +526,9 @@ private fun SessionTitleBar(
     state: ChatScreenState,
     onOpenDrawer: () -> Unit,
     navigation: ChatNavigation,
+    onSessionAction: (SessionAction) -> Unit = {},
+    onTogglePin: () -> Unit = {},
+    loadDiffSummary: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
 ) {
     AppTitleBar(
         hazeState = hazeState,
@@ -483,6 +560,8 @@ private fun SessionTitleBar(
             IconButton(onClick = { navigation.openTerminal(key, agentId, state.currentSession?.cwd) }) {
                 Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal))
             }
+            // そのほかの操作は ⋮ に（マスター指定 2026-11-23）
+            state.currentSession?.let { session -> SessionMoreMenu(session, onSessionAction, onTogglePin, loadDiffSummary) }
         },
     )
 }
@@ -521,6 +600,8 @@ private fun MessageList(
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
     hazeState: dev.chrisbanes.haze.HazeState,
+    newSessionCwd: String? = null,
+    onPickFolder: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // 透かす元は会話の中身だけ（高速スクロールの吹き出しは透かす側なので、元に含めない）
@@ -560,12 +641,29 @@ private fun MessageList(
     when {
         state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && messages.isEmpty() && live == null) -> {
             Box(sourceModifier, contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(R.string.chat_empty_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(contentPadding),
-                )
+                Column(Modifier.padding(contentPadding), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        stringResource(R.string.chat_empty_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // 新しいセッションでは、作業フォルダを選べる（最初の 1 通で作られる）
+                    if (state.currentSessionKey == null) {
+                        androidx.compose.material3.AssistChip(
+                            onClick = onPickFolder,
+                            label = {
+                                Text(
+                                    newSessionCwd?.substringAfterLast('/')?.ifEmpty { newSessionCwd } ?: stringResource(R.string.new_session_folder_default),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_huge_folder), contentDescription = null, modifier = Modifier.size(Dimens.smallIcon)) },
+                            modifier = Modifier.padding(top = Spacing.l).widthIn(max = Dimens.settingMenuMaxWidth)
+
+                        )
+                    }
+                }
             }
         }
         chat == null || (chat.loading && messages.isEmpty()) -> Box(sourceModifier, contentAlignment = Alignment.Center) { LoadingIndicator() }

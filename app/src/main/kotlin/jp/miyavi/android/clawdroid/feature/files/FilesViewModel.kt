@@ -2,8 +2,6 @@ package jp.miyavi.android.clawdroid.feature.files
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import jp.miyavi.android.clawdroid.core.data.DownloadResult
-import jp.miyavi.android.clawdroid.core.data.DownloadSource
 import jp.miyavi.android.clawdroid.core.data.FileDownloads
 import jp.miyavi.android.clawdroid.core.data.FileEntry
 import jp.miyavi.android.clawdroid.core.data.FileListing
@@ -98,8 +96,6 @@ sealed interface FilesEvent {
     data object Saved : FilesEvent
     data class SaveFailed(val message: String?) : FilesEvent
     data object FileGone : FilesEvent
-    data class Downloaded(val result: DownloadResult.Saved) : FilesEvent
-    data class DownloadFailed(val reason: DownloadSource.Reason) : FilesEvent
 }
 
 /**
@@ -355,19 +351,10 @@ class FilesViewModel(
 
     fun dismissConflict() = updateReady { it.copy(conflict = false) }
 
-    /** ダウンロード（FR-013）。`path` を渡さなければ開いているファイル。 */
+    /** ダウンロード（FR-013）。`path` を渡さなければ開いているファイル。進み具合はアプリ全体（上部と通知）に出る。 */
     fun download(path: String? = null) {
         val target = path ?: _state.value.opened?.path ?: return
-        val root = _state.value.root
-        viewModelScope.launch {
-            val result = runCatchingNonCancel { downloader.download(root, target) } ?: DownloadResult.Failed(DownloadSource.Reason.FAILED)
-            _events.tryEmit(
-                when (result) {
-                    is DownloadResult.Saved -> FilesEvent.Downloaded(result)
-                    is DownloadResult.Failed -> FilesEvent.DownloadFailed(result.reason)
-                },
-            )
-        }
+        downloader.start(_state.value.root, target)
     }
 
     private inline fun updateReady(crossinline block: (OpenedState.Ready) -> OpenedState.Ready) =

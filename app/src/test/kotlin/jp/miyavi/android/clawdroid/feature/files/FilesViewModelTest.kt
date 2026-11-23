@@ -71,7 +71,7 @@ class FilesViewModelTest {
     private val files = FakeFiles()
     private val drafts = FakeDrafts()
     private fun viewModel(hasWorkingFolder: Boolean = true) = FilesViewModel(
-        files, { _, _ -> DownloadResult.Failed(DownloadSource.Reason.FAILED) }, drafts, "agent:a:s1", "a", hasWorkingFolder,
+        files, { _, _ -> }, drafts, "agent:a:s1", "a", hasWorkingFolder,
     )
 
     // 下書きの間引き（delay）を実時間で進めるため、仮想時間のテスト用ではなく素の Unconfined を使う

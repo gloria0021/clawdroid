@@ -1,5 +1,9 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
 import kotlin.math.exp
 import androidx.compose.runtime.withFrameNanos
@@ -15,9 +19,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.lerp
-import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.core.data.PendingInput
 import androidx.compose.runtime.key
 import androidx.compose.animation.core.MutableTransitionState
@@ -499,43 +501,49 @@ internal fun contextLevel(fraction: Float?): ContextLevel = when {
 @Composable
 private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
-    val accent = accentContainer()
     val motion = MaterialTheme.motionScheme
-    val level = contextLevel(contextFraction)
-    // 利用者のメッセージと同じくすみ色。コンテキストが残り少ない（80% 以上）ときだけ error のくすみ色にして知らせる
-    val mix = if (colors.surface.luminance() < 0.5f) PILL_MIX_DARK else PILL_MIX_LIGHT
-    val container by animateColorAsState(
-        when (level) {
-            ContextLevel.LOW, ContextLevel.MEDIUM -> accent.container
-            ContextLevel.HIGH -> lerp(colors.error, colors.surface, mix)
-        },
-        motion.defaultEffectsSpec(),
-        label = "modelPillContainer",
-    )
-    val content by animateColorAsState(
-        if (level == ContextLevel.HIGH) colors.onSurface else accent.content,
-        motion.defaultEffectsSpec(),
-        label = "modelPillContent",
-    )
+    // 使用量の帯と同じ表し方（マスター指定 2026-11-23）: 使ったコンテキストの分だけ淡いテーマの色で塗り、下の縁にテーマの色の線。
+    // 残りが少なくても赤にしない（帯の長さで消費率が分かるため。マスター指定 2026-11-23）。伸びはばね
+    val strong = colors.primary
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(contextFraction) { progress.animateTo((contextFraction ?: 0f).coerceIn(0f, 1f), motion.defaultSpatialSpec()) }
+    val density = LocalDensity.current
+    val edge = with(density) { Dimens.usageMeterEdge.toPx() }
     val name = model?.let(::shortModelName) ?: stringResource(R.string.chat_setting_default)
     val percent = contextFraction?.let { NumberFormat.getPercentInstance().format(it) }
     val cd = if (percent != null) stringResource(R.string.chat_model_pill_cd, name, percent) else name
     Surface(
         onClick = onClick,
         shape = CircleShape,
-        color = container,
-        contentColor = content,
+        // 下地は入力欄の面に文字色を少し重ねた色（ダークでは surfaceContainerHigh が入力欄と見分けられず、ピルが途切れて見えたため）
+        color = lerp(sheetFieldColor(), colors.onSurface, if (colors.surface.luminance() < 0.5f) PILL_TRACK_DARK else PILL_TRACK_LIGHT),
+        contentColor = colors.onSurface,
         modifier = modifier.heightIn(min = Dimens.compactTouchTarget).widthIn(max = Dimens.modelPillMaxWidth).semantics { contentDescription = cd },
     ) {
-        Row(Modifier.padding(horizontal = Spacing.m), verticalAlignment = Alignment.CenterVertically) {
-            Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(
+            Modifier
+                .drawBehind {
+                    val width = size.width * progress.value
+                    if (width > 0f) {
+                        drawRect(lerp(strong, colors.surface, PILL_FILL_MIX), size = size.copy(width = width))
+                        drawRect(strong, topLeft = Offset(0f, size.height - edge), size = Size(width, edge))
+                    }
+                }
+                .padding(horizontal = Spacing.m),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(vertical = Spacing.s))
         }
     }
 }
 
-/** モデルのピルで、基準の色を背景に溶かす割合。 */
-private const val PILL_MIX_LIGHT = 0.72f
-private const val PILL_MIX_DARK = 0.62f
+/** モデルのピルの塗りで、強調の色を背景に溶かす割合（使用量の帯と同じ）。 */
+private const val PILL_FILL_MIX = 0.78f
+/** モデルのピルの下地で、入力欄の面に重ねる文字色の割合（ライト / ダーク）。 */
+private const val PILL_TRACK_LIGHT = 0.08f
+private const val PILL_TRACK_DARK = 0.16f
+
 
 /** コンテキストの消費の境目（中・高）。 */
 private const val CONTEXT_MEDIUM = 0.5f

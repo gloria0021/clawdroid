@@ -26,6 +26,9 @@ enum class AppFont { LINE_SEED_JP, SYSTEM }
 
 enum class LockScreenContent { FOLLOW_SYSTEM, HIDE }
 
+/** セッション履歴の並べ方。 */
+enum class SessionGrouping { UPDATED, FOLDER }
+
 data class ThemeSettings(
     val appearance: Appearance = Appearance.SYSTEM,
     val theme: AppTheme = AppTheme.OPENCLAW,
@@ -122,6 +125,24 @@ class SettingsStore(context: Context) {
     suspend fun setLockScreenContent(v: LockScreenContent) = store.edit { it[LOCK_SCREEN] = v.name }
 
     suspend fun selectAgent(agentId: String) = store.edit { it[SELECTED_AGENT] = agentId }
+    /** サイドパネルに出すエージェントの並びと表示（設定 → エージェント）。 */
+    val agentLayout: Flow<AgentLayout> = store.data.map { p ->
+        p[AGENT_LAYOUT]?.let { runCatching { json.decodeFromString<AgentLayout>(it) }.getOrNull() } ?: AgentLayout()
+    }.distinctUntilChanged()
+
+    /** セッション履歴の並べ方（エージェントごと。マスター指定 2026-11-23）。無ければ更新順。 */
+    val sessionGrouping: Flow<Map<String, SessionGrouping>> = store.data.map { p ->
+        p[SESSION_GROUPING_BY_AGENT]?.let { runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull() }.orEmpty()
+            .mapNotNull { (agent, v) -> runCatching { SessionGrouping.valueOf(v) }.getOrNull()?.let { agent to it } }.toMap()
+    }.distinctUntilChanged()
+
+    suspend fun setSessionGrouping(agentId: String, v: SessionGrouping) = store.edit { p ->
+        val current = p[SESSION_GROUPING_BY_AGENT]?.let { runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull() }.orEmpty()
+        p[SESSION_GROUPING_BY_AGENT] = json.encodeToString(current + (agentId to v.name))
+    }
+
+    suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
+
     suspend fun selectSession(agentId: String, sessionKey: String?) = store.edit { p ->
         val current = p[SELECTED_SESSIONS]?.let {
             runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull()
@@ -147,6 +168,8 @@ class SettingsStore(context: Context) {
         val LOCK_SCREEN = stringPreferencesKey("lock_screen_content")
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
         val SELECTED_SESSIONS = stringPreferencesKey("selected_sessions")
+        val AGENT_LAYOUT = stringPreferencesKey("agent_layout")
+        val SESSION_GROUPING_BY_AGENT = stringPreferencesKey("session_grouping_by_agent")
     }
 }
 

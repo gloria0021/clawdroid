@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -74,6 +75,9 @@ data class SettingsState(
     val connection: ConnectionState,
     val url: String?,
     val version: String,
+    /** サイドパネルに出しているエージェントの数 / すべての数。 */
+    val agentsShown: Int = 0,
+    val agentsTotal: Int = 0,
 )
 
 data class SettingsActions(
@@ -90,6 +94,7 @@ data class SettingsActions(
     val disconnect: () -> Unit,
     val forget: () -> Unit,
     val restart: () -> Unit,
+    val openAgentLayout: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -168,6 +173,17 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             supportingContent = { Text(stringResource(R.string.settings_restart_desc)) },
                             colors = transparentItem(),
                             modifier = Modifier.clickable(role = Role.Button, onClick = actions.restart),
+                        )
+                    }
+                }
+                // エージェント: サイドパネルに出すエージェントと並び
+                item(key = "agents") {
+                    Section(R.string.settings_section_agents) {
+                        ChoiceItem(
+                            icon = R.drawable.ic_huge_layers,
+                            title = stringResource(R.string.settings_agents_layout),
+                            value = stringResource(R.string.settings_agents_layout_value, state.agentsShown, state.agentsTotal),
+                            onClick = actions.openAgentLayout,
                         )
                     }
                 }
@@ -397,17 +413,36 @@ private fun CustomColorDialog(initial: Int, onDismiss: () -> Unit, onSave: (Int)
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_custom_color)) },
         text = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.settings_custom_color_hint)) },
-                    isError = parsed == null,
-                    supportingText = if (parsed == null) ({ Text(stringResource(R.string.settings_custom_color_invalid)) }) else null,
-                    modifier = Modifier.weight(1f),
-                )
-                Box(Modifier.size(Dimens.minTouchTarget).background(parsed?.let(::Color) ?: Color.Transparent, CircleShape))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { value = it },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.settings_custom_color_hint)) },
+                        isError = parsed == null,
+                        supportingText = if (parsed == null) ({ Text(stringResource(R.string.settings_custom_color_invalid)) }) else null,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(Modifier.size(Dimens.minTouchTarget).background(parsed?.let(::Color) ?: Color.Transparent, CircleShape))
+                }
+                // 赤・緑・青のスライダー（Gerbil と同じ）。動かすとコードの欄も変わる
+                if (parsed != null) {
+                    Column(Modifier.heightIn(max = Dimens.colorControlsMaxHeight).verticalScroll(rememberScrollState()).padding(top = Spacing.s)) {
+                        listOf(R.string.settings_color_red to 16, R.string.settings_color_green to 8, R.string.settings_color_blue to 0).forEach { (label, shift) ->
+                            val channel = (parsed shr shift) and 0xFF
+                            Text(stringResource(R.string.settings_color_channel, stringResource(label), channel), style = MaterialTheme.typography.labelMedium)
+                            Slider(
+                                value = channel.toFloat(),
+                                valueRange = 0f..255f,
+                                onValueChange = { new ->
+                                    val changed = (parsed and (0xFF shl shift).inv()) or (new.roundToInt() shl shift)
+                                    value = colorHex(changed)
+                                },
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = { parsed?.let(onSave) }, enabled = parsed != null) { Text(stringResource(R.string.action_save)) } },

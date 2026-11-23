@@ -1,13 +1,12 @@
 package jp.miyavi.android.clawdroid.feature.files
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clipToBounds
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import jp.miyavi.android.clawdroid.navigation.popTransition
 import jp.miyavi.android.clawdroid.navigation.pushTransition
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
@@ -29,7 +28,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,7 +49,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.R
-import jp.miyavi.android.clawdroid.core.data.DownloadSource
 import jp.miyavi.android.clawdroid.core.data.FileRoot
 import jp.miyavi.android.clawdroid.core.data.MessagePart
 import jp.miyavi.android.clawdroid.core.designsystem.AppTitleBar
@@ -66,38 +63,15 @@ import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
 fun FilesScreen(viewModel: FilesViewModel, onSwitchToTerminal: (() -> Unit)? = null, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
     val saved = stringResource(R.string.files_saved)
     val saveFailed = stringResource(R.string.files_save_failed)
     val gone = stringResource(R.string.files_gone)
-    val openLabel = stringResource(R.string.files_open_download)
-    val noApp = stringResource(R.string.files_no_app)
-    val downloadedFormat = stringResource(R.string.files_downloaded)
-    val downloadReasons = mapOf(
-        DownloadSource.Reason.TOO_LARGE to stringResource(R.string.files_download_too_large),
-        DownloadSource.Reason.NO_HTTP to stringResource(R.string.files_download_no_http),
-        DownloadSource.Reason.MISSING to stringResource(R.string.files_download_missing),
-        DownloadSource.Reason.FAILED to stringResource(R.string.files_download_failed),
-    )
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 FilesEvent.Saved -> snackbar.showSnackbar(saved)
                 is FilesEvent.SaveFailed -> snackbar.showSnackbar(event.message?.let { "$saveFailed: $it" } ?: saveFailed)
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
-                is FilesEvent.DownloadFailed -> snackbar.showSnackbar(downloadReasons.getValue(event.reason))
-                is FilesEvent.Downloaded -> {
-                    val result = snackbar.showSnackbar(downloadedFormat.format(event.result.displayName), openLabel, duration = SnackbarDuration.Long)
-                    if (result == SnackbarResult.ActionPerformed) {
-                        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(event.result.uri, event.result.mimeType)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        try {
-                            context.startActivity(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            snackbar.showSnackbar(noApp)
-                        }
-                    }
-                }
             }
         }
     }
@@ -156,6 +130,7 @@ internal fun FilesContent(
 ) {
     val hazeState = rememberHazeState()
     val htmlFind = remember { HtmlFindState() }
+    val linkActions = jp.miyavi.android.clawdroid.feature.chat.message.rememberLinkActions(snackbar)
     val opened = state.opened
     val ready = opened as? OpenedState.Ready
     // 確認・検索・編集はページの中で戻す。ファイル → 一覧 → 上のフォルダは下の重なり（予測型「戻る」）で 1 段ずつ。
@@ -163,6 +138,7 @@ internal fun FilesContent(
     BackHandler(enabled = state.handlesBackInPage, onBack = onBack)
     var overlayImage by remember { mutableStateOf<MessagePart.Image?>(null) }
 
+    androidx.compose.runtime.CompositionLocalProvider(jp.miyavi.android.clawdroid.feature.chat.message.LocalLinkActions provides linkActions) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -252,7 +228,12 @@ internal fun FilesContent(
                     transitionSpec = { pushTransition() },
                     popTransitionSpec = { popTransition() },
                     predictivePopTransitionSpec = { _ -> popTransition() },
-                    entryProvider = { page -> NavEntry(page) { pageContent(page) } },
+                    // 各ページに不透明な背景を敷く（重なって動くあいだ、下のページの文字が透けないように）
+                    entryProvider = { page ->
+                        NavEntry(page) {
+                            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) { pageContent(page) }
+                        }
+                    },
                 )
             }
             if (showControls && ready != null) {
@@ -285,6 +266,7 @@ internal fun FilesContent(
                 )
             }
         }
+    }
     }
     ImageOverlay(overlayImage) { overlayImage = null }
 

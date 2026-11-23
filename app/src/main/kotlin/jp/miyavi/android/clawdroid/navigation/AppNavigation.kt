@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import jp.miyavi.android.clawdroid.core.settings.AgentLayout
+import jp.miyavi.android.clawdroid.core.settings.visible
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
@@ -80,6 +82,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object ChatRoute : NavKey
 @Serializable data object SettingsRoute : NavKey
 @Serializable data class AutomationsRoute(val agentId: String, val agentName: String) : NavKey
+@Serializable data class AutomationDetailRoute(val jobId: String) : NavKey
+@Serializable data object AgentLayoutRoute : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
@@ -111,6 +115,10 @@ fun AppNavigation(container: AppContainer) {
         } else {
             val approvalHaze = rememberHazeState()
             Box(Modifier.fillMaxSize().hazeSource(approvalHaze)) { MainNavigation(container) }
+            // ダウンロードの進み具合は、どの画面でも上部に出す
+            jp.miyavi.android.clawdroid.core.designsystem.DownloadBanner(
+                container.downloads, approvalHaze, Modifier.align(Alignment.TopCenter),
+            )
             ApprovalPrompt(container.approvals, container.sessions, approvalHaze)
             // 承認を先に出す。承認が無いときだけ質問のシートを出す（シートを重ねない）
             val approvals by container.approvals.requests.collectAsStateWithLifecycle()
@@ -187,8 +195,11 @@ private fun MainNavigation(container: AppContainer) {
                 val connection by container.gateway.state.collectAsStateWithLifecycle()
                 var url by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(Unit) { url = container.secrets.loadConnection()?.url }
+                val agentsState by container.sessions.agents.collectAsStateWithLifecycle()
+                val agentLayout by container.settings.agentLayout.collectAsStateWithLifecycle(AgentLayout())
+                val shown = remember(agentsState.agents, agentLayout) { agentLayout.visible(agentsState.agents).size }
                 SettingsContent(
-                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME),
+                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size),
                     snackbar = snackbar,
                     actions = SettingsActions(
                         onBack = { gate.run { backStack.pop() } },
@@ -204,12 +215,45 @@ private fun MainNavigation(container: AppContainer) {
                         disconnect = container.gateway::disconnect,
                         forget = { scope.launch { container.gateway.forget() } },
                         restart = { confirmRestart = true },
+                        openAgentLayout = { gate.run { backStack.push(AgentLayoutRoute) } },
                     ),
+                )
+            }
+            entry<AgentLayoutRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val agentsState by container.sessions.agents.collectAsStateWithLifecycle()
+                val agentLayout by container.settings.agentLayout.collectAsStateWithLifecycle(AgentLayout())
+                jp.miyavi.android.clawdroid.feature.settings.AgentLayoutScreen(
+                    agents = agentsState.agents,
+                    layout = agentLayout,
+                    onChange = { scope.launch { container.settings.setAgentLayout(it) } },
+                    onBack = { gate.run { backStack.pop() } },
                 )
             }
             entry<AutomationsRoute> { route ->
                 val gate = rememberNavGate(onBack = { backStack.pop() })
-                AutomationsScreen(container.gateway, route.agentId, route.agentName) { gate.run { backStack.pop() } }
+                val automations = remember { jp.miyavi.android.clawdroid.core.data.AutomationsRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.automation.AutomationsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { jp.miyavi.android.clawdroid.feature.automation.AutomationsViewModel(automations, route.agentId) }
+                    },
+                )
+                AutomationsScreen(
+                    viewModel = vm,
+                    agentName = route.agentName,
+                    onOpen = { job -> gate.run { backStack.push(AutomationDetailRoute(job.id)) } },
+                    onBack = { gate.run { backStack.pop() } },
+                )
+            }
+            entry<AutomationDetailRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val automations = remember { jp.miyavi.android.clawdroid.core.data.AutomationsRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.automation.AutomationDetailViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { jp.miyavi.android.clawdroid.feature.automation.AutomationDetailViewModel(automations, route.jobId) }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.automation.AutomationDetailScreen(vm) { gate.run { backStack.pop() } }
             }
             entry<TerminalRoute> { route ->
                 val gate = rememberNavGate(onBack = { backStack.pop() })
@@ -256,7 +300,7 @@ private fun MainNavigation(container: AppContainer) {
                             initializer {
                                 jp.miyavi.android.clawdroid.feature.files.FilesViewModel(
                                     files = files,
-                                    downloader = jp.miyavi.android.clawdroid.core.data.FileDownloader(files, container.gateway, context.contentResolver),
+                                    downloader = container.downloads,
                                     drafts = container.database.fileDrafts(),
                                     sessionKey = route.sessionKey,
                                     agentId = route.agentId,

@@ -57,4 +57,10 @@ object Dimens {
     val scrollbarThin = 4.dp
     val scrollbarThick = 8.dp
     val scrollbarThumbLength = 48.dp
+    /** カスタムの色のスライダーの最大の高さ（超えると中でスクロール）。 */
+    val colorControlsMaxHeight = 240.dp
+    /** フォルダ選択の一覧の最大の高さ（超えると中でスクロール）。 */
+    val folderBrowserMaxHeight = 420.dp
+    /** 使用量の帯の、使った所の下の縁の線の太さ。 */
+    val usageMeterEdge = 4.dp
 }

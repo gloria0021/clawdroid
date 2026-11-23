@@ -327,11 +327,13 @@ fun ToolDetails(parts: List<MessagePart.ToolCall>, expanded: Boolean, modifier: 
 @Composable
 private fun MarkdownText(markdown: String, parsed: com.mikepenz.markdown.model.State?) {
     SelectionContainer {
+        // 段落のリンクは長押しでメニュー（コピー・ダウンロード・ブラウザで開く）
+        val components = remember { linkAwareComponents() }
         if (parsed != null) {
             // 解析済み（ViewModel で作った）。組み立てるだけ
-            Markdown(state = parsed, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding())
+            Markdown(state = parsed, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding(), components = components)
         } else {
-            Markdown(content = markdown, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding())
+            Markdown(content = markdown, colors = markdownColor(), typography = appMarkdownTypography(), padding = appMarkdownPadding(), components = components)
         }
     }
 }

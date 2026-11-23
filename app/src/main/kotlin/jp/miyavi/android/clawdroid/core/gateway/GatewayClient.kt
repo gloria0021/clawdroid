@@ -10,6 +10,7 @@ import jp.miyavi.android.clawdroid.core.security.SecretStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -255,20 +256,69 @@ class GatewayClient(
      * Gateway が返した相対の短命リンク（`sessions.files.download` の `url`）を HTTP で取り、中身を [sink] に渡す。
      * リンクはこの接続に紐付くため認証は要らないが、前段に認証のある構成に備えて Bearer も付ける。届かなければ false。
      */
-    suspend fun downloadLink(relativeUrl: String, sink: (java.io.InputStream) -> Unit): Boolean {
-        val connection = secrets.loadConnection() ?: return false
-        val base = connection.url.wsToHttpUrl() ?: return false
-        val url = base.resolve(relativeUrl) ?: return false
+    /** 1 回分の受け取りの結果。 */
+    enum class LinkAttempt {
+        /** 最後まで受け取った。 */
+        COMPLETE,
+        /** 途中で切れた・リンクが失効した（つなぎ直して新しいリンクで続きから受け取れる）。 */
+        RETRY,
+        /** 受け取れない（権限など）。 */
+        FAIL,
+    }
+
+    /**
+     * Gateway が返した相対の短命リンク（`sessions.files.download` の `url`）を HTTP で取る。[from] バイト目から
+     * 続きを頼み（Range）、[sink] には（中身, 続きから受け取れたか, 全体の大きさ）を渡す。
+     * リンクはこの接続に紐付くため、接続が切れると失効する（そのときは [LinkAttempt.RETRY]）。
+     */
+    suspend fun downloadLink(
+        relativeUrl: String,
+        from: Long = 0,
+        sink: (input: java.io.InputStream, resumed: Boolean, total: Long?) -> Unit,
+    ): LinkAttempt {
+        val connection = secrets.loadConnection() ?: return LinkAttempt.FAIL
+        val base = connection.url.wsToHttpUrl() ?: return LinkAttempt.FAIL
+        val url = base.resolve(relativeUrl) ?: return LinkAttempt.FAIL
         val token = listOfNotNull(connection.deviceToken, connection.gatewayToken).map(String::trim).firstOrNull(String::isNotEmpty)
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val request = Request.Builder().url(url).apply { token?.let { header("Authorization", "Bearer $it") } }.build()
-                httpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use false
-                    response.body.byteStream().use(sink)
-                    true
+            val request = Request.Builder().url(url).apply {
+                token?.let { header("Authorization", "Bearer $it") }
+                if (from > 0) header("Range", "bytes=$from-")
+            }.build()
+            val call = httpClient.newCall(request)
+            // 中止（コルーチンの取り消し）で、読み込み中の通信も止める
+            val cancelOnStop = currentCoroutineContext()[Job]?.invokeOnCompletion { if (it != null) call.cancel() }
+            try {
+                call.execute().use { response ->
+                    when {
+                        response.code == 206 -> {
+                            val total = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
+                            response.body.byteStream().use { sink(it, true, total) }
+                            LinkAttempt.COMPLETE
+                        }
+                        response.isSuccessful -> {
+                            val total = response.body.contentLength().takeIf { it >= 0 }
+                            response.body.byteStream().use { sink(it, false, total) }
+                            LinkAttempt.COMPLETE
+                        }
+                        // 失効したリンク（接続が替わった）は、新しいリンクでやり直す
+                        response.code == 404 || response.code == 410 || response.code >= 500 -> {
+                            android.util.Log.w("ClawdroidDownload", "HTTP ${response.code}, retrying with a new link")
+                            LinkAttempt.RETRY
+                        }
+                        else -> {
+                            android.util.Log.w("ClawdroidDownload", "HTTP ${response.code}")
+                            LinkAttempt.FAIL
+                        }
+                    }
                 }
-            }.getOrDefault(false)
+            } catch (e: java.io.IOException) {
+                if (call.isCanceled()) throw kotlinx.coroutines.CancellationException("download cancelled")
+                android.util.Log.w("ClawdroidDownload", "connection dropped, will resume", e)
+                LinkAttempt.RETRY
+            } finally {
+                cancelOnStop?.dispose()
+            }
         }
     }
 

@@ -56,10 +56,9 @@ fun ThinkingIndicator(
         }
     }
     val label = phrases[phraseIndex]
-    val count = remember(reportedOutputTokens, outputText) {
-        reportedOutputTokens?.let(::formatReportedOutputTokens)
-            ?: outputText.takeIf(String::isNotBlank)?.let { formatOutputTokens(estimateOutputTokens(it)) }
-    }
+    // Gateway から実際の数が届いたときだけ出す（画面の文からの見積もりは、思考やツールの分が入らず小さく出て誤解を招くので出さない。
+    // マスター指定 2026-11-23）
+    val count = remember(reportedOutputTokens) { reportedOutputTokens?.let(::formatReportedOutputTokens) }
     // 1 行目: 言い回し。2 行目: 経過時間とトークン数（マスター指定 2026-11-23）
     Column(
         modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
@@ -79,7 +78,7 @@ fun ThinkingIndicator(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (count != null) Text(
-                stringResource(if (reportedOutputTokens != null) R.string.chat_output_tokens_live else R.string.chat_output_tokens_estimated, count),
+                stringResource(R.string.chat_output_tokens_live, count),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

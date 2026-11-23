@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import jp.miyavi.android.clawdroid.core.data.providerBrand
 import jp.miyavi.android.clawdroid.core.data.ProviderBrand
 import jp.miyavi.android.clawdroid.core.data.ContextBreakdown
-import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
@@ -320,9 +319,12 @@ private fun ContextBar(breakdown: ContextBreakdown?, limit: Long, fraction: Floa
     val motion = MaterialTheme.motionScheme
     val grow = remember { Animatable(0f) }
     LaunchedEffect(Unit) { grow.animateTo(1f, motion.defaultSpatialSpec()) }
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val colors = MaterialTheme.colorScheme
+    val track = colors.surfaceContainerHighest
+    // 内訳が無いときは 1 色の帯。くすみ色だと下地と見分けにくいので、はっきりした強調の色（残りが少ないときはエラーの色）
+    val single = if (contextLevel(fraction) == ContextLevel.HIGH) colors.error else colors.primary
     val segments = breakdown?.parts()?.mapNotNull { (part, tokens) -> tokens?.let { part.color() to it.toFloat() / limit } }
-        ?: listOf(accentContainer().container to fraction)
+        ?: listOf(single to fraction)
     Box(
         Modifier.fillMaxWidth().height(Dimens.usageBarHeight).clip(CircleShape).background(track).drawBehind {
             var x = 0f
@@ -392,7 +394,11 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
     val progress = remember { Animatable(0f) }
     LaunchedEffect(fraction) { progress.animateTo(fraction.coerceIn(0f, 1f), motion.defaultSpatialSpec()) }
     val high = contextLevel(fraction) == ContextLevel.HIGH
-    val fill = if (high) lerp(colors.error, colors.surface, METER_FILL_MIX) else accentContainer().container
+    // 塗りは文字が読める淡い色、使った所の下の縁にはっきりした強調の色の線を引く（下地との差が分かるように）
+    val strong = if (high) colors.error else colors.primary
+    val fill = lerp(strong, colors.surface, METER_FILL_MIX)
+    val density = LocalDensity.current
+    val edge = with(density) { Dimens.usageMeterEdge.toPx() }
     val shape = MaterialTheme.shapes.medium
     Box(
         Modifier
@@ -400,7 +406,11 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
             .heightIn(min = Dimens.compactTouchTarget + Spacing.s)
             .clip(shape)
             .background(colors.surfaceContainer)
-            .drawBehind { drawRect(fill, size = size.copy(width = size.width * progress.value)) },
+            .drawBehind {
+                val width = size.width * progress.value
+                drawRect(fill, size = size.copy(width = width))
+                drawRect(strong, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - edge), size = androidx.compose.ui.geometry.Size(width, edge))
+            },
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
@@ -419,8 +429,8 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
     }
 }
 
-/** 上限に近いときの塗りで、error を背景に溶かす割合。 */
-private const val METER_FILL_MIX = 0.72f
+/** 使用量の塗りで、強調の色を背景に溶かす割合（文字が読める淡さ）。 */
+private const val METER_FILL_MIX = 0.78f
 
 /** Gateway の窓の名前（5h・Week など）を、分かるものだけ訳す。 */
 @Composable

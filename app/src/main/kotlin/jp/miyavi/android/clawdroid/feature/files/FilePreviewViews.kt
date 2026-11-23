@@ -92,7 +92,7 @@ private fun rememberSearchComponents(query: String): MarkdownComponents {
     val highlight = remember(scheme) { SpanStyle(background = scheme.tertiaryContainer, color = scheme.onTertiaryContainer) }
     return remember(query, highlight) {
         if (query.isEmpty()) {
-            markdownComponents()
+            jp.miyavi.android.clawdroid.feature.chat.message.linkAwareComponents()
         } else {
             markdownComponents(
                 paragraph = { HighlightedText(it, it.node, it.typography.paragraph, query, highlight) },
@@ -112,23 +112,17 @@ private fun MarkdownComponentModel.headingContent(): ASTNode = node.findChildOfT
 /** ライブラリの段落と同じ組み立てに、一致の色を足したもの。 */
 @Composable
 private fun HighlightedText(model: MarkdownComponentModel, node: ASTNode, style: TextStyle, query: String, highlight: SpanStyle) {
-    val settings = annotatorSettings()
-    val text = remember(model.content, node, style, settings, query, highlight) {
-        val built = buildAnnotatedString {
-            pushStyle(style.toSpanStyle())
-            buildMarkdownAnnotatedString(model.content, node, settings)
-            pop()
-        }
-        val matches = findMatches(built.text, query)
-        if (matches.isEmpty()) {
-            built
-        } else {
-            androidx.compose.ui.text.AnnotatedString.Builder(built).apply {
+    val decorate = remember(query, highlight) {
+        { built: androidx.compose.ui.text.AnnotatedString ->
+            val matches = findMatches(built.text, query)
+            if (matches.isEmpty()) built
+            else androidx.compose.ui.text.AnnotatedString.Builder(built).apply {
                 matches.forEach { addStyle(highlight, it, it + query.length) }
             }.toAnnotatedString()
         }
     }
-    MarkdownText(text, node, Modifier, style)
+    // リンクの長押しメニューも、検索中にそのまま使えるように
+    jp.miyavi.android.clawdroid.feature.chat.message.LinkAwareText(model, node, style, decorate)
 }
 
 /** HTML のプレビューの検索の結果と、前後への送り（WebView の検索をそのまま使う）。 */

@@ -37,6 +37,7 @@ import jp.miyavi.android.clawdroid.core.gateway.GatewayRpcException
 import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.settings.SettingsStore
+import jp.miyavi.android.clawdroid.core.settings.visible
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -84,6 +85,8 @@ data class ComposerState(
     val sending: Boolean = false,
     val sessionOptions: Map<SessionSetting, String> = emptyMap(),
     val updatingSettings: Boolean = false,
+    /** 新しいセッションの作業フォルダ（null ならエージェントの既定）。 */
+    val newSessionCwd: String? = null,
 )
 
 data class PendingImage(val uri: Uri, val image: OutgoingImage)
@@ -99,12 +102,15 @@ data class ChatScreenState(
     val currentSessionKey: String? = null,
     val chat: ChatState? = null,
     val messages: List<MessageUi> = emptyList(),
+    /** サイドパネルに出すエージェント（設定の並びと表示。1 体ならタブを出さない）。 */
+    val sidebarAgents: List<Agent> = agents.agents,
 ) {
     val selectedAgent: Agent? get() = agents.agents.firstOrNull { it.id == selectedAgentId }
 }
 
 /** 一度だけ伝える出来事。 */
 sealed interface ChatEvent {
+    data object WorktreeCreating : ChatEvent
     data class Error(val message: String?) : ChatEvent
     data object SendFailed : ChatEvent
     data object PendingAlreadyTaken : ChatEvent
@@ -155,12 +161,12 @@ class ChatViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val state: StateFlow<ChatScreenState> = combine(
-        combine(gateway.state, sessions.agents, sessions.sessions) { c, a, s -> Triple(c, a, s) },
+        combine(gateway.state, sessions.agents, sessions.sessions, settings.agentLayout) { c, a, s, l -> Quad(c, a, s, l) },
         selectedAgentId,
         selectedSessionKey,
         chatState,
         formattedMessages,
-    ) { (connection, agents, lists), agentId, sessionKey, chat, messages ->
+    ) { (connection, agents, lists, layout), agentId, sessionKey, chat, messages ->
         ChatScreenState(
             connection = connection,
             agents = agents,
@@ -170,6 +176,7 @@ class ChatViewModel(
             currentSessionKey = sessionKey,
             chat = chat,
             messages = messages,
+            sidebarAgents = layout.visible(agents.agents),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatScreenState())
 
@@ -357,6 +364,61 @@ class ChatViewModel(
         viewModelScope.launch { settings.selectSession(agentId, null) }
     }
 
+    /** セッション履歴の並べ方（更新順 / 作業フォルダ別）。 */
+    val sessionGrouping: StateFlow<Map<String, jp.miyavi.android.clawdroid.core.settings.SessionGrouping>> = settings.sessionGrouping
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** エージェントごとに覚える（チャット用は更新順、開発用はフォルダ別、のように分けられる）。 */
+    fun setSessionGrouping(agentId: String, v: jp.miyavi.android.clawdroid.core.settings.SessionGrouping) {
+        viewModelScope.launch { settings.setSessionGrouping(agentId, v) }
+    }
+
+    /** 新しいセッションの作業フォルダを選ぶ（null で既定）。 */
+    fun setNewSessionCwd(cwd: String?) = _composer.update { it.copy(newSessionCwd = cwd?.trim()?.takeIf(String::isNotEmpty)) }
+
+    /** フォルダ選択の中身（[path] が null なら Gateway の既定の場所）。 */
+    suspend fun listDir(path: String?): jp.miyavi.android.clawdroid.core.data.DirListing? =
+        runCatching { sessions.listDir(path) }.getOrNull()
+
+    /** 新しいセッションで選べる作業フォルダの候補。 */
+    suspend fun folderCandidates(): List<String> = selectedAgentId.value?.let { runCatching { sessions.folderCandidates(it) }.getOrNull() }.orEmpty()
+
+    fun setPinned(session: SessionSummary, pinned: Boolean) = mutate { sessions.setPinned(session, pinned) }
+
+    suspend fun diff(session: SessionSummary): jp.miyavi.android.clawdroid.core.data.SessionDiff? =
+        runCatching { sessions.diff(session) }.getOrNull()
+
+    /** ⋮ のメニューに出す合計の +/−（中身は取らない）。 */
+    suspend fun diffSummary(session: SessionSummary): jp.miyavi.android.clawdroid.core.data.SessionDiff? =
+        runCatching { sessions.diff(session, summaryOnly = true) }.getOrNull()
+
+    /** 会話を引き継いで、別の作業フォルダのセッションを作り、開く。 */
+    fun forkToFolder(parent: SessionSummary, cwd: String) {
+        val agentId = parent.agentId ?: selectedAgentId.value ?: return
+        viewModelScope.launch {
+            val key = runCatching { sessions.forkToFolder(parent, agentId, cwd) }
+                .onFailure { _events.tryEmit(ChatEvent.Error(it.message)) }
+                .getOrNull() ?: return@launch
+            selectedAgentId.value = agentId
+            openSession(key, agentId)
+            settings.selectSession(agentId, key)
+        }
+    }
+
+    /** 既存のセッションからワークツリーのセッションを分けて作り、開く。 */
+    fun createWorktree(parent: SessionSummary, name: String?, baseRef: String?, fork: Boolean) {
+        val agentId = parent.agentId ?: selectedAgentId.value ?: return
+        viewModelScope.launch {
+            _events.tryEmit(ChatEvent.WorktreeCreating)
+            val key = runCatching { sessions.createWorktree(parent, agentId, name, baseRef, fork) }
+                .onFailure { _events.tryEmit(ChatEvent.Error(it.message)) }
+                .getOrNull() ?: return@launch
+            selectedAgentId.value = agentId
+            openSession(key, agentId)
+            settings.selectSession(agentId, key)
+        }
+    }
+
     private suspend fun applyAgent(agentId: String, sessionKey: String?) {
         selectedAgentId.value = agentId
         sessions.ensureLoaded(agentId)
@@ -417,12 +479,16 @@ class ChatViewModel(
         val chat = currentChat.value
         // 新規チャットは最初の 1 通でセッションを作るので、作り終わるまでは次を送らない
         if (chat == null && composer.sending) return
-        _composer.value = ComposerState(sending = chat == null, sessionOptions = if (chat == null) composer.sessionOptions else emptyMap())
+        _composer.value = ComposerState(
+            sending = chat == null,
+            sessionOptions = if (chat == null) composer.sessionOptions else emptyMap(),
+            newSessionCwd = if (chat == null) composer.newSessionCwd else null,
+        )
         viewModelScope.launch {
             try {
                 if (chat == null) {
                     val key = sessions.create(
-                        agentId, cwd = null, message = text, idempotencyKey = idempotencyKey,
+                        agentId, cwd = composer.newSessionCwd, message = text, idempotencyKey = idempotencyKey,
                         options = composer.sessionOptions,
                     )
                     if (key != null) {
@@ -575,3 +641,5 @@ internal class MarkdownCache(private val limit: Int = 2_000) {
             cache.getOrPut(part.markdown) { com.mikepenz.markdown.model.parseMarkdown(part.markdown) }
         }
 }
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

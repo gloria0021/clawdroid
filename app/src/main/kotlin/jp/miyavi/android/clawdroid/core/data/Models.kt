@@ -52,6 +52,8 @@ data class SessionSummary(
     val permissionModePending: Boolean = false,
     /** エージェントのホーム（main）のセッションか。 */
     val isMain: Boolean = false,
+    /** ピン留め（サイドパネルのホームの下に出す）。 */
+    val pinned: Boolean = false,
 ) {
     val contextFraction: Float?
         get() {
@@ -197,6 +199,7 @@ internal object Parse {
             archived = obj.bool("archived") == true,
             isAutomation = obj.string("createdVia") == "cron",
             isMain = obj.bool("isMain") == true || key.endsWith(":main"),
+            pinned = obj.bool("pinned") == true,
             updatedAt = obj.long("lastActivityAt") ?: obj.long("updatedAt"),
             contextTokens = obj.long("contextTokens"),
             totalTokens = obj.long("totalTokens"),
