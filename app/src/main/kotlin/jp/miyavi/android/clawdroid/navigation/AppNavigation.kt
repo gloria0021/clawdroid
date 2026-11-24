@@ -66,6 +66,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.FloatingIconButton
 import jp.miyavi.android.clawdroid.core.designsystem.ScreenMotionScheme
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
+import kotlinx.coroutines.flow.map
 import jp.miyavi.android.clawdroid.core.settings.ThemeSettings
 import jp.miyavi.android.clawdroid.feature.automation.AutomationsScreen
 import jp.miyavi.android.clawdroid.feature.chat.ChatNavigation
@@ -87,6 +88,10 @@ import kotlinx.serialization.Serializable
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
+@Serializable data class AgentSettingsRoute(val agentId: String) : NavKey
+@Serializable data class AgentFileRoute(val agentId: String, val name: String) : NavKey
+/** エージェントの設定から開くワークスペース（会話に紐付かない。spec 004 FR-012）。 */
+@Serializable data class WorkspaceFilesRoute(val agentId: String) : NavKey
 
 /**
  * 画面の構成。接続情報が無い・認証が切れたときは接続画面、それ以外は会話を起点にした Navigation 3 の画面の積み重ね。
@@ -96,22 +101,28 @@ fun AppNavigation(container: AppContainer) {
     val connection by container.gateway.state.collectAsStateWithLifecycle()
     // 一度でも接続できたら、切断や再接続のあいだも会話の画面を出し続ける（表示済みの内容を残す）
     var everConnected by rememberSaveable { mutableStateOf(false) }
+    // 初めての接続で承認を経たときは、つながったことを確かめてもらってから会話へ進む（本家に倣う。マスター指定 2026-11-24）
+    var pairedPending by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(container.gateway) {
         container.gateway.state.collect { state ->
             when (state) {
                 is ConnectionState.Connected -> everConnected = true
-                ConnectionState.NotConfigured -> everConnected = false
+                is ConnectionState.AwaitingApproval -> if (!everConnected) pairedPending = true
+                ConnectionState.NotConfigured, ConnectionState.Disconnected -> {
+                    if (state == ConnectionState.NotConfigured) everConnected = false
+                    if (!everConnected) pairedPending = false
+                }
                 else -> Unit
             }
         }
     }
-    val needsConnect = connection is ConnectionState.NotConfigured ||
+    val needsConnect = connection is ConnectionState.NotConfigured || pairedPending ||
         (!everConnected && connection !is ConnectionState.Connected)
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         if (needsConnect) {
             val vm: ConnectViewModel = viewModel(factory = viewModelFactory { initializer { ConnectViewModel(container.gateway, container.secrets) } })
-            ConnectScreen(vm)
+            ConnectScreen(vm, onContinue = { pairedPending = false })
         } else {
             val approvalHaze = rememberHazeState()
             Box(Modifier.fillMaxSize().hazeSource(approvalHaze)) { MainNavigation(container) }
@@ -186,6 +197,7 @@ private fun MainNavigation(container: AppContainer) {
                         openTerminal = { key, agentId, cwd -> gate.run { backStack.push(TerminalRoute(key, agentId, cwd)) } },
                         openFiles = { key, agentId -> gate.run { backStack.push(FilesRoute(key, agentId)) } },
                         restartGateway = { confirmRestart = true },
+                        openAgentSettings = { agentId -> gate.run { backStack.push(AgentSettingsRoute(agentId)) } },
                     ),
                 )
             }
@@ -321,6 +333,66 @@ private fun MainNavigation(container: AppContainer) {
                 }
             }
             entry<UsageRoute> { ComingSoon(R.string.usage_title) { backStack.pop() } }
+            entry<AgentSettingsRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
+                val skills = remember { jp.miyavi.android.clawdroid.core.data.SkillsRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.agent.AgentSettingsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            jp.miyavi.android.clawdroid.feature.agent.AgentSettingsViewModel(
+                                agentId = route.agentId,
+                                agents = container.sessions.agents.map { a -> a.agents to a.loading },
+                                files = { files.agentFiles(it) },
+                                skills = skills,
+                                configs = jp.miyavi.android.clawdroid.core.data.AgentConfigRepository(container.gateway),
+                                refreshAgents = { container.sessions.refreshAgents() },
+                                supports = { method ->
+                                    val methods = (container.gateway.state.value as? ConnectionState.Connected)?.methods.orEmpty()
+                                    methods.isEmpty() || method in methods
+                                },
+                            )
+                        }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.agent.AgentSettingsScreen(
+                    viewModel = vm,
+                    onBack = { gate.run { backStack.pop() } },
+                    onOpenFile = { name -> gate.run { backStack.push(AgentFileRoute(route.agentId, name)) } },
+                    onOpenWorkspace = { gate.run { backStack.push(WorkspaceFilesRoute(route.agentId)) } },
+                )
+            }
+            entry<AgentFileRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.agent.AgentFileViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            jp.miyavi.android.clawdroid.feature.agent.AgentFileViewModel(route.agentId, route.name, files, container.database.fileDrafts())
+                        }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.agent.AgentFileScreen(vm) { gate.run { backStack.pop() } }
+            }
+            entry<WorkspaceFilesRoute> { route ->
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val files = remember { jp.miyavi.android.clawdroid.core.data.FilesRepository(container.gateway) }
+                val vm: jp.miyavi.android.clawdroid.feature.files.FilesViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            jp.miyavi.android.clawdroid.feature.files.FilesViewModel(
+                                files = files,
+                                downloader = container.downloads,
+                                drafts = container.database.fileDrafts(),
+                                sessionKey = "",
+                                agentId = route.agentId,
+                                hasWorkingFolder = false,
+                            )
+                        }
+                    },
+                )
+                jp.miyavi.android.clawdroid.feature.files.FilesScreen(viewModel = vm, onBack = { gate.run { backStack.pop() } })
+            }
         },
     )
 

@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,15 +76,14 @@ import jp.miyavi.android.clawdroid.feature.chat.AgentAvatar
 fun UserMessage(
     message: ChatMessage,
     timeLabel: String?,
-    onOpenImage: (MessagePart.Image) -> Unit,
+    onOpenImage: (ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-        message.parts.filterIsInstance<MessagePart.Image>().forEach { image ->
-            // 画像と本文のあいだは 12dp あける
-            MessageImage(image, onOpenImage, Modifier.padding(bottom = Spacing.m))
-        }
+        val images = remember(message.parts) { message.parts.filterIsInstance<MessagePart.Image>() }
+        // 画像は 1 行にまとめる（複数なら横にスクロール。マスター指定 2026-11-24）。画像と本文のあいだは 12dp
+        if (images.isNotEmpty()) MessageImages(images, onOpenImage, alignEnd = true, modifier = Modifier.padding(bottom = Spacing.m))
         message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
         if (text.isNotBlank()) {
@@ -126,7 +127,7 @@ fun AssistantMessage(
     elapsedMs: Long?,
     onCopy: (String) -> Unit,
     onReply: ((String) -> Unit)?,
-    onOpenImage: (MessagePart.Image) -> Unit,
+    onOpenImage: (ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     onShowFull: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -145,12 +146,21 @@ fun AssistantMessage(
     ) {
         if (tools.isNotEmpty()) ToolDetails(tools, toolsOpen)
         var textIndex = 0
-        message.parts.forEach { part ->
-            when (part) {
-                is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
-                is MessagePart.Image -> MessageImage(part, onOpenImage)
-                is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
-                is MessagePart.ToolCall -> Unit
+        // 続いて並ぶ画像は 1 行にまとめる（複数なら横にスクロール）。全画面ではメッセージの画像すべてを横にめくれる
+        val allImages = remember(message.parts) { message.parts.filterIsInstance<MessagePart.Image>() }
+        val blocks = remember(message.parts) { groupImageRuns(message.parts) }
+        blocks.forEach { block ->
+            when (block) {
+                is PartBlock.Images -> MessageImages(block.images, { gallery ->
+                    // 押した画像の、メッセージ全体の中での位置から開く
+                    val image = gallery.images[gallery.initialIndex]
+                    onOpenImage(ImageGallery(allImages, allImages.indexOf(image).coerceAtLeast(0)))
+                }, alignEnd = false)
+                is PartBlock.Single -> when (val part = block.part) {
+                    is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
+                    is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
+                    is MessagePart.Image, is MessagePart.ToolCall -> Unit
+                }
             }
         }
         if (message.truncated && onShowFull != null) {
@@ -247,6 +257,9 @@ fun LiveAssistantMessage(
     }
 }
 
+/** 応答の横のアバターを押したときに、そのエージェントの設定を開く（spec 004 FR-002）。会話の画面が渡す。 */
+val LocalOpenAgentSettings = androidx.compose.runtime.staticCompositionLocalOf<((String) -> Unit)?> { null }
+
 /**
  * エージェントの応答の外枠。1 行目にキャラクターのアイコンと、その横の見出し（回答時間・ツールの開閉）。
  * 本文はアイコンの下の行から横幅いっぱいに出す。
@@ -263,7 +276,17 @@ private fun ReplyLayout(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
         if (showAvatar || header != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                if (showAvatar) AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge, busy = avatarBusy)
+                if (showAvatar) {
+                    val open = LocalOpenAgentSettings.current
+                    val openLabel = androidx.compose.ui.res.stringResource(jp.miyavi.android.clawdroid.R.string.agent_settings_open_cd)
+                    Box(
+                        if (open != null && agent != null) {
+                            Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable(onClickLabel = openLabel) { open(agent.id) }
+                        } else Modifier,
+                    ) {
+                        AgentAvatar(agent, label = agent?.name, size = Dimens.avatarLarge, busy = avatarBusy)
+                    }
+                }
                 if (header != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs / 2)) { header() }
             }
         }
@@ -379,6 +402,75 @@ private fun ToolCallRow(part: MessagePart.ToolCall, modifier: Modifier = Modifie
         }
     }
 }
+
+/** メッセージの部品を、続いて並ぶ画像のまとまりとそれ以外に分ける。 */
+private sealed interface PartBlock {
+    data class Images(val images: List<MessagePart.Image>) : PartBlock
+    data class Single(val part: MessagePart) : PartBlock
+}
+
+private fun groupImageRuns(parts: List<MessagePart>): List<PartBlock> {
+    val blocks = mutableListOf<PartBlock>()
+    for (part in parts) {
+        if (part is MessagePart.Image) {
+            val last = blocks.lastOrNull()
+            if (last is PartBlock.Images) blocks[blocks.lastIndex] = PartBlock.Images(last.images + part)
+            else blocks += PartBlock.Images(listOf(part))
+        } else {
+            blocks += PartBlock.Single(part)
+        }
+    }
+    return blocks
+}
+
+/**
+ * 画像の並び（Gerbil の画像の列に倣う。マスター指定 2026-11-24）。1 枚なら今までどおり大きく、
+ * 複数なら同じ高さのサムネイルを 1 行に並べて横にスクロールする。押すと全画面で、その画像から横にめくれる。
+ */
+@Composable
+internal fun MessageImages(images: List<MessagePart.Image>, onOpen: (ImageGallery) -> Unit, alignEnd: Boolean, modifier: Modifier = Modifier) {
+    if (images.size == 1) {
+        MessageImage(images.first(), { onOpen(ImageGallery(images, 0)) }, modifier)
+        return
+    }
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s, if (alignEnd) Alignment.End else Alignment.Start),
+        // 影（3dp）が切れないよう、上下に少しあける
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Spacing.xs),
+    ) {
+        items(images.size, key = { index -> "${index}:${images[index].url ?: images[index].base64?.hashCode()}" }) { index ->
+            MessageThumbnail(images[index]) { onOpen(ImageGallery(images, index)) }
+        }
+    }
+}
+
+/** 並びの中の 1 枚。高さをそろえ、幅は画像の縦横比（分かるまでは正方形）。 */
+@Composable
+private fun MessageThumbnail(image: MessagePart.Image, onOpen: () -> Unit) {
+    val cd = stringResource(R.string.chat_image_cd)
+    val shape = MaterialTheme.shapes.large
+    val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
+    val ratio = bitmap?.let { it.width.toFloat() / it.height.coerceAtLeast(1) }?.coerceIn(MIN_THUMB_RATIO, MAX_THUMB_RATIO) ?: 1f
+    val thumbModifier = Modifier
+        .height(Dimens.messageImageRowHeight)
+        .aspectRatio(ratio)
+        .shadow(Dimens.imageElevation, shape)
+        .clip(shape)
+        .background(bodyContainerColor())
+        .clickable(onClick = onOpen)
+    val url = remember(image.url) { image.url?.let(::webUri) }
+    when {
+        bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
+        isInboundMediaUrl(image.url) -> Box(thumbModifier)
+        url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
+        else -> Box(thumbModifier)
+    }
+}
+
+/** サムネイルの縦横比の範囲（極端に細長い画像で列が崩れないように）。 */
+private const val MIN_THUMB_RATIO = 0.5f
+private const val MAX_THUMB_RATIO = 2f
 
 @Composable
 internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) -> Unit, modifier: Modifier = Modifier) {

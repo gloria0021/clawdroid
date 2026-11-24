@@ -25,6 +25,10 @@ data class Agent(
     val thinkingLevels: List<SettingChoice> = emptyList(),
     val thinkingDefault: String? = null,
     val defaultPermissionMode: String? = null,
+    /** 作られた経緯（`operator` / `agent` / `template`。spec 004 FR-010）。Gateway が持っていなければ null。 */
+    val createdVia: String? = null,
+    val creatorAgentId: String? = null,
+    val createdAt: Long? = null,
 )
 
 data class SessionSummary(
@@ -178,6 +182,9 @@ internal object Parse {
             },
             thinkingDefault = obj.string("thinkingDefault"),
             defaultPermissionMode = obj.string("defaultPermissionMode"),
+            createdVia = obj.string("createdVia"),
+            creatorAgentId = obj.string("creatorAgentId"),
+            createdAt = obj.long("createdAt"),
         )
     }
 

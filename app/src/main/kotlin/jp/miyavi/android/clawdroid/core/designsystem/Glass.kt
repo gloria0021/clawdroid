@@ -143,6 +143,11 @@ fun Modifier.hazeSurface(
     tint: GlassTint = GlassTint.NEUTRAL,
     /** 縁で屈折させるか（既定は [rim] と同じ）。タイトルバーは縁の光と影は付けず、屈折だけさせる。 */
     refract: Boolean = rim,
+    /**
+     * 縁の影と光の強さ（1 = ふつう）。下に透かす内容が無い所でもガラスに見せたい面（タブの選択面）で強める。
+     * 屈折は下の内容があって初めて見えるので、内容の無い背景では縁の影と光だけがガラスの手がかりになる。
+     */
+    rimStrength: Float = 1f,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     // テーマの色付け（マスター指定 2026-11-22）: テーマカラーを暗く沈めた色を、背景の上に 20% 重ねた色。全部の透過面で同じ色味にする
@@ -159,7 +164,7 @@ fun Modifier.hazeSurface(
     val base = if (tint == GlassTint.FIELD) sheetFieldColor() else colors.surface
     when (LocalSurfaceStyle.current) {
         SurfaceStyle.BLUR -> clip(shape).blurSurface(hazeState, fixedOpacity, tintColor, base)
-        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, refract, tintColor, base)
+        SurfaceStyle.GLASS -> glassSurface(hazeState, shape, fixedOpacity, rim, refract, tintColor, base, rimStrength)
     }
 }
 
@@ -197,22 +202,23 @@ private fun Modifier.glassSurface(
     refract: Boolean,
     tintColor: Color,
     baseColor: Color,
+    rimStrength: Float = 1f,
 ): Modifier = composed {
     val colors = MaterialTheme.colorScheme
     val darkGlass = colors.surface.luminance() < 0.5f
     val glassTint = tintColor.copy(alpha = fixedOpacity.glass)
-    val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else if (darkGlass) 0.28f else 0.16f)
+    val rimShadow = colors.scrim.copy(alpha = if (!rim) 0f else ((if (darkGlass) 0.28f else 0.16f) * rimStrength).coerceAtMost(1f))
     // 屈折の強さは設定（0〜10）。横いっぱいの帯（rim = false）は屈折させない。縁の屈折が上下の端で下の内容を引き込み、1 ドット透けて見えるため
     val level = LocalGlassLevels.current.refraction.coerceIn(0, 10) / 10f
     val refraction = if (refract) level else 0f
     // ガラスはぼかさず、屈折だけで見せる（マスター指定 2026-11-23）
-    val glassStyle = remember(shape, rimShadow, rim, refraction) {
+    val glassStyle = remember(shape, rimShadow, rim, refraction, rimStrength) {
         GlassStyle.clear.then {
             shape(shape)
             whitePoint(0f)
             surfaceProfile(SurfaceProfile.Squircle)
             ambientResponse(0.08f)
-            specularIntensity(if (rim) 0.4f else 0f)
+            specularIntensity(if (rim) (0.4f * rimStrength).coerceAtMost(1f) else 0f)
             edgeShadow(rimShadow)
             chromaticAberrationStrength(0.12f * refraction)
             optics {

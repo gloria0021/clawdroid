@@ -20,6 +20,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // 署名の鍵は ~/.gradle/gradle.properties の CLAWDROID_* から読む（レポジトリには置かない）。
+    // 無ければ Release は未署名になり、scripts/release.sh が始める前に止める
+    val storeFilePath = providers.gradleProperty("CLAWDROID_STORE_FILE").orNull
+    signingConfigs {
+        if (storeFilePath != null) create("release") {
+            storeFile = file(storeFilePath)
+            storePassword = providers.gradleProperty("CLAWDROID_STORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("CLAWDROID_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("CLAWDROID_KEY_PASSWORD").get()
+        }
+    }
+
     buildTypes {
         // Debug 版は別のアプリとして入れる（Release 版と並べて入れられる）
         debug {
@@ -27,6 +39,7 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -43,9 +56,12 @@ android {
         buildConfig = true
     }
 
+    // 文言はふだん日本語（src/main/res/values）だけを書く。ほかの言語は scripts/translate-strings.py が
+    // リリースのときに src/release/res へ作り、Release だけが使う（既定の言語は英語）。言語を足すときは両方に足す。
+    // アプリ単位の言語の一覧は自動生成しない（AGP は main の resources.properties しか読まず、Debug と Release で既定の言語を分けられない）。
+    // main と release の res/xml/locales_config.xml でそれぞれ持つ
     androidResources {
-        generateLocaleConfig = true
-        localeFilters += listOf("ja", "en")
+        localeFilters += listOf("ja", "en", "zh-rCN", "zh-rTW", "ko", "es", "fr", "de", "pt-rBR")
     }
 
     // Termux の libtermux.so（4KB 境界）を、16KB 境界で作った同名のライブラリに置き換える（src/main/cpp/termux_jni.c）

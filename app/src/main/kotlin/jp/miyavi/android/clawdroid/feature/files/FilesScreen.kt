@@ -198,7 +198,7 @@ internal fun FilesContent(
                 val pageContent by rememberUpdatedState<@Composable (FilesPage) -> Unit> { page ->
                     when (page) {
                         is FilesPage.File -> FilePage(
-                            state = state,
+                            opened = state.opened,
                             contentPadding = listPadding,
                             htmlFind = htmlFind,
                             onRetry = onRetry,
@@ -270,7 +270,29 @@ internal fun FilesContent(
     }
     ImageOverlay(overlayImage) { overlayImage = null }
 
-    if (state.confirmDiscard) {
+    FileDialogs(
+        confirmDiscard = state.confirmDiscard,
+        conflict = ready?.conflict == true,
+        onDiscard = onDiscard,
+        onDismissDiscard = onDismissDiscard,
+        onOverwrite = onOverwrite,
+        onReload = onReload,
+        onDismissConflict = onDismissConflict,
+    )
+}
+
+/** 変更を捨てる確認と、保存の衝突（上書き / 読み直し）。004 のエージェントのファイルでも使う。 */
+@Composable
+internal fun FileDialogs(
+    confirmDiscard: Boolean,
+    conflict: Boolean,
+    onDiscard: () -> Unit,
+    onDismissDiscard: () -> Unit,
+    onOverwrite: () -> Unit,
+    onReload: () -> Unit,
+    onDismissConflict: () -> Unit,
+) {
+    if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = onDismissDiscard,
             title = { Text(stringResource(R.string.files_discard_title)) },
@@ -279,7 +301,7 @@ internal fun FilesContent(
             dismissButton = { TextButton(onClick = onDismissDiscard) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (ready?.conflict == true) {
+    if (conflict) {
         AlertDialog(
             onDismissRequest = onDismissConflict,
             title = { Text(stringResource(R.string.files_conflict_title)) },
@@ -298,8 +320,8 @@ private sealed interface FilesPage {
 
 /** 開いたファイルのページ。プレビュー ⇄ コードは新しい側だけをフェードで出す（AGENTS.md 2.8）。 */
 @Composable
-private fun FilePage(
-    state: FilesUiState,
+internal fun FilePage(
+    opened: OpenedState?,
     contentPadding: PaddingValues,
     htmlFind: HtmlFindState,
     onRetry: () -> Unit,
@@ -307,7 +329,7 @@ private fun FilePage(
     onOpenImage: (MessagePart.Image) -> Unit,
     onDownload: () -> Unit,
 ) {
-    val opened = state.opened ?: return
+    opened ?: return
     val ready = opened as? OpenedState.Ready
     FadeInOnChange(key = "${opened.path}:${ready?.showCode}") {
         when {

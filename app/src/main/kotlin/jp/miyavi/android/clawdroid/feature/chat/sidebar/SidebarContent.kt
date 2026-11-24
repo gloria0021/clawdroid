@@ -67,7 +67,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.ui.semantics.selected
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.width
@@ -159,6 +158,7 @@ fun SidePanel(
     onDelete: (SessionSummary) -> Unit,
     onOpenAutomations: (Agent) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenAgentSettings: (Agent) -> Unit = {},
     modifier: Modifier = Modifier,
     /** エージェントごとの並べ方（無ければ更新順）。 */
     groupingByAgent: Map<String, SessionGrouping> = emptyMap(),
@@ -230,21 +230,28 @@ fun SidePanel(
                         // エージェントの名前（画像の下、ホームの上。titleMedium の 1.5 倍 = headlineSmall。
                         // ガラスは付けない。マスター指定 2026-11-23）
                         currentAgent?.let { agent ->
-                            Text(
-                                agent.name,
-                                style = MaterialTheme.typography.headlineSmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth()
-                                    .padding(start = PanelTextInset, end = Spacing.l, top = Spacing.s)
-                                    .semantics { heading() },
-                            )
+                            // 名前の横に編集のアイコン（エージェントの設定を開く。マスター指定 2026-11-24、spec 004 FR-001）
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = PanelTextInset, end = Spacing.s, top = Spacing.s),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    agent.name,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+                                )
+                                IconButton(onClick = { commitAgent(); onOpenAgentSettings(agent) }) {
+                                    Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.agent_settings_open_cd))
+                                }
+                            }
                         }
                         // 操作は1行にまとめる（マスター指定 2026-11-23: 3行使うと右側が空く）。
-                        // 左にホーム・自動化（文字付き）、右に新しいセッション・設定（アイコンだけ）
+                        // 左にホーム・自動化（文字付き）、右に設定（アイコンだけ）。
+                        // 新しいセッションは「セッション」の見出しの行へ移した（マスター指定 2026-11-24）
                         val home = currentAgent?.id?.let { sessionsByAgent[it]?.home }
                         PanelActionRow(
-                            onNewSession = { commitAgent(); onNewSession() },
                             homeSelected = home != null && home.key == selectedSessionKey,
                             onHome = home?.let { { commitAgent(); onSelectSession(it) } },
                             onAutomations = currentAgent?.let { agent -> { commitAgent(); onOpenAutomations(agent) } },
@@ -260,19 +267,22 @@ fun SidePanel(
                                 onUnpin = { onUnpin(session) },
                             )
                         }
-                        // 履歴の見出しと、並べ方の切り替え（更新順 / 作業フォルダ別）
+                        // 「セッション」の見出しと、並べ方の切り替え（更新順 / 作業フォルダ別）
                         Row(
                             Modifier.fillMaxWidth().padding(start = PanelTextInset, end = Spacing.s, top = Spacing.s),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                stringResource(R.string.panel_history),
+                                stringResource(R.string.panel_sessions),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f).semantics { heading() },
                             )
                             if (currentAgent != null) GroupingToggle(grouping) { onGroupingChange(currentAgent.id, it) }
                         }
+                        // 見出しのすぐ下に「+ 新規セッション」の行（アイコンのボタンではなく行で。マスター指定 2026-11-24）。
+                        // 一覧の外に置き、空・読み込み中でも出す
+                        NewSessionItem(onClick = { commitAgent(); onNewSession() })
                         if (currentAgent != null) {
                             Box(Modifier.weight(1f).fillMaxWidth().hazeSource(hazeState)) {
                                 historyState.SaveableStateProvider(currentAgent.id) {
@@ -323,12 +333,11 @@ fun SidePanel(
 }
 
 /**
- * パネルの操作の行。左からホーム・自動化（文字付き）、右に新しいセッション・設定（アイコンだけ）。
+ * パネルの操作の行。左からホーム・自動化（文字付き）、右に設定（アイコンだけ）。
  * ホームは開いているあいだ選択色（マスター指定 2026-11-23）。
  */
 @Composable
 private fun PanelActionRow(
-    onNewSession: () -> Unit,
     homeSelected: Boolean,
     onHome: (() -> Unit)?,
     onAutomations: (() -> Unit)?,
@@ -339,7 +348,7 @@ private fun PanelActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        // ホーム・自動化で残りの幅を使い、右のアイコンまでを埋める（重みを空白と分け合わない）
+        // ホーム・自動化の順（マスター指定 2026-11-24 に戻す）。残りの幅を使い、右のアイコンまでを埋める（重みを空白と分け合わない）
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (onHome != null) {
                 val accent = accentContainer()
@@ -359,9 +368,6 @@ private fun PanelActionRow(
                 )
             }
         }
-        FilledTonalIconButton(onClick = onNewSession) {
-            Icon(painterResource(R.drawable.ic_huge_new_chat), contentDescription = stringResource(R.string.panel_new_session))
-        }
         IconButton(onClick = onSettings) {
             Icon(painterResource(R.drawable.ic_huge_settings), contentDescription = stringResource(R.string.sidebar_settings))
         }
@@ -377,16 +383,24 @@ private fun LabeledAction(icon: Int, label: Int, onClick: () -> Unit, container:
         contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
         modifier = modifier.heightIn(min = Dimens.minTouchTarget),
     ) {
-        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        // アイコンは右の設定と同じ大きさ（M3 のアイコンの標準 24dp）、文字は titleMedium の太字（マスター指定 2026-11-24）
+        Icon(painterResource(icon), contentDescription = null)
         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-        Text(stringResource(label), style = panelPartLabelStyle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(stringResource(label), style = panelActionLabelStyle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /** ホーム・自動化・並べ方の切り替えの文字の大きさ: labelLarge より 1sp 大きくする（マスター指定 2026-11-23）。 */
 private const val PART_LABEL_EXTRA_SP = 1f
 
-/** ホーム・自動化・並べ方の切り替えの文字。labelLarge を 1sp 大きく、太字に（マスター指定 2026-11-23）。 */
+/** ホーム・自動化の文字。titleMedium の太字（マスター指定 2026-11-24）。 */
+@Composable
+private fun panelActionLabelStyle(): TextStyle {
+    val base = MaterialTheme.typography.titleMedium
+    return remember(base) { base.copy(fontWeight = FontWeight.Bold) }
+}
+
+/** 並べ方の切り替えの文字。labelLarge を 1sp 大きく、太字に（マスター指定 2026-11-23）。 */
 @Composable
 private fun panelPartLabelStyle(): TextStyle {
     val base = MaterialTheme.typography.labelLarge
@@ -428,6 +442,33 @@ private fun PinnedAction(session: SessionSummary, selected: Boolean, onClick: ()
                 text = { Text(stringResource(R.string.session_menu_unpin)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_huge_pin_off), contentDescription = null) },
                 onClick = { menuOpen = false; onUnpin() },
+            )
+        }
+    }
+}
+
+/** 「+ 新規セッション」の行。セッションの行（CompactSessionRow）と同じ高さ・余白・文字（マスター指定 2026-11-24）。 */
+@Composable
+private fun NewSessionItem(onClick: () -> Unit) {
+    val highlight = selectionHighlight(false)
+    Box(Modifier.padding(horizontal = PanelItemInset)) {
+        SelectionPill(highlight)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = Dimens.minTouchTarget)
+                .clickable(interactionSource = highlight.interactions, indication = null, onClick = onClick)
+                .padding(horizontal = Spacing.m, vertical = Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        ) {
+            Icon(painterResource(R.drawable.ic_huge_plus), contentDescription = null, modifier = Modifier.size(Dimens.smallIcon))
+            Text(
+                stringResource(R.string.panel_new_session),
+                style = MaterialTheme.typography.bodyMedium,
+                color = highlight.headline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -488,6 +529,8 @@ private fun SessionList(
 ) {
     // 作業フォルダ別で、閉じているフォルダ（回転・言語の切り替えを越えて残す）
     var collapsed by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    // アーカイブ済みは、ふだん閉じておく（マスター指定 2026-11-24）
+    var archivedOpen by rememberSaveable { mutableStateOf(false) }
     val (active, archived) = remember(state.sessions, state.archived) {
         // 更新日時の新しい順。ピン留めしたものはホームの下に出すので、ここには出さない（マスター指定 2026-11-23）
         val unique = state.sessions.distinctBy { it.key }
@@ -512,10 +555,7 @@ private fun SessionList(
             )
         }
         else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
-            // アクティブとアーカイブ済みを分けて出す
-            if (active.isNotEmpty()) {
-                item(key = "header-active", contentType = "header") { ListHeader(R.string.panel_active, active.size) }
-            }
+            // ふだんはアクティブなセッションだけを並べ、見出しは付けない。アーカイブ済みは末尾の閉じた見出しの中（マスター指定 2026-11-24）
             if (grouping == SessionGrouping.FOLDER) {
                 // 作業フォルダごとにまとめる。まとまりの並びも、中の並びも、更新日時の新しい順
                 val groups = groupByFolder(active)
@@ -561,11 +601,17 @@ private fun SessionList(
                 }
             }
             if (archived.isNotEmpty()) {
-                item(key = "header-archived", contentType = "header") {
-                    ListHeader(R.string.panel_archived, archived.size, motionItem())
+                item(key = "header-archived", contentType = "folder") {
+                    CollapsibleHeader(
+                        icon = R.drawable.ic_huge_archive,
+                        name = stringResource(R.string.panel_archived),
+                        count = archived.size,
+                        open = archivedOpen,
+                        modifier = motionItem(),
+                    ) { archivedOpen = !archivedOpen }
                 }
                 // 区切りをまたいでも同じ key にして、行が消えて現れるのではなく「移動」として動くようにする
-                items(archived, key = { "session:${it.key}" }) { session ->
+                if (archivedOpen) items(archived, key = { "session:${it.key}" }) { session ->
                     SessionItem(
                         session = session,
                         selected = session.key == selectedSessionKey,
@@ -580,17 +626,6 @@ private fun SessionList(
             }
         }
     }
-}
-
-/** 一覧の区切りの見出し（件数付き）。 */
-@Composable
-private fun ListHeader(label: Int, count: Int, modifier: Modifier = Modifier) {
-    Text(
-        stringResource(R.string.panel_section_count, stringResource(label), count),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = PanelTextInset, top = Spacing.m, bottom = Spacing.xs).semantics { heading() },
-    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -784,9 +819,23 @@ private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping
 /** 作業フォルダの見出し（親の行。フォルダ名と件数）。押すと開閉。フルパスは読み上げと長押しのラベルで分かる。 */
 @Composable
 private fun FolderHeader(folder: String?, count: Int, open: Boolean, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    val name = folder?.substringAfterLast('/')?.ifEmpty { folder } ?: stringResource(R.string.panel_folder_none)
+    CollapsibleHeader(R.drawable.ic_huge_folder, name, count, open, modifier, description = folder?.let { "$name, $it" }, onToggle = onToggle)
+}
+
+/** 開閉できる見出しの行（作業フォルダ・アーカイブ済み）。アイコン・名前・件数・開閉の矢印。 */
+@Composable
+private fun CollapsibleHeader(
+    icon: Int,
+    name: String,
+    count: Int,
+    open: Boolean,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+    onToggle: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val toggleLabel = stringResource(if (open) R.string.panel_folder_collapse else R.string.panel_folder_expand)
-    val name = folder?.substringAfterLast('/')?.ifEmpty { folder } ?: stringResource(R.string.panel_folder_none)
     Row(
         modifier
             .fillMaxWidth()
@@ -795,11 +844,11 @@ private fun FolderHeader(folder: String?, count: Int, open: Boolean, modifier: M
             .clickable(onClickLabel = toggleLabel, onClick = onToggle)
             .heightIn(min = Dimens.minTouchTarget)
             .padding(start = PanelTextInset - PanelItemInset, end = Spacing.m, top = Spacing.s, bottom = Spacing.s)
-            .semantics { folder?.let { contentDescription = "$name, $it" } },
+            .semantics { description?.let { contentDescription = it } },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
-        Icon(painterResource(R.drawable.ic_huge_folder), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Dimens.smallIcon))
+        Icon(painterResource(icon), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Dimens.smallIcon))
         Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         Icon(

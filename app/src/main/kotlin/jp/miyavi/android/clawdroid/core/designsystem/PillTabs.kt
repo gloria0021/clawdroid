@@ -64,7 +64,9 @@ fun <T> PillTabs(
                 val outline = if (LocalSurfaceStyle.current == SurfaceStyle.BLUR) {
                     Modifier.border(Dp.Hairline, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                 } else Modifier
-                Modifier.hazeSurface(hazeState, CircleShape).then(outline)
+                // 選択面はガラス。下に透かす内容が無い所（短い一覧）でもガラスに見えるよう、縁の影と光を強める。
+                // 色味はほかの面と同じ（白にすると平たい面になり、ガラスに見えない。マスター指摘 2026-11-24）
+                Modifier.hazeSurface(hazeState, CircleShape, rimStrength = SELECTED_RIM_STRENGTH).then(outline)
             } else {
                 Modifier.background(accent.container, CircleShape)
             }
@@ -116,3 +118,6 @@ fun <T> PillTabs(
         }
     }
 }
+
+/** タブの選択面の縁の影と光の強さ（ふつうの面の倍率）。 */
+private const val SELECTED_RIM_STRENGTH = 2.5f

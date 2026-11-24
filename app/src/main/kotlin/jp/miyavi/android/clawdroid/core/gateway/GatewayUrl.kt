@@ -32,6 +32,16 @@ object GatewayUrl {
         }
     }
 
+    /** Tailscale の経路らしいアドレスか（100.64.0.0/10・MagicDNS の .ts.net）。案内に使うだけで、信頼の判断には使わない。 */
+    fun isTailscaleHost(host: String): Boolean {
+        if (host.endsWith(".ts.net")) return true
+        val octets = host.split('.').mapNotNull { it.toIntOrNull() }
+        return octets.size == 4 && octets[0] == 100 && octets[1] in 64..127
+    }
+
+    /** URL からホスト名だけを取り出す（表示と案内用）。 */
+    fun hostOf(url: String): String? = runCatching { java.net.URI(url.trim()).host }.getOrNull()?.removeSurrounding("[", "]")
+
     fun isPrivateHost(host: String): Boolean {
         if (host == "localhost" || host.endsWith(".local") || host.endsWith(".ts.net") || host.endsWith(".lan")) return true
         // 点の無いホスト名（LAN の名前解決）

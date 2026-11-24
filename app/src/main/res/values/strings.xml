@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Clawdroid</string>
+    <string name="app_name" translatable="false">Clawdroid</string>
 
     <!-- 共通 -->
     <string name="action_retry">再試行</string>
@@ -20,22 +20,57 @@
     <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
     <string name="connect_token_label">ゲートウェイトークン</string>
     <string name="connect_action">接続</string>
-    <string name="connect_connecting">接続しています…</string>
     <string name="connect_show_token_cd">トークンを表示</string>
     <string name="connect_hide_token_cd">トークンを隠す</string>
     <string name="connect_error_url_invalid">ws:// か wss:// で始まるアドレスを入力してください</string>
     <string name="connect_error_cleartext_public">暗号化しない ws:// は、LAN と Tailscale のアドレスだけで使えます。それ以外は wss:// を使ってください</string>
     <string name="connect_error_token_empty">トークンを入力してください</string>
-    <string name="connect_error_auth">認証が拒否されました。トークンを確かめてください</string>
-    <string name="connect_error_unreachable">Gateway に到達できません。アドレスとネットワークを確かめてください</string>
-    <string name="connect_error_pairing_rejected">この端末の接続は拒否されました</string>
     <string name="connect_error_other">接続できませんでした: %1$s</string>
     <string name="connect_awaiting_title">この端末の承認を待っています</string>
-    <string name="connect_awaiting_body">コマンドをコピーし、Gateway ホストのターミナルに貼り付けて実行してください。</string>
-    <string name="connect_awaiting_control_ui">Control UI の「Devices」で、この端末を承認してください。</string>
+    <string name="connect_awaiting_body">Gateway ホストのターミナルで次のコマンドを実行してください。承認されると自動でつながります。</string>
+    <string name="connect_awaiting_control_ui">Control UI の「Devices」で、この端末を承認してください。承認されると自動でつながります。</string>
     <string name="connect_edit_connection">接続情報を変更</string>
     <string name="connect_copy_command">コマンドをコピー</string>
-    <string name="connect_awaiting_command">openclaw devices approve %1$s</string>
+    <string name="connect_awaiting_command" translatable="false">openclaw devices approve %1$s</string>
+    <string name="connect_subtitle">自分で動かしている OpenClaw Gateway のアドレスとトークンを入れてください。</string>
+    <string name="connect_url_hint">同じネットワークの IP アドレスか、Tailscale のアドレス</string>
+    <string name="connect_token_saved_placeholder">空欄なら保存済みのトークンを使います</string>
+    <string name="connect_token_hint">トークンは、Gateway ホストのターミナルで次のコマンドを実行すると表示されます。</string>
+    <string name="connect_token_command" translatable="false">openclaw gateway auth-token --show</string>
+    <string name="connect_update_command" translatable="false">openclaw update</string>
+    <string name="connect_gateway_fallback">Gateway</string>
+    <string name="connect_status_connecting_title">Gateway に接続しています</string>
+    <string name="connect_status_connecting_body">%1$s につないでいます。</string>
+    <string name="connect_step_received">Gateway がこの端末を受け付けました</string>
+    <string name="connect_step_waiting">承認を待っています</string>
+    <string name="connect_step_auto">承認されたら自動でつながります</string>
+    <string name="connect_awaiting_or_control_ui">Control UI の「Devices」からも承認できます。</string>
+    <string name="connect_problem_title">接続の問題</string>
+    <string name="connect_problem_tailscale">%1$s は Tailscale のアドレスのようです。Tailscale を開いて Gateway と同じ tailnet につないでから、もう一度お試しください。Gateway のコンピューターが起動していて、OpenClaw が動いているかも確かめてください。</string>
+    <string name="connect_problem_unreachable">%1$s に届きません。スマホと Gateway が同じネットワークにあるか、アドレスとポートが正しいか、Gateway のコンピューターで OpenClaw が動いているかを確かめてください。</string>
+    <string name="connect_problem_auth">トークンが違うか、変わっています。Gateway ホストで次のコマンドを実行し、表示されたトークンを入れ直してください。</string>
+    <string name="connect_problem_pairing_rejected">この端末の承認が拒否されたか、期限が切れました。もう一度接続すると、新しい承認のリクエストが作られます。</string>
+    <string name="connect_problem_protocol">アプリと Gateway の版が合いません。Gateway ホストで次のコマンドを実行して OpenClaw を更新するか、このアプリを更新してください。</string>
+    <string name="connect_problem_other">接続できませんでした。詳細を確かめて、もう一度お試しください。</string>
+    <string name="connect_problem_auto_retry">自動でつなぎ直しています（%1$d 回目）</string>
+    <string name="connect_paired_title">接続しました</string>
+    <string name="connect_paired_body">このスマホは %1$s とペアリングされました。</string>
+    <string name="connect_retry">接続を再試行</string>
+    <string name="connect_continue">続行</string>
+    <string name="connect_show_details">詳細を表示</string>
+    <string name="connect_details_title">接続の詳細</string>
+    <string name="connect_copy">コピー</string>
+    <string name="connect_close">閉じる</string>
+    <string name="connect_open_tailscale">Tailscale を開く</string>
+    <string name="connect_install_tailscale">Tailscale を入手</string>
+    <string name="connect_diag_header">Clawdroid の接続の詳細</string>
+    <string name="connect_diag_app">アプリ: %1$s</string>
+    <string name="connect_diag_gateway">Gateway: %1$s</string>
+    <string name="connect_diag_state">状態: %1$s</string>
+    <string name="connect_diag_reason">分類: %1$s</string>
+    <string name="connect_diag_code">エラーコード: %1$s</string>
+    <string name="connect_diag_message">メッセージ: %1$s</string>
+    <string name="connect_diag_request">承認リクエスト ID: %1$s</string>
 
     <!-- 接続の状態 -->
     <string name="connection_reconnecting">再接続しています…</string>
@@ -139,6 +174,10 @@
     <string name="chat_tool_expand_label">ツールの実行を開く</string>
     <string name="chat_image_cd">画像</string>
     <string name="chat_image_close_cd">画像を閉じる</string>
+    <string name="chat_image_position">%1$d / %2$d</string>
+    <string name="chat_image_save_cd">画像を保存</string>
+    <string name="chat_image_saved">「ダウンロード」に保存しました</string>
+    <string name="chat_image_save_failed">保存できませんでした</string>
     <string name="chat_message_menu_label">メッセージの操作</string>
     <string name="chat_show_full">全文を表示</string>
 
@@ -318,8 +357,8 @@
     <string-array name="schedule_day_names">
         <item>日</item><item>月</item><item>火</item><item>水</item><item>木</item><item>金</item><item>土</item>
     </string-array>
-    <string name="panel_new_session">新しいセッション</string>
-    <string name="panel_history">セッション履歴</string>
+    <string name="panel_new_session">新規セッション</string>
+    <string name="panel_sessions">セッション</string>
     <string name="panel_close_cd">パネルを閉じる</string>
     <string name="session_no_title">タイトルなし</string>
     <string name="chat_context_title">コンテキストウィンドウ</string>
@@ -388,9 +427,7 @@
         <item>あと少し…たぶん…</item>
     </string-array>
     <string name="panel_home">ホーム</string>
-    <string name="panel_active">アクティブ</string>
     <string name="panel_archived">アーカイブ済み</string>
-    <string name="panel_section_count">%1$s · %2$d</string>
     <string name="settings_glass_refraction">ガラスの屈折</string>
     <string name="settings_glass_refraction_desc">縁で背景をどれだけ曲げて見せるか</string>
     <string name="settings_blur_strength">ぼかしの強さ</string>
@@ -500,4 +537,133 @@
     <string name="question_other_option">その他</string>
     <string name="question_other_hint">答えを入力</string>
     <string name="question_recommended">おすすめ</string>
+
+    <!-- エージェントの設定（spec 004） -->
+    <string name="agent_settings_open_cd">エージェントの設定</string>
+    <string name="agent_settings_tab_overview">概要</string>
+    <string name="agent_settings_tab_persona">人格</string>
+    <string name="agent_settings_tab_skills">スキル</string>
+    <string name="agent_settings_edit_identity">名前と絵文字を変える</string>
+    <string name="agent_settings_model">既定のモデル</string>
+    <string name="agent_settings_model_unknown">Gateway の既定</string>
+    <string name="agent_settings_created">作られた経緯</string>
+    <string name="agent_settings_created_operator">利用者が作成</string>
+    <string name="agent_settings_created_agent">エージェントが作成</string>
+    <string name="agent_settings_created_template">テンプレートから作成</string>
+    <string name="agent_settings_created_by">%1$s・%2$s</string>
+    <string name="agent_settings_open_workspace">ワークスペースを開く</string>
+    <string name="agent_settings_open_workspace_desc">ほかのファイルを読む</string>
+    <string name="agent_settings_unsupported">この Gateway では使えません</string>
+    <string name="agent_settings_load_failed">読み込めませんでした</string>
+    <string name="agent_settings_agent_missing">エージェントが見つかりません</string>
+    <string name="agent_settings_retry">再試行</string>
+    <string name="agent_file_not_created">未作成</string>
+    <string name="agent_file_too_large">2 MB を超えるため、ここでは読むだけです</string>
+    <string name="agent_file_meta">%1$s · %2$s</string>
+    <string name="agent_file_role_instructions">振る舞いの指示</string>
+    <string name="agent_file_role_soul">人格と口調</string>
+    <string name="agent_file_role_identity">名前と雰囲気</string>
+    <string name="agent_file_role_user">利用者について</string>
+    <string name="agent_file_role_heartbeat">定期の見回り</string>
+    <string name="agent_file_role_memory">長く覚えておくこと</string>
+    <string name="agent_file_role_bootstrap">初回の儀式</string>
+    <string name="skill_scope_note">有効・無効は全エージェント共通です。</string>
+    <string name="skill_state_enabled">使用中</string>
+    <string name="skill_state_unmet">未対応</string>
+    <string name="skill_state_disabled">無効</string>
+    <string name="skill_missing_title">不足</string>
+    <string name="skill_missing_bins">コマンド: %1$s</string>
+    <string name="skill_missing_any_bins">コマンド（どれか）: %1$s</string>
+    <string name="skill_missing_env">環境変数: %1$s</string>
+    <string name="skill_missing_config">設定: %1$s</string>
+    <string name="skill_missing_os">OS: %1$s</string>
+    <string name="skill_missing_allowlist">許可リスト外</string>
+    <string name="skill_missing_agent_filter">このエージェントでは対象外</string>
+    <string name="skill_file_failed">SKILL.md を読めませんでした</string>
+    <string name="skill_toggled_on">%1$s を有効にしました</string>
+    <string name="skill_toggled_off">%1$s を無効にしました</string>
+    <string name="skill_undo">元に戻す</string>
+    <string name="skill_toggle_failed">切り替えられませんでした: %1$s</string>
+    <string name="skill_toggle_failed_plain">切り替えられませんでした</string>
+    <string name="skill_search_cd">スキルを検索</string>
+    <string name="skill_search_placeholder">名前と説明で絞り込む</string>
+    <string name="skill_search_close_cd">検索を閉じる</string>
+    <string name="skill_toggle_cd">%1$s を有効にする</string>
+    <string name="agent_overview_section_model">モデル</string>
+    <string name="agent_overview_section_tools">ツール</string>
+    <string name="agent_overview_section_workspace">ワークスペース</string>
+    <string name="agent_overview_source_note">openclaw.json の定義です。名前・モデル・思考の既定はここで、ほかの変更は Web UI で行います。</string>
+    <string name="agent_overview_inherited">既定</string>
+    <string name="agent_overview_inherited_cd">既定の値を引き継いでいます</string>
+    <string name="agent_overview_thinking">思考の既定</string>
+    <string name="agent_overview_profile">ツールのプロファイル</string>
+    <string name="tool_profile_minimal">最小</string>
+    <string name="tool_profile_coding">コーディング</string>
+    <string name="tool_profile_messaging">メッセージ</string>
+    <string name="tool_profile_full">すべて</string>
+    <string name="agent_overview_allow">追加で許可</string>
+    <string name="agent_overview_deny">拒否</string>
+    <string name="agent_overview_exec">コマンドの実行</string>
+    <string name="exec_mode_auto">自動で判断</string>
+    <string name="exec_mode_ask">毎回確認</string>
+    <string name="exec_mode_full">すべて許可</string>
+    <string name="exec_mode_deny">実行しない</string>
+    <string name="exec_mode_allowlist">許可したものだけ</string>
+    <string name="agent_overview_elevated">昇格した実行</string>
+    <string name="agent_overview_on">オン</string>
+    <string name="agent_overview_off">オフ</string>
+    <string name="agent_overview_fs">ファイルの読み書き</string>
+    <string name="agent_overview_fs_workspace_only">ワークスペースの中だけ</string>
+    <string name="agent_overview_fs_anywhere">どこでも</string>
+    <string name="agent_overview_web_search">Web 検索</string>
+    <string name="agent_overview_web_search_value">%1$s（Gateway 全体）</string>
+    <string name="agent_overview_config_failed">openclaw.json の定義を読めませんでした</string>
+    <string name="agent_overview_config_missing">openclaw.json にこのエージェントの定義がありません</string>
+    <string name="agent_overview_config_unsupported">この Gateway では設定を読めません</string>
+    <string name="skill_origin_workspace">専用</string>
+    <string name="skill_origin_project">専用</string>
+    <string name="skill_origin_workshop">学習</string>
+    <string name="skill_origin_managed">共通</string>
+    <string name="skill_origin_library">ライブラリ</string>
+    <string name="skill_origin_personal">共通</string>
+    <string name="skill_origin_extra">追加</string>
+    <string name="skill_origin_plugin">プラグイン</string>
+    <string name="skill_origin_bundled">同梱</string>
+    <string name="skill_origin_desc_workspace">このエージェント専用・OpenClaw だけ（ワークスペースの skills）</string>
+    <string name="skill_origin_desc_project">このエージェント専用・ほかの AI ツールとも共有（ワークスペースの .agents/skills）</string>
+    <string name="skill_origin_desc_workshop">このエージェントが学習して作ったスキル（Skill Workshop）</string>
+    <string name="skill_origin_desc_managed">全エージェントで共有・OpenClaw だけ（~/.openclaw/skills）</string>
+    <string name="skill_origin_desc_library">スキルライブラリ（個人・チーム）</string>
+    <string name="skill_origin_desc_personal">全エージェントとほかの AI ツールで共通（~/.agents/skills）</string>
+    <string name="skill_origin_desc_extra">追加のフォルダ（全エージェント）</string>
+    <string name="skill_origin_desc_plugin">プラグインのスキル</string>
+    <string name="skill_origin_desc_bundled">OpenClaw に同梱</string>
+    <string name="skill_filter_all">すべて</string>
+    <string name="skill_filter_label">%1$s %2$d</string>
+    <string name="skill_filter_desc_agent">このエージェントだけが使えます。skills は OpenClaw だけ、.agents/skills は同じフォルダで作業する Claude Code などとも共有します。</string>
+    <string name="skill_filter_desc_workshop">このエージェントが Skill Workshop で学習して作ったスキル。このエージェントだけが使えます。ほかのエージェントに使わせるには「共通」に出します。</string>
+    <string name="skill_filter_desc_library">スキルライブラリ（個人・チーム）のスキル。</string>
+    <string name="skill_filter_desc_extra">設定で足したフォルダのスキル。全エージェントが使えます。</string>
+    <string name="skill_filter_desc_plugin">プラグインが持ってくるスキル。</string>
+    <string name="skill_filter_desc_bundled">OpenClaw に最初から入っているスキル。全エージェントが使えます。</string>
+    <string name="skill_filter_path_agent" translatable="false">&lt;workspace&gt;/skills\n&lt;workspace&gt;/.agents/skills</string>
+    <string name="skill_filter_path_workshop" translatable="false">~/.openclaw/agents/&lt;agent&gt;/agent/workshop-skills</string>
+    <string name="skill_filter_path_extra" translatable="false">skills.load.extraDirs</string>
+    <string name="skill_unmet_note">条件がそろうまでプロンプトに読み込まれないため、コンテキストは消費しません。オンのままにしておくと、条件がそろった次のセッションから使えます。</string>
+    <string name="skill_filter_desc_shared">全エージェントが使えます。~/.openclaw/skills は OpenClaw だけ、~/.agents/skills は Claude Code・Codex などほかの AI ツールとも共有します。</string>
+    <string name="skill_filter_path_shared" translatable="false">~/.openclaw/skills\n~/.agents/skills</string>
+    <string name="agent_identity_title">名前と絵文字</string>
+    <string name="agent_identity_name">表示名</string>
+    <string name="agent_identity_emoji">絵文字</string>
+    <string name="agent_identity_note">openclaw.json と IDENTITY.md に反映します。</string>
+    <string name="agent_identity_saved">名前と絵文字を変えました</string>
+    <string name="agent_identity_failed">変えられませんでした: %1$s</string>
+    <string name="agent_identity_failed_plain">変えられませんでした</string>
+    <string name="agent_identity_name_required">名前を入れてください</string>
+    <string name="agent_overview_change_cd">変える</string>
+    <string name="agent_config_saved">変えました。次のセッションから使われます</string>
+    <string name="agent_choice_use_default">全体の既定を使う</string>
+    <string name="agent_choice_default_value">いまの既定: %1$s</string>
+    <string name="agent_choice_model_note">このエージェントの新しいセッションで使うモデルです。openclaw.json に反映します。</string>
+    <string name="agent_choice_thinking_note">このエージェントの新しいセッションで使う思考の段階です。openclaw.json に反映します。</string>
 </resources>

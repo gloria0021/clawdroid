@@ -60,7 +60,7 @@ sealed interface ConnectionState {
     /** 再起動を指示したあと、戻るまで（FR-072）。 */
     data object Restarting : ConnectionState
     /** 自動の再接続を止めた失敗。 */
-    data class Failed(val reason: FailureReason, val message: String?) : ConnectionState
+    data class Failed(val reason: FailureReason, val message: String?, val code: String? = null) : ConnectionState
     /** 利用者が切断した。 */
     data object Disconnected : ConnectionState
 }
@@ -379,7 +379,7 @@ class GatewayClient(
                 }
                 is SessionOutcome.Fatal -> {
                     restartPending = false
-                    _state.value = ConnectionState.Failed(outcome.reason, outcome.message)
+                    _state.value = ConnectionState.Failed(outcome.reason, outcome.message, outcome.code)
                     return
                 }
             }
@@ -399,7 +399,7 @@ class GatewayClient(
         data object Unreachable : SessionOutcome
         data object PairingApproved : SessionOutcome
         data class RetryLater(val delayMs: Long) : SessionOutcome
-        data class Fatal(val reason: FailureReason, val message: String?) : SessionOutcome
+        data class Fatal(val reason: FailureReason, val message: String?, val code: String? = null) : SessionOutcome
     }
 
     private sealed interface Signal {
@@ -493,7 +493,7 @@ class GatewayClient(
             return SessionOutcome.RetryLater(0)
         }
         if (GatewayErrorClassifier.retryable(error)) return SessionOutcome.RetryLater(error.retryAfterMs ?: backoffMs(2))
-        return SessionOutcome.Fatal(GatewayErrorClassifier.classify(error), error.message)
+        return SessionOutcome.Fatal(GatewayErrorClassifier.classify(error), error.message, error.detailCode ?: error.code)
     }
 
     private suspend fun awaitPairingResolution(signals: Channel<Signal>): SessionOutcome {
@@ -502,9 +502,9 @@ class GatewayClient(
                 is Signal.Text -> {
                     val event = Frames.parse(signal.text) as? Frame.Event ?: continue
                     if (event.event != "device.pair.resolved") continue
-                    return when (event.payload.asObject()?.string("decision")) {
+                    return when (val decision = event.payload.asObject()?.string("decision")) {
                         "approved" -> SessionOutcome.PairingApproved
-                        "rejected", "expired" -> SessionOutcome.Fatal(FailureReason.PAIRING_REJECTED, null)
+                        "rejected", "expired" -> SessionOutcome.Fatal(FailureReason.PAIRING_REJECTED, null, "PAIRING_" + decision.uppercase())
                         else -> SessionOutcome.RetryLater(PAIRING_POLL_MS)
                     }
                 }

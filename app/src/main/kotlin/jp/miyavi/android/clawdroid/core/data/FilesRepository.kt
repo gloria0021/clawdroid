@@ -79,7 +79,17 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
             } while (page.entries.isNotEmpty() && offset < total && entries.size < WORKSPACE_MAX_ENTRIES)
             first!!.copy(entries = sortEntries(entries), truncated = entries.size >= WORKSPACE_MAX_ENTRIES)
         }
+        is FileRoot.AgentFile -> FileListing(
+            path = "",
+            parentPath = null,
+            entries = agentFiles(root.agentId).filterNot { it.missing }.map { FileEntry(it.name, it.name, false, it.size, it.updatedAt) },
+            truncated = false,
+        )
     }
+
+    /** エージェントのファイルの一覧（`agents.files.list`。spec 004 FR-020）。 */
+    suspend fun agentFiles(agentId: String): List<AgentFileEntry> =
+        FileParse.agentFiles(gateway.request("agents.files.list", buildJsonObject { put("agentId", agentId) }).asObject())
 
     override suspend fun open(root: FileRoot, path: String): OpenResult = try {
         val file = when (root) {
@@ -87,6 +97,10 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
             is FileRoot.Workspace -> FileParse.workspaceFile(root, gateway.request("agents.workspace.get", buildJsonObject {
                 put("agentId", root.agentId)
                 put("path", path)
+            }).asObject())
+            is FileRoot.AgentFile -> FileParse.agentFile(root, gateway.request("agents.files.get", buildJsonObject {
+                put("agentId", root.agentId)
+                put("name", path)
             }).asObject())
         }
         file?.let(OpenResult::Opened) ?: OpenResult.Missing
@@ -103,6 +117,8 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
 
     /** 保存（FR-008・009）。衝突の判定は Gateway の `expectedHash` に任せる。 */
     override suspend fun save(file: OpenedFile, content: String, expectedHash: String): SaveResult {
+        val agentRoot = file.root as? FileRoot.AgentFile
+        if (agentRoot != null) return saveAgentFile(agentRoot, file, content, expectedHash)
         val root = file.root as? FileRoot.Session ?: return SaveResult.Failed(null)
         return try {
             val result = gateway.request("sessions.files.set", buildJsonObject {
@@ -120,6 +136,26 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
                 "session_file_not_found" -> SaveResult.Missing
                 else -> SaveResult.Failed(e.error.message)
             }
+        }
+    }
+
+    /**
+     * エージェントのファイルの保存（spec 004 FR-022、contracts/gateway-rpc.md）。[expectedHash] が空なら、
+     * まだ無いことを条件に作る（`expectedMissing`）。読んだときの `workspace` を条件に添える。衝突の判定は Gateway に任せる。
+     */
+    private suspend fun saveAgentFile(root: FileRoot.AgentFile, file: OpenedFile, content: String, expectedHash: String): SaveResult {
+        if (content.toByteArray().size > AGENT_FILE_MAX_BYTES) return SaveResult.Failed(null)
+        return try {
+            val result = gateway.request("agents.files.set", buildJsonObject {
+                put("agentId", root.agentId)
+                put("name", file.path)
+                put("content", content)
+                if (expectedHash.isNotEmpty()) put("expectedHash", expectedHash) else put("expectedMissing", true)
+                file.workspace?.let { put("expectedWorkspace", it) }
+            }).asObject()
+            FileParse.agentFile(root, result)?.let(SaveResult::Saved) ?: SaveResult.Failed(null)
+        } catch (e: GatewayRpcException) {
+            if (e.detailType == "agent_file_conflict") SaveResult.Conflict else SaveResult.Failed(e.error.message)
         }
     }
 
@@ -144,6 +180,12 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
                     filename = file.string("name") ?: path.substringAfterLast('/'),
                     mimeType = file.string("mimeType") ?: OCTET_STREAM,
                 )
+            }
+            is FileRoot.AgentFile -> {
+                val file = (open(root, path) as? OpenResult.Opened)?.file
+                val text = file?.text
+                if (file == null || text == null || file.creating) DownloadSource.Unavailable(DownloadSource.Reason.MISSING)
+                else DownloadSource.Inline(text.toByteArray(), file.name, "text/markdown")
             }
         }
     } catch (e: GatewayRpcException) {

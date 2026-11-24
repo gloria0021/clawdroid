@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -122,37 +123,13 @@ fun ComposerPill(
     onTextChange: (String) -> Unit,
     onAttach: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
+    /** 添付した画像を押したとき（全画面のプレビュー）。並びと押した位置。 */
+    onOpenImage: (List<jp.miyavi.android.clawdroid.feature.chat.PendingImage>, Int) -> Unit = { _, _ -> },
     onSend: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier) {
-        AnimatedVisibility(visible = state.images.isNotEmpty(), enter = expandEnter(), exit = shrinkExit()) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-                contentPadding = PaddingValues(horizontal = Spacing.s, vertical = Spacing.xs),
-            ) {
-                items(state.images, key = { it.uri.toString() }) { pending ->
-                    Box {
-                        rememberBase64Bitmap(pending.image.base64)?.let { bitmap ->
-                            Image(
-                                bitmap,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(Dimens.minTouchTarget * 1.5f).clip(MaterialTheme.shapes.medium),
-                            )
-                        }
-                        IconButton(onClick = { onRemoveImage(pending.uri) }, modifier = Modifier.align(Alignment.TopEnd)) {
-                            Icon(
-                                painterResource(R.drawable.ic_huge_close),
-                                contentDescription = stringResource(R.string.chat_remove_attachment_cd),
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape),
-                            )
-                        }
-                    }
-                }
-            }
-        }
         // あとで答えることにしたエージェントからの質問。押すとシートを開き直す
         AnimatedVisibility(visible = hasQuestion, enter = expandEnter(), exit = shrinkExit()) {
             QuestionRow(hazeState, onOpenQuestion, Modifier.padding(bottom = Spacing.xs))
@@ -188,6 +165,23 @@ fun ComposerPill(
             fixedOpacity = FIELD_OPACITY,
             tint = GlassTint.FIELD,
         ) {
+            // 添付は入力欄の中、文字の上に並べる（マスター指定 2026-11-24。外に浮かせると背景と同化する）。
+            // 押すと全画面のプレビュー、右上の × で外す
+            AnimatedVisibility(visible = state.images.isNotEmpty(), enter = expandEnter(), exit = shrinkExit()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+                    contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = Spacing.xs),
+                ) {
+                    items(state.images, key = { it.uri.toString() }) { pending ->
+                        val index = state.images.indexOf(pending)
+                        AttachmentThumbnail(
+                            pending = pending,
+                            onOpen = { onOpenImage(state.images, index) },
+                            onRemove = { onRemoveImage(pending.uri) },
+                        )
+                    }
+                }
+            }
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -548,3 +542,57 @@ private const val PILL_TRACK_DARK = 0.16f
 /** コンテキストの消費の境目（中・高）。 */
 private const val CONTEXT_MEDIUM = 0.5f
 private const val CONTEXT_HIGH = 0.8f
+
+/**
+ * 添付の 1 枚。会話の画像と同じく影で少し浮かせる（AGENTS.md 2.5 の画像の例外。マスター指定 2026-11-24: 背景と同化しないように）。
+ * 押すとプレビュー、右上の小さな丸い × で外す（押せる範囲はチップと同じ 32dp）。
+ */
+@Composable
+private fun AttachmentThumbnail(
+    pending: jp.miyavi.android.clawdroid.feature.chat.PendingImage,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val shape = MaterialTheme.shapes.medium
+    // × を角に重ねるので、その分だけ右上をあける
+    Box(Modifier.padding(top = Spacing.s, end = Spacing.s)) {
+        val bitmap = rememberBase64Bitmap(pending.image.base64)
+        Box(
+            Modifier
+                .size(Dimens.attachmentThumbnail)
+                .shadow(Dimens.imageElevation, shape)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .clickable(onClickLabel = stringResource(R.string.chat_image_cd), onClick = onOpen),
+        ) {
+            if (bitmap != null) {
+                Image(bitmap, contentDescription = stringResource(R.string.chat_image_cd), contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = Spacing.s, y = -Spacing.s)
+                .size(Dimens.compactTouchTarget)
+                .clip(CircleShape)
+                .clickable(onClickLabel = stringResource(R.string.chat_remove_attachment_cd), onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shadowElevation = Dimens.imageElevation,
+                modifier = Modifier.size(Dimens.attachmentRemove),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(R.drawable.ic_huge_close),
+                        contentDescription = stringResource(R.string.chat_remove_attachment_cd),
+                        modifier = Modifier.size(Dimens.attachmentRemoveIcon),
+                    )
+                }
+            }
+        }
+    }
+}

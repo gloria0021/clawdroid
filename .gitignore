@@ -8,6 +8,7 @@
 
 # Android / Gradle
 .gradle/
+.kotlin/
 build/
 /local.properties
 /captures/
@@ -16,6 +17,7 @@ build/
 *.apk
 *.aab
 *.keystore
+*.jks
 
 # IDE
 .idea/

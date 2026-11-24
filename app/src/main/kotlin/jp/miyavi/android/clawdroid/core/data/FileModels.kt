@@ -15,6 +15,9 @@ sealed interface FileRoot {
 
     /** エージェントのワークスペース（`agents.workspace.*`、読むだけ）。 */
     data class Workspace(val agentId: String) : FileRoot
+
+    /** エージェントの起動時に読み込まれるファイル（`agents.files.*`、読み書き。spec 004）。一覧は平らで、path = ファイル名。 */
+    data class AgentFile(val agentId: String) : FileRoot
 }
 
 /** 一覧の 1 行。`path` はルートからの相対。 */
@@ -54,10 +57,63 @@ data class OpenedFile(
     val hash: String?,
     /** `sessions.files.get` の `source`（保存時に `expectedSource` として返す）。 */
     val source: JsonObject?,
+    /** `agents.files.get` の `workspace`（保存時に `expectedWorkspace` として返す。表示しない）。 */
+    val workspace: String? = null,
+    /** まだ無いエージェントのファイルを開いた（保存は `expectedMissing`。spec 004 FR-022）。 */
+    val creating: Boolean = false,
 ) {
-    /** 編集できるか（FR-012）: 作業フォルダの、ハッシュの付いた UTF-8 の文字のファイルだけ。 */
-    val editable: Boolean get() = root is FileRoot.Session && hash != null && kind == PreviewKind.TEXT && text != null
+    /**
+     * 編集できるか。作業フォルダ（002 FR-012）: ハッシュの付いた UTF-8 の文字のファイル。
+     * エージェントのファイル（004 FR-024）: 文字のファイルで、2 MiB 以下、ハッシュがあるか未作成。
+     */
+    val editable: Boolean get() = kind == PreviewKind.TEXT && text != null && when (root) {
+        is FileRoot.Session -> hash != null
+        is FileRoot.AgentFile -> (hash != null || creating) && (size ?: 0) <= AGENT_FILE_MAX_BYTES
+        is FileRoot.Workspace -> false
+    }
+
+    /** エージェントのファイルが大きすぎて編集できない（004 FR-024）。 */
+    val tooLargeToEdit: Boolean get() = root is FileRoot.AgentFile && (size ?: 0) > AGENT_FILE_MAX_BYTES
 }
+
+/** `agents.files.set` が受け付ける大きさ（2 MiB）。 */
+const val AGENT_FILE_MAX_BYTES = 2L * 1024 * 1024
+
+/** エージェントのファイルの役割（名前から決める。spec 004 FR-020）。並びはこの順。 */
+enum class AgentFileRole(val fileName: String) {
+    INSTRUCTIONS("AGENTS.md"),
+    SOUL("SOUL.md"),
+    IDENTITY("IDENTITY.md"),
+    USER("USER.md"),
+    HEARTBEAT("HEARTBEAT.md"),
+    MEMORY("MEMORY.md"),
+    BOOTSTRAP("BOOTSTRAP.md"),
+    ;
+
+    companion object {
+        fun of(name: String): AgentFileRole? = entries.firstOrNull { it.fileName.equals(name, ignoreCase = true) }
+    }
+}
+
+/** `agents.files.list` の 1 行。ホストのパスは持たない。 */
+data class AgentFileEntry(
+    val name: String,
+    val missing: Boolean,
+    /** 無いのが普通のファイル（USER.md・MEMORY.md など）。 */
+    val expectedAbsent: Boolean,
+    val size: Long?,
+    val updatedAt: Long?,
+) {
+    val role: AgentFileRole? get() = AgentFileRole.of(name)
+}
+
+/** 存在するもの → 未作成、その中は役割の順、知らない名前は最後に名前順。 */
+fun sortAgentFiles(files: List<AgentFileEntry>): List<AgentFileEntry> =
+    files.sortedWith(
+        compareBy<AgentFileEntry> { it.missing }
+            .thenBy { it.role?.ordinal ?: Int.MAX_VALUE }
+            .thenComparator { a, b -> naturalCompare(a.name, b.name) },
+    )
 
 /** フォルダが先、名前の自然順（大文字小文字を区別しない）。 */
 fun sortEntries(entries: List<FileEntry>): List<FileEntry> =
@@ -141,6 +197,37 @@ internal object FileParse {
             imageBase64 = content.takeIf { kind == PreviewKind.IMAGE && encoding == "base64" },
             hash = file.string("hash"),
             source = result.obj("source"),
+        )
+    }
+
+    /** `agents.files.list` の結果。 */
+    fun agentFiles(result: JsonObject?): List<AgentFileEntry> = sortAgentFiles(
+        result?.array("files").orEmpty().mapNotNull { element ->
+            val f = element.asObject() ?: return@mapNotNull null
+            val name = f.string("name")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            AgentFileEntry(name, f.bool("missing") == true, f.bool("expectedAbsent") == true, f.long("size"), f.long("updatedAtMs"))
+        },
+    )
+
+    /** `agents.files.get` / `set` の結果。未作成なら空の内容で `creating` にする。 */
+    fun agentFile(root: FileRoot.AgentFile, result: JsonObject?): OpenedFile? {
+        val file = result?.obj("file") ?: return null
+        val name = file.string("name") ?: return null
+        val missing = file.bool("missing") == true
+        val content = file.string("content") ?: if (missing) "" else null
+        return OpenedFile(
+            root = root,
+            path = name,
+            name = name,
+            size = file.long("size"),
+            mimeType = "text/markdown",
+            kind = if (content == null) PreviewKind.UNSUPPORTED else PreviewKind.TEXT,
+            text = content,
+            imageBase64 = null,
+            hash = file.string("hash").takeIf { !missing },
+            source = null,
+            workspace = result.string("workspace"),
+            creating = missing,
         )
     }
 

@@ -131,6 +131,8 @@ data class ChatNavigation(
     val openTerminal: (sessionKey: String?, agentId: String?, cwd: String?) -> Unit,
     val openFiles: (sessionKey: String, agentId: String) -> Unit,
     val restartGateway: () -> Unit,
+    /** エージェントの設定（spec 004）。 */
+    val openAgentSettings: (agentId: String) -> Unit = {},
 )
 
 @Composable
@@ -281,7 +283,7 @@ fun ChatContent(
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_ATTACH_IMAGES)) { uris ->
         uris.forEach(actions.addImage)
     }
-    var openedImage by remember { mutableStateOf<MessagePart.Image?>(null) }
+    var openedImage by remember { mutableStateOf<jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery?>(null) }
     var openedVideo by rememberSaveable { mutableStateOf<String?>(null) }
     val voiceDenied = stringResource(R.string.voice_permission_denied)
     val voiceError = stringResource(R.string.voice_error)
@@ -314,7 +316,7 @@ fun ChatContent(
                 when {
                     target == null -> linkError()
                     extension in VIDEO_EXTENSIONS -> openedVideo = uri
-                    extension in IMAGE_EXTENSIONS -> openedImage = MessagePart.Image(uri, null, null)
+                    extension in IMAGE_EXTENSIONS -> openedImage = jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery(listOf(MessagePart.Image(uri, null, null)))
                     else -> openLink(target)
                 }
             }
@@ -326,7 +328,10 @@ fun ChatContent(
     val imageAgentId = state.currentSession?.agentId ?: state.selectedAgentId
     val imageSource = remember(inboundImages, imageSessionKey, imageAgentId) {
         if (inboundImages == null || imageSessionKey == null) null
-        else InboundImageSource { inboundImages.load(it, imageSessionKey, imageAgentId) }
+        else object : InboundImageSource {
+            override suspend fun load(source: String) = inboundImages.load(source, imageSessionKey, imageAgentId)
+            override suspend fun bytes(source: String) = inboundImages.loadBytes(source, imageSessionKey, imageAgentId)
+        }
     }
     CompositionLocalProvider(LocalInboundImages provides imageSource) {
     ProvideScreenHaze(hazeState) {
@@ -355,6 +360,7 @@ fun ChatContent(
                     onDelete = actions.delete,
                     onOpenAutomations = { agent -> scope.launch { drawerState.close() }; navigation.openAutomations(agent) },
                     onOpenSettings = { scope.launch { drawerState.close() }; navigation.openSettings() },
+                    onOpenAgentSettings = { agent -> scope.launch { drawerState.close() }; navigation.openAgentSettings(agent.id) },
                     groupingByAgent = grouping,
                     onGroupingChange = actions.setGrouping,
                     onUnpin = { actions.setPinned(it, false) },
@@ -419,6 +425,12 @@ fun ChatContent(
                                 onTextChange = actions.textChange,
                                 onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                 onRemoveImage = actions.removeImage,
+                                onOpenImage = { images, index ->
+                                    openedImage = jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery(
+                                        images.map { MessagePart.Image(url = null, base64 = it.image.base64, mimeType = it.image.mimeType) },
+                                        index,
+                                    )
+                                },
                                 onSend = actions.send,
                                 onStop = actions.stop,
                                 modifier = Modifier.widthIn(max = Dimens.composerMaxWidth).padding(horizontal = Spacing.l, vertical = Spacing.s),
@@ -434,6 +446,7 @@ fun ChatContent(
                     CompositionLocalProvider(
                         LocalUriHandler provides uriHandler,
                         jp.miyavi.android.clawdroid.feature.chat.message.LocalLinkActions provides linkActions,
+                        jp.miyavi.android.clawdroid.feature.chat.message.LocalOpenAgentSettings provides navigation.openAgentSettings,
                     ) {
                         MessageList(
                             newSessionCwd = composer.newSessionCwd,
@@ -471,7 +484,7 @@ fun ChatContent(
                 }
             }
         }
-        ImageOverlay(image = openedImage, onDismiss = { openedImage = null })
+        ImageOverlay(gallery = openedImage, onDismiss = { openedImage = null })
         val current = state.currentSession
         when (sessionAction) {
             SessionAction.RENAME -> if (current != null) SessionRenameDialog(current.title.orEmpty(), onDismiss = { sessionAction = null }) {
@@ -546,10 +559,10 @@ private fun SessionTitleBar(
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(start = Spacing.m, end = Spacing.m, top = Spacing.s, bottom = Spacing.s),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.End),
     ) {
-        // 左に「Clawdroid」のピルだけ（⋮ の代わり。押すとメニュー）。サイドパネルは左端からのスワイプで開く
-        // （≡ は置かない。マスター指定 2026-11-23）
+        // 右に「Clawdroid」のピルだけ（⋮ の代わり。押すとメニュー。右寄せはマスター指定 2026-11-24）。
+        // サイドパネルは左端からのスワイプで開く（≡ は置かない。マスター指定 2026-11-23）
         val key = state.currentSessionKey
         val agentId = state.selectedAgentId
         val menuLabel = stringResource(R.string.session_more_cd)
@@ -623,7 +636,7 @@ private fun MessageList(
     contentPadding: PaddingValues,
     onCopy: (String) -> Unit,
     onReply: ((String) -> Unit)?,
-    onOpenImage: (MessagePart.Image) -> Unit,
+    onOpenImage: (jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
     hazeState: dev.chrisbanes.haze.HazeState,

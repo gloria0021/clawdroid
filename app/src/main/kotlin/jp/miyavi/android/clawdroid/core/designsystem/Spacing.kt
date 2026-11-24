@@ -31,9 +31,13 @@ object Dimens {
     val tabPillHeight = 32.dp
     val unreadDot = 8.dp
     val emptyStateIcon = 72.dp
+    /** 接続の画面のマスコットの丸。 */
+    val onboardingMascot = 96.dp
     val avatar = 24.dp
     /** キャラクターの大きいアイコン（avatar の 2 倍）。サイドパネルのタブと会話の応答で使う。 */
     val avatarLarge = 48.dp
+    /** M3 の一覧の先頭の丸（40dp）。 */
+    val listLeading = 40.dp
     /** 応答の下の操作（返信・コピー）の小さめのアイコン。 */
     val smallIcon = 18.dp
     /** 設定のメニューの最大幅。 */
@@ -45,6 +49,15 @@ object Dimens {
     val imagePlaceholder = 160.dp
     /** 会話の中の画像のプレビューの最大の辺。 */
     val messageImageMax = 240.dp
+    /** 入力欄の中の添付のサムネイル。 */
+    val attachmentThumbnail = 64.dp
+    /** 絵文字 1 文字の入力欄の幅。 */
+    val emojiField = 72.dp
+    /** 添付を外す × の丸と、その中のアイコン。 */
+    val attachmentRemove = 24.dp
+    val attachmentRemoveIcon = 16.dp
+    /** 複数の画像を 1 行に並べるときのサムネイルの高さ。 */
+    val messageImageRowHeight = 160.dp
     /** 入力欄のモデルのピルの最大幅（長いモデル名は省略記号）。 */
     val modelPillMaxWidth = 200.dp
     /** 入力欄の上に出すスラッシュコマンドの候補の最大の高さ（超えると候補の中でスクロール）。 */

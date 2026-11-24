@@ -26,6 +26,10 @@ class InboundImageLoader(private val gateway: GatewayClient) {
         return bitmap
     }
 
+    /** 元のままのバイト列（保存用。縮めない）。 */
+    suspend fun loadBytes(source: String, sessionKey: String, agentId: String?): ByteArray? =
+        gateway.loadInboundMedia(source, sessionKey, agentId)
+
     private fun decodeScaled(bytes: ByteArray): ImageBitmap? = runCatching {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -44,6 +48,9 @@ class InboundImageLoader(private val gateway: GatewayClient) {
 /** 今開いている会話で、添付画像を取る口。 */
 fun interface InboundImageSource {
     suspend fun load(source: String): ImageBitmap?
+
+    /** 保存用の元のバイト列。取れなければ null。 */
+    suspend fun bytes(source: String): ByteArray? = null
 }
 
 val LocalInboundImages = staticCompositionLocalOf<InboundImageSource?> { null }
