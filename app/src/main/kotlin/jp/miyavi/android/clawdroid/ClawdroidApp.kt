@@ -51,6 +51,10 @@ class AppContainer(app: Application) {
     internal val approvals = jp.miyavi.android.clawdroid.core.data.ApprovalsRepository(gateway, appScope)
     internal val questions = jp.miyavi.android.clawdroid.core.data.QuestionsRepository(gateway, appScope)
 
+    /** アプリが前にあるか・開いている会話・通知から開く行き先（spec 006）。 */
+    val foreground = jp.miyavi.android.clawdroid.core.notify.ForegroundState()
+    internal val notifier = jp.miyavi.android.clawdroid.core.notify.Notifier(app, gateway, sessions, approvals, settings, foreground, appScope)
+
     /** アプリ全体のダウンロード（ファイルビューアを閉じても、画面を消しても続く）。 */
     val downloads = jp.miyavi.android.clawdroid.core.data.DownloadCenter(
         context = app,
@@ -69,5 +73,19 @@ class ClawdroidApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.gateway.start()
+        container.notifier.start()
+        // 前後の切り替え: 裏では文字ごとの流れを止め（spec 006 FR-004）、前に来たら常駐を始め直す（裏からは始められないため）
+        androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onStart(owner: androidx.lifecycle.LifecycleOwner) {
+                container.foreground.setForeground(true)
+                container.chats.setBackground(false)
+                container.notifier.ensureService()
+            }
+
+            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                container.foreground.setForeground(false)
+                container.chats.setBackground(true)
+            }
+        })
     }
 }

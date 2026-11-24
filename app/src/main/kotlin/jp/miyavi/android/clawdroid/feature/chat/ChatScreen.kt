@@ -163,6 +163,11 @@ internal fun ChatScreen(
     val worktreeCreating = stringResource(R.string.worktree_creating)
     val worktreePreserved = stringResource(R.string.worktree_preserved)
     val grouping by viewModel.sessionGrouping.collectAsStateWithLifecycle()
+    // 会話の画面が見えているあいだだけ「開いている」とする（ほかの画面を重ねた・裏に回ったら外す。spec 006 FR-011）
+    androidx.lifecycle.compose.LifecycleResumeEffect(viewModel) {
+        viewModel.setVisible(true)
+        onPauseOrDispose { viewModel.setVisible(false) }
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {

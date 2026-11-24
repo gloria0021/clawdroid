@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <intent>
@@ -34,6 +35,21 @@
         android:theme="@style/Theme.Clawdroid"
         tools:targetApi="37">
 
+        <!-- 通知を受けるための常駐（spec 006 R1。公式アプリと同じ connectedDevice） -->
+        <service
+            android:name=".core.notify.ConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+        <receiver
+            android:name=".core.notify.ApprovalActionReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".core.notify.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".core.data.DownloadService"
             android:exported="false"

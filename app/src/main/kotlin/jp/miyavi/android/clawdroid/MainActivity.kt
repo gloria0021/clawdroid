@@ -19,10 +19,23 @@ class MainActivity : ComponentActivity() {
         (application as ClawdroidApp).container.gateway.onForeground()
     }
 
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        openFromNotification(intent)
+    }
+
+    private fun openFromNotification(intent: android.content.Intent?) {
+        jp.miyavi.android.clawdroid.core.notify.NotificationCenter.targetOf(intent)?.let {
+            (application as ClawdroidApp).container.foreground.open(it)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val container = (application as ClawdroidApp).container
+        // 通知から開いた（回転などで作り直したときは読み直さない）
+        if (savedInstanceState == null) openFromNotification(intent)
         var firstThemeDrawn = false
         val content = findViewById<View>(android.R.id.content)
         content.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {

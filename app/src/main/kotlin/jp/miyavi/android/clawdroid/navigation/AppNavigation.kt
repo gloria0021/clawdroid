@@ -86,6 +86,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class AutomationsRoute(val agentId: String, val agentName: String) : NavKey
 @Serializable data class AutomationDetailRoute(val jobId: String) : NavKey
 @Serializable data object AgentLayoutRoute : NavKey
+@Serializable data object NotificationSettingsRoute : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
@@ -100,17 +101,26 @@ import kotlinx.serialization.Serializable
 @Composable
 fun AppNavigation(container: AppContainer) {
     val connection by container.gateway.state.collectAsStateWithLifecycle()
-    // 一度でも接続できたら、切断や再接続のあいだも会話の画面を出し続ける（表示済みの内容を残す）
-    var everConnected by rememberSaveable { mutableStateOf(false) }
+    // 一度でも接続できたら、切断や再接続のあいだも会話の画面を出し続ける（表示済みの内容を残す）。
+    // 前回の起動でつながった接続先なら、起動直後のつなぎ直しのあいだに接続画面を挟まない（マスター指摘 2026-11-25）
+    val context = LocalContext.current
+    val launchPrefs = remember { context.getSharedPreferences(LAUNCH_PREFS, android.content.Context.MODE_PRIVATE) }
+    var everConnected by rememberSaveable { mutableStateOf(launchPrefs.getBoolean(KEY_CONNECTED_BEFORE, false)) }
     // 初めての接続で承認を経たときは、つながったことを確かめてもらってから会話へ進む（本家に倣う。マスター指定 2026-11-24）
     var pairedPending by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(container.gateway) {
         container.gateway.state.collect { state ->
             when (state) {
-                is ConnectionState.Connected -> everConnected = true
+                is ConnectionState.Connected -> {
+                    everConnected = true
+                    launchPrefs.edit().putBoolean(KEY_CONNECTED_BEFORE, true).apply()
+                }
                 is ConnectionState.AwaitingApproval -> if (!everConnected) pairedPending = true
                 ConnectionState.NotConfigured, ConnectionState.Disconnected -> {
-                    if (state == ConnectionState.NotConfigured) everConnected = false
+                    if (state == ConnectionState.NotConfigured) {
+                        everConnected = false
+                        launchPrefs.edit().remove(KEY_CONNECTED_BEFORE).apply()
+                    }
                     if (!everConnected) pairedPending = false
                 }
                 else -> Unit
@@ -151,6 +161,19 @@ private fun MainNavigation(container: AppContainer) {
     val restartDone = stringResource(R.string.restart_done)
     val restartTimeout = stringResource(R.string.restart_timeout)
     val restartFailed = stringResource(R.string.restart_failed)
+    // 通知から開く: 会話は最初の画面まで戻して（会話を開くのは ChatViewModel）、自動化は詳細を重ねる（spec 006 R7）
+    LaunchedEffect(Unit) {
+        container.foreground.openRequests.collect { target ->
+            when (target) {
+                is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session -> while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Automation -> {
+                    container.foreground.consumed()
+                    backStack.push(AutomationDetailRoute(target.jobId))
+                }
+                jp.miyavi.android.clawdroid.core.notify.OpenTarget.Approvals -> container.foreground.consumed()
+            }
+        }
+    }
     val timeLabel: (Long) -> String = remember(context) {
         { ms -> DateUtils.getRelativeTimeSpanString(ms, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString() }
     }
@@ -183,6 +206,7 @@ private fun MainNavigation(container: AppContainer) {
                                 timeFormatter = { ms ->
                                     DateUtils.formatDateTime(context, ms, DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_ALL)
                                 },
+                                foreground = container.foreground,
                             )
                         }
                     },
@@ -211,8 +235,9 @@ private fun MainNavigation(container: AppContainer) {
                 val agentsState by container.sessions.agents.collectAsStateWithLifecycle()
                 val agentLayout by container.settings.agentLayout.collectAsStateWithLifecycle(AgentLayout())
                 val shown = remember(agentsState.agents, agentLayout) { agentLayout.visible(agentsState.agents).size }
+                val notifications by container.settings.notifications.collectAsStateWithLifecycle(null)
                 SettingsContent(
-                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size),
+                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size, notifications),
                     snackbar = snackbar,
                     actions = SettingsActions(
                         onBack = { gate.run { backStack.pop() } },
@@ -229,8 +254,22 @@ private fun MainNavigation(container: AppContainer) {
                         forget = { scope.launch { container.gateway.forget() } },
                         restart = { confirmRestart = true },
                         openAgentLayout = { gate.run { backStack.push(AgentLayoutRoute) } },
+                        setNotifications = { next -> scope.launch { container.settings.setNotifications(next) } },
+                        openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
                     ),
                 )
+            }
+            entry<NotificationSettingsRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val notifications by container.settings.notifications.collectAsStateWithLifecycle(null)
+                notifications?.let { current ->
+                    jp.miyavi.android.clawdroid.feature.settings.NotificationSettingsScreen(
+                        settings = current,
+                        onChange = { next -> scope.launch { container.settings.setNotifications(next) } },
+                        onTest = { container.notifier.center.showTest() },
+                        onBack = { gate.run { backStack.pop() } },
+                    )
+                }
             }
             entry<AgentLayoutRoute> {
                 val gate = rememberNavGate(onBack = { backStack.pop() })
@@ -506,6 +545,9 @@ internal fun popTransition(): ContentTransform = ContentTransform(
 )
 
 private const val PARALLAX_DIVISOR = 4
+private const val LAUNCH_PREFS = "launch"
+/** この接続先に一度つながったか（接続情報を消すと消える）。 */
+private const val KEY_CONNECTED_BEFORE = "connected_before"
 private const val PARALLAX_ALPHA = 0.9f
 
 /**

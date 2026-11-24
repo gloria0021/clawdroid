@@ -133,7 +133,12 @@ class ChatViewModel(
     private val positions: ReadingPositionDao,
     private val contentResolver: ContentResolver,
     private val timeFormatter: (Long) -> String,
+    /** 開いている会話を知らせ、通知から開く行き先を受ける（spec 006。無ければ使わない）。 */
+    private val foreground: jp.miyavi.android.clawdroid.core.notify.ForegroundState? = null,
 ) : ViewModel() {
+    /** 通知から会話を開いた（起動時の「前回の会話を戻す」で上書きしない）。 */
+    @Volatile private var openedExplicitly = false
+    private val visible = MutableStateFlow(false)
     /** 作業フォルダごとの今のブランチ（サイドパネルの行に出す）。 */
     val headBranches: kotlinx.coroutines.flow.StateFlow<Map<String, String>> get() = sessions.headBranches
 
@@ -199,6 +204,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val saved = settings.selection.first()
             val agents = sessions.agents.first { !it.loading && it.agents.isNotEmpty() }
+            if (openedExplicitly) return@launch
             val agentId = saved.selectedAgentId?.takeIf { id -> agents.agents.any { it.id == id } }
                 ?: agents.defaultId?.takeIf { id -> agents.agents.any { it.id == id } }
                 ?: agents.agents.first().id
@@ -210,6 +216,20 @@ class ChatViewModel(
                 agentId.takeIf { slash }
             }.distinctUntilChanged().collect { agentId ->
                 if (agentId != null && agentId !in commandsByAgent.value) loadSlashCommands(agentId)
+            }
+        }
+        // 通知から開く会話（spec 006 R7）と、画面で開いている会話を知らせる（その会話の応答は通知しない。FR-011）
+        foreground?.let { fg ->
+            viewModelScope.launch {
+                fg.openRequests.collect { target ->
+                    if (target is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session) {
+                        fg.consumed()
+                        openByKey(target.agentId, target.sessionKey)
+                    }
+                }
+            }
+            viewModelScope.launch {
+                combine(visible, selectedSessionKey) { shown, key -> key.takeIf { shown } }.collect { fg.openSessionKey.value = it }
             }
         }
         // 下書きは入力を間引いて保存する（FR-028）
@@ -365,6 +385,18 @@ class ChatViewModel(
             settings.selectSession(agentId, session.key)
             if (session.unread) runCatching { sessions.markRead(session) }
         }
+    }
+
+    /** 会話の画面が見えている・隠れた（ほかの画面を重ねた・アプリが裏に回った）。 */
+    fun setVisible(shown: Boolean) { visible.value = shown }
+
+    /** key で会話を開く（通知から）。 */
+    fun openByKey(agentId: String, sessionKey: String) {
+        openedExplicitly = true
+        selectedAgentId.value = agentId
+        sessions.ensureLoaded(agentId)
+        openSession(sessionKey, agentId)
+        viewModelScope.launch { settings.selectSession(agentId, sessionKey) }
     }
 
     fun newChat() {

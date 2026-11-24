@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -78,6 +80,8 @@ data class SettingsState(
     /** サイドパネルに出しているエージェントの数 / すべての数。 */
     val agentsShown: Int = 0,
     val agentsTotal: Int = 0,
+    /** 通知の設定（spec 006。null なら節を出さない）。 */
+    val notifications: jp.miyavi.android.clawdroid.core.settings.NotificationSettings? = null,
 )
 
 data class SettingsActions(
@@ -95,6 +99,8 @@ data class SettingsActions(
     val forget: () -> Unit,
     val restart: () -> Unit,
     val openAgentLayout: () -> Unit = {},
+    val setNotifications: (jp.miyavi.android.clawdroid.core.settings.NotificationSettings) -> Unit = {},
+    val openNotificationSettings: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -174,6 +180,31 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             colors = transparentItem(),
                             modifier = Modifier.clickable(role = Role.Button, onClick = actions.restart),
                         )
+                    }
+                }
+                // 通知（spec 006）
+                state.notifications?.let { notifications ->
+                    item(key = "notifications") {
+                        // 設定の画面では通知のオン・オフだけ。行を押すと詳しい設定（マスター指定 2026-11-24）
+                        Section(R.string.settings_section_notifications) {
+                            ListItem(
+                                leadingContent = { Icon(painterResource(R.drawable.ic_huge_notification), contentDescription = null) },
+                                headlineContent = { Text(stringResource(R.string.settings_notify_enabled)) },
+                                supportingContent = { Text(stringResource(R.string.settings_notify_details)) },
+                                // スイッチの左に縦の区切り線: 行を押すと詳しい設定、スイッチはオン・オフだけ（マスター指定 2026-11-24）
+                                trailingContent = {
+                                    androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                                        androidx.compose.material3.VerticalDivider(
+                                            Modifier.height(Spacing.xl).padding(end = Spacing.l),
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                        )
+                                        Switch(checked = notifications.enabled, onCheckedChange = { actions.setNotifications(notifications.copy(enabled = it)) })
+                                    }
+                                },
+                                colors = transparentItem(),
+                                modifier = Modifier.clickable(role = Role.Button, onClick = actions.openNotificationSettings),
+                            )
+                        }
                     }
                 }
                 // エージェント: サイドパネルに出すエージェントと並び
@@ -403,7 +434,7 @@ private fun LevelSlider(title: Int, description: Int, level: Int, onLevelChange:
 }
 
 @Composable
-private fun transparentItem() = ListItemDefaults.colors(containerColor = Color.Transparent)
+internal fun transparentItem() = ListItemDefaults.colors(containerColor = Color.Transparent)
 
 @Composable
 private fun CustomColorDialog(initial: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {

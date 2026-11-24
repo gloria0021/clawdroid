@@ -53,6 +53,8 @@ data class ThemeSettings(
 }
 
 data class NotificationSettings(
+    /** 通知ぜんたいのオン・オフ（オフなら常駐もしない。マスター指定 2026-11-24）。 */
+    val enabled: Boolean = true,
     val backgroundConnection: Boolean = true,
     val notifyReplies: Boolean = true,
     val notifyApprovals: Boolean = true,
@@ -87,6 +89,7 @@ class SettingsStore(context: Context) {
 
     val notifications: Flow<NotificationSettings> = store.data.map { p ->
         NotificationSettings(
+            enabled = p[NOTIFICATIONS_ENABLED] ?: true,
             backgroundConnection = p[BACKGROUND_CONNECTION] ?: true,
             notifyReplies = p[NOTIFY_REPLIES] ?: true,
             notifyApprovals = p[NOTIFY_APPROVALS] ?: true,
@@ -123,6 +126,15 @@ class SettingsStore(context: Context) {
     suspend fun setNotifyApprovals(v: Boolean) = store.edit { it[NOTIFY_APPROVALS] = v }
     suspend fun setNotifyAutomationFailures(v: Boolean) = store.edit { it[NOTIFY_AUTOMATION_FAILURES] = v }
     suspend fun setLockScreenContent(v: LockScreenContent) = store.edit { it[LOCK_SCREEN] = v.name }
+
+    suspend fun setNotifications(v: NotificationSettings) = store.edit {
+        it[NOTIFICATIONS_ENABLED] = v.enabled
+        it[BACKGROUND_CONNECTION] = v.backgroundConnection
+        it[NOTIFY_REPLIES] = v.notifyReplies
+        it[NOTIFY_APPROVALS] = v.notifyApprovals
+        it[NOTIFY_AUTOMATION_FAILURES] = v.notifyAutomationFailures
+        it[LOCK_SCREEN] = v.lockScreenContent.name
+    }
 
     suspend fun selectAgent(agentId: String) = store.edit { it[SELECTED_AGENT] = agentId }
     /** サイドパネルに出すエージェントの並びと表示（設定 → エージェント）。 */
@@ -176,6 +188,7 @@ class SettingsStore(context: Context) {
         val AGENT_LAYOUT = stringPreferencesKey("agent_layout")
         val SESSION_GROUPING_BY_AGENT = stringPreferencesKey("session_grouping_by_agent")
         val CODE_WRAP = booleanPreferencesKey("code_wrap")
+        val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
     }
 }
 

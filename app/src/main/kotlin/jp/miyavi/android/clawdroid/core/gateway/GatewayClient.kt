@@ -629,7 +629,9 @@ class GatewayClient(
         const val ROLE = "operator"
         /** ターミナルと再起動に operator.admin が要る（research R1）。 */
         val SCOPES = listOf("operator.admin", "operator.approvals", "operator.read", "operator.write")
-        val CAPS = listOf("agent-kind", "usage-refreshing", "health-summary", "hello-health-on-demand", "presence-deltas", "model-selection-policy")
+        val CAPS = listOf("agent-kind", "usage-refreshing", "health-summary", "hello-health-on-demand", "presence-deltas", "model-selection-policy",
+            // 応答の文字は chat の流れだけから描くので、agent の文字の重複を受け取らない（spec 006 R3）
+            "chat-only-assistant-text")
         const val DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000L
         const val DEFAULT_REQUEST_TIMEOUT_MS = 30_000L
         const val DEFAULT_TICK_INTERVAL_MS = 30_000L

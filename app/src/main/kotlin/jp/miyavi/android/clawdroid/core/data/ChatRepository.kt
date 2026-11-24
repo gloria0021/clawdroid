@@ -81,6 +81,31 @@ class ChatSession(
     private var jobs = mutableListOf<Job>()
     private var refreshJob: Job? = null
     private var subscribed = false
+    /** アプリが裏にあるあいだ（文字ごとの流れを止めている。spec 006 FR-004）。 */
+    @Volatile private var paused = false
+
+    /** アプリが裏に回った。開いていれば購読を止める（電池のため。全会話の状態の変化は別で届く）。 */
+    fun pause() {
+        if (paused) return
+        paused = true
+        if (subscribed) {
+            subscribed = false
+            scope.launch { runCatching { gateway.request("sessions.messages.unsubscribe", keyParams()) } }
+        }
+    }
+
+    /** アプリが前に戻った。開いていれば購読し直し、裏にいたあいだの分を取り直す。 */
+    fun resume() {
+        if (!paused) return
+        paused = false
+        if (jobs.isEmpty()) return
+        scope.launch {
+            if (gateway.state.value is ConnectionState.Connected) {
+                subscribe()
+                refreshHistory()
+            }
+        }
+    }
 
     /** 画面に出たら呼ぶ。履歴の取得と購読を始める。 */
     fun open() {
@@ -89,7 +114,7 @@ class ChatSession(
             var wasConnected = false
             gateway.state.collect { state ->
                 val connected = state is ConnectionState.Connected
-                if (connected && !wasConnected) {
+                if (connected && !wasConnected && !paused) {
                     subscribed = false
                     subscribe()
                     refreshHistory()
@@ -462,7 +487,16 @@ class ChatRepository(private val gateway: GatewayClient, private val scope: Coro
 
     @Synchronized
     fun session(sessionKey: String, agentId: String): ChatSession =
-        sessions.getOrPut(sessionKey) { ChatSession(gateway, scope, sessionKey, agentId) }
+        sessions.getOrPut(sessionKey) { ChatSession(gateway, scope, sessionKey, agentId) }.also { if (background) it.pause() }
+
+    private var background = false
+
+    /** アプリの前後の切り替え（spec 006 FR-004）。 */
+    @Synchronized
+    fun setBackground(background: Boolean) {
+        this.background = background
+        sessions.values.forEach { if (background) it.pause() else it.resume() }
+    }
 }
 
 /** `/compact`（指示付きも）を送ったか。 */
