@@ -127,6 +127,9 @@ private val BLUR_RADIUS_MAX = 48.dp
  */
 enum class GlassTint { THEME, NEUTRAL, FIELD }
 
+/** 接続の状態のお知らせ（再接続しています など）。読みやすさのため 80%（マスター指定 2026-11-24）。 */
+val NOTICE_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
+
 /** 入力欄（会話の入力欄・ファイル内の検索欄）の面。読みやすさのため 80%（マスター指定 2026-11-23。以前は 90%）。 */
 val FIELD_OPACITY = SurfaceOpacity(glass = 0.8f, blur = 0.8f)
 

@@ -78,6 +78,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import jp.miyavi.android.clawdroid.core.designsystem.hazeSurface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
@@ -616,10 +620,33 @@ private fun ConnectionBanner(connection: ConnectionState, onReconnect: () -> Uni
         is ConnectionState.Failed -> stringResource(R.string.connection_auth_expired)
         else -> null
     }
+    // Snackbar と同じ透過のピル（Gerbil の GlassSnackbarHost の形）。読みやすさのため不透明度 80%（マスター指定 2026-11-24）
+    val hazeState = jp.miyavi.android.clawdroid.core.designsystem.LocalScreenHazeState.current
+    // 消える動きのあいだも文字を残す
+    var shownText by remember { mutableStateOf(text.orEmpty()) }
+    if (text != null) shownText = text
     AnimatedVisibility(visible = text != null, enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()), exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()), modifier = modifier) {
-        Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer, shape = MaterialTheme.shapes.extraLarge) {
-            Row(Modifier.padding(start = Spacing.l, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                Text(text.orEmpty(), style = MaterialTheme.typography.labelMedium)
+        jp.miyavi.android.clawdroid.core.designsystem.ProvideGlassEnvironment {
+            val shape = CircleShape
+            Row(
+                Modifier
+                    .padding(horizontal = Spacing.l)
+                    .widthIn(max = Dimens.maxReadingWidth)
+                    .then(
+                        if (hazeState != null) Modifier.hazeSurface(hazeState, shape, jp.miyavi.android.clawdroid.core.designsystem.NOTICE_OPACITY)
+                        else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape),
+                    )
+                    .clip(shape)
+                    .heightIn(min = Dimens.minTouchTarget)
+                    .padding(start = Spacing.xl, end = if (connection is ConnectionState.Connecting) Spacing.xl else Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    shownText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false).padding(vertical = Spacing.m),
+                )
                 if (connection !is ConnectionState.Connecting) {
                     TextButton(onClick = onReconnect) { Text(stringResource(R.string.connection_reconnect)) }
                 }

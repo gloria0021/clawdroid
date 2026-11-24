@@ -355,7 +355,8 @@ private fun PanelActionRow(
                 LabeledAction(
                     R.drawable.ic_huge_home, R.string.panel_home, onHome,
                     container = if (homeSelected) accent.container else Color.Transparent,
-                    content = if (homeSelected) accent.content else accent.container,
+                    // 文字とアイコンはふつうの文字色（テーマカラーにしない。マスター指定 2026-11-24）。開いているあいだは選択の面
+                    content = if (homeSelected) accent.content else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f, fill = false).semantics { selected = homeSelected },
                 )
             }
@@ -363,7 +364,7 @@ private fun PanelActionRow(
                 LabeledAction(
                     R.drawable.ic_huge_automation, R.string.sidebar_automations, onAutomations,
                     container = Color.Transparent,
-                    content = accentContainer().container,
+                    content = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f, fill = false),
                 )
             }
