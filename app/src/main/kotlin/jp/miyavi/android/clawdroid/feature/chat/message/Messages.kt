@@ -147,7 +147,6 @@ fun AssistantMessage(
     timeLabel: String?,
     elapsedMs: Long?,
     onCopy: (String) -> Unit,
-    onReply: ((String) -> Unit)?,
     onOpenImage: (ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     onShowFull: (() -> Unit)?,
@@ -208,15 +207,10 @@ fun AssistantMessage(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                // 返信（入力欄へ引用）は外した。文字を選んで「プロンプトに入力」で足す（マスター指定 2026-11-25）
                 if (text.isNotBlank()) {
-                    val reply = onReply?.takeIf { message.role == ChatMessage.Role.ASSISTANT }
-                    if (reply != null) {
-                        IconButton(onClick = { reply(text) }) {
-                            Icon(painterResource(R.drawable.ic_huge_ai_chat), contentDescription = stringResource(R.string.chat_reply_cd), tint = metadataColor, modifier = Modifier.offset(x = Spacing.xs).size(Dimens.smallIcon))
-                        }
-                    }
                     IconButton(onClick = { onCopy(text) }) {
-                        Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), tint = metadataColor, modifier = Modifier.offset(x = if (reply != null) -Spacing.xs else 0.dp).size(Dimens.smallIcon))
+                        Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), tint = metadataColor, modifier = Modifier.size(Dimens.smallIcon))
                     }
                 }
             }

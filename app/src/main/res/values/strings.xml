@@ -395,8 +395,8 @@
     <plurals name="chat_tools_count">
         <item quantity="other">ツールの実行 %d 件</item>
     </plurals>
-    <string name="chat_reply_cd">返信</string>
     <string name="chat_reuse_cd">入力欄に写す</string>
+    <string name="process_text_label">プロンプトに入力</string>
     <string name="chat_elapsed_seconds">%1$d秒</string>
     <string name="chat_elapsed_minutes_seconds">%1$d分%2$d秒</string>
     <string name="chat_elapsed">回答まで約%1$s</string>

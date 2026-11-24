@@ -499,11 +499,6 @@ class ChatViewModel(
 
     fun onTextChange(text: String) = _composer.update { it.copy(text = text) }
 
-    fun replyTo(text: String) {
-        val quote = text.lineSequence().joinToString("\n") { if (it.isEmpty()) ">" else "> $it" }
-        _composer.update { it.copy(text = "$quote\n\n${it.text}") }
-    }
-
     /** 送ったメッセージの文を入力欄へ写す。書きかけがあれば消さずに後ろへ足す。 */
     fun reuse(text: String) = _composer.update { it.copy(text = if (it.text.isBlank()) text else "${it.text.trimEnd()}\n\n$text") }
 

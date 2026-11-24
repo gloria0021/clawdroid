@@ -215,7 +215,6 @@ internal fun ChatScreen(
             finishWorktree = viewModel::finishWorktree,
             delete = viewModel::delete,
             textChange = viewModel::onTextChange,
-            reply = viewModel::replyTo,
             reuse = viewModel::reuse,
             addImage = viewModel::addImage,
             removeImage = viewModel::removeImage,
@@ -254,7 +253,6 @@ data class ChatActions(
     val finishWorktree: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit = {},
     val delete: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val textChange: (String) -> Unit,
-    val reply: (String) -> Unit,
     val reuse: (String) -> Unit = {},
     val addImage: (android.net.Uri) -> Unit,
     val removeImage: (android.net.Uri) -> Unit,
@@ -490,6 +488,16 @@ fun ChatContent(
                         jp.miyavi.android.clawdroid.feature.chat.message.LocalLinkActions provides linkActions,
                         jp.miyavi.android.clawdroid.feature.chat.message.LocalOpenAgentSettings provides navigation.openAgentSettings,
                     ) {
+                        // 文字を選んだときのメニューの「プロンプトに入力」（このアプリの中だけ）
+                        jp.miyavi.android.clawdroid.feature.chat.message.PromptFromSelection(
+                            onInsert = { text ->
+                                if (canReply) {
+                                    actions.reuse(text)
+                                    if (composerFocus.requestFocus()) keyboard?.show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
                         MessageList(
                             newSessionCwd = composer.newSessionCwd,
                             onPickFolder = { pickingFolder = true },
@@ -507,10 +515,6 @@ fun ChatContent(
                                     snackbar.showSnackbar(copied)
                                 }
                             },
-                            onReply = if (canReply) { text ->
-                                actions.reply(text)
-                                if (composerFocus.requestFocus()) keyboard?.show()
-                            } else null,
                             onReuse = if (canReply) { text ->
                                 actions.reuse(text)
                                 if (composerFocus.requestFocus()) keyboard?.show()
@@ -523,6 +527,7 @@ fun ChatContent(
                             // 高さの上限が決まらないままスクロールを全部吸い込んで、一覧が動かなくなるため
                             modifier = Modifier.fillMaxSize(),
                         )
+                        }
                     }
                     Box(Modifier.align(Alignment.BottomCenter).padding(bottom = padding.calculateBottomPadding())) {
                         ScrollToBottomButton(listState, hazeState)
@@ -710,7 +715,6 @@ private fun MessageList(
     listState: LazyListState,
     contentPadding: PaddingValues,
     onCopy: (String) -> Unit,
-    onReply: ((String) -> Unit)?,
     onReuse: ((String) -> Unit)? = null,
     onOpenImage: (jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
@@ -857,7 +861,6 @@ private fun MessageList(
                         timeLabel = item.timeLabel,
                         elapsedMs = item.elapsedMs,
                         onCopy = onCopy,
-                        onReply = onReply,
                         onOpenImage = onOpenImage,
                         onOpenVideo = onOpenVideo,
                         onShowFull = null,
