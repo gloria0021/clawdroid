@@ -666,4 +666,17 @@
     <string name="agent_choice_default_value">いまの既定: %1$s</string>
     <string name="agent_choice_model_note">このエージェントの新しいセッションで使うモデルです。openclaw.json に反映します。</string>
     <string name="agent_choice_thinking_note">このエージェントの新しいセッションで使う思考の段階です。openclaw.json に反映します。</string>
+    <string name="session_worktree_cd">ブランチ %1$s</string>
+    <string name="worktree_delete_title">ワークツリーのセッションを削除</string>
+    <string name="worktree_delete_body">「%1$s」を削除すると、会話を消し、ワークツリーのフォルダを片付けます。</string>
+    <string name="worktree_delete_branch_kept">ブランチはリポジトリに残ります。取り込みや削除は Git で行います。</string>
+    <string name="worktree_delete_branch_ahead">まだ取り込まれていないコミットが %1$d 件あります。ブランチはリポジトリに残ります。</string>
+    <string name="worktree_delete_changes">未コミットの変更 +%1$d −%2$d（%3$d ファイル）</string>
+    <string name="worktree_delete_changes_none">未コミットの変更はありません</string>
+    <string name="worktree_delete_changes_loading">変更を確かめています…</string>
+    <string name="worktree_delete_changes_unknown">変更を確かめられませんでした</string>
+    <string name="worktree_delete_snapshot">片付ける前に Gateway がスナップショットに保存するので、あとで復元できます。</string>
+    <string name="worktree_delete_confirm">削除してワークツリーを片付ける</string>
+    <string name="worktree_delete_archive">アーカイブ（会話を残し、あとで戻せる）</string>
+    <string name="worktree_preserved">ワークツリー %1$s は使用中のため残しました。Web UI の Worktrees で片付けられます。</string>
 </resources>

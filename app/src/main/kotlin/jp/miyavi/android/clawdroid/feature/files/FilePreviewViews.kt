@@ -102,6 +102,7 @@ private fun rememberSearchComponents(query: String): MarkdownComponents {
                 heading4 = { HighlightedText(it, it.headingContent(), it.typography.h4, query, highlight) },
                 heading5 = { HighlightedText(it, it.headingContent(), it.typography.h5, query, highlight) },
                 heading6 = { HighlightedText(it, it.headingContent(), it.typography.h6, query, highlight) },
+                table = { jp.miyavi.android.clawdroid.feature.chat.message.WrappingMarkdownTable(it) },
             )
         }
     }

@@ -114,6 +114,8 @@ sealed interface ChatEvent {
     data class Error(val message: String?) : ChatEvent
     data object SendFailed : ChatEvent
     data object PendingAlreadyTaken : ChatEvent
+    /** 削除したが、ワークツリーは使用中などで残った。 */
+    data class WorktreePreserved(val branch: String?) : ChatEvent
 }
 
 /**
@@ -131,6 +133,9 @@ class ChatViewModel(
     private val contentResolver: ContentResolver,
     private val timeFormatter: (Long) -> String,
 ) : ViewModel() {
+    /** 作業フォルダごとの今のブランチ（サイドパネルの行に出す）。 */
+    val headBranches: kotlinx.coroutines.flow.StateFlow<Map<String, String>> get() = sessions.headBranches
+
     private val selectedAgentId = MutableStateFlow<String?>(null)
     private val selectedSessionKey = MutableStateFlow<String?>(null)
     private val currentChat = MutableStateFlow<ChatSession?>(null)
@@ -543,8 +548,9 @@ class ChatViewModel(
 
     /** セッションを削除する。開いていたセッションなら新規チャットに戻す。 */
     fun delete(session: SessionSummary) = mutate {
-        sessions.delete(session)
+        val preserved = sessions.delete(session)
         if (selectedSessionKey.value == session.key) newChat()
+        if (preserved != null) _events.tryEmit(ChatEvent.WorktreePreserved(preserved.branch ?: session.worktreeBranch))
     }
     fun refreshSessions(agentId: String) = mutate { sessions.refresh(agentId) }
     fun retryHistory() = mutate { currentChat.value?.refreshHistory() }

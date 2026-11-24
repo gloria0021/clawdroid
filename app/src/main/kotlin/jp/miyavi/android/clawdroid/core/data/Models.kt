@@ -58,7 +58,14 @@ data class SessionSummary(
     val isMain: Boolean = false,
     /** ピン留め（サイドパネルのホームの下に出す）。 */
     val pinned: Boolean = false,
+    /** 並行開発（ワークツリー）のブランチ。ワークツリーでなければ null。 */
+    val worktreeBranch: String? = null,
+    /** ワークツリーの元のリポジトリ（`worktree.canonicalWorkspaceDir` / `repoRoot`）。フォルダ別でここにまとめる。 */
+    val worktreeRoot: String? = null,
 ) {
+    /** フォルダ別でまとめる先。ワークツリーは元のリポジトリにぶら下げる（マスター指摘 2026-11-24）。 */
+    val projectFolder: String? get() = (worktreeRoot ?: cwd)?.trimEnd('/')
+
     val contextFraction: Float?
         get() {
             val limit = contextTokens?.takeIf { it > 0 } ?: return null
@@ -207,6 +214,8 @@ internal object Parse {
             isAutomation = obj.string("createdVia") == "cron",
             isMain = obj.bool("isMain") == true || key.endsWith(":main"),
             pinned = obj.bool("pinned") == true,
+            worktreeBranch = obj.obj("worktree")?.string("branch")?.takeIf(String::isNotBlank),
+            worktreeRoot = obj.obj("worktree")?.let { w -> w.string("canonicalWorkspaceDir") ?: w.string("repoRoot") }?.takeIf(String::isNotBlank),
             updatedAt = obj.long("lastActivityAt") ?: obj.long("updatedAt"),
             contextTokens = obj.long("contextTokens"),
             totalTokens = obj.long("totalTokens"),

@@ -51,6 +51,12 @@ object Dimens {
     val messageImageMax = 240.dp
     /** 入力欄の中の添付のサムネイル。 */
     val attachmentThumbnail = 64.dp
+    /** Markdown の表の列の最低幅（これより狭くなるなら表を横にスクロール）。 */
+    val tableCellMinWidth = 160.dp
+    /** ダイアログの最大幅（M3 の基本のダイアログ）。 */
+    val dialogMaxWidth = 560.dp
+    /** サイドパネルの行のブランチ名の最大幅（名前を押しつぶさない）。 */
+    val branchLabelMaxWidth = 120.dp
     /** 絵文字 1 文字の入力欄の幅。 */
     val emojiField = 72.dp
     /** 添付を外す × の丸と、その中のアイコン。 */

@@ -116,6 +116,8 @@ private fun enqueueDownload(context: Context, url: String): Boolean = runCatchin
 /** 段落を、リンクを長押しできるものに差し替えた部品（会話とファイルのプレビューで使う）。 */
 fun linkAwareComponents(): MarkdownComponents = markdownComponents(
     paragraph = { LinkAwareText(it, it.node, it.typography.paragraph) },
+    // 表はセルを折り返し、収まらなければ横にスクロール（マスター指摘 2026-11-24）
+    table = { WrappingMarkdownTable(it) },
 )
 
 /**

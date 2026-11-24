@@ -159,6 +159,7 @@ internal fun ChatScreen(
     val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
     val retry = stringResource(R.string.action_retry)
     val worktreeCreating = stringResource(R.string.worktree_creating)
+    val worktreePreserved = stringResource(R.string.worktree_preserved)
     val grouping by viewModel.sessionGrouping.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -166,10 +167,19 @@ internal fun ChatScreen(
                 ChatEvent.SendFailed -> if (snackbar.showSnackbar(sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) viewModel.send()
                 ChatEvent.PendingAlreadyTaken -> snackbar.showSnackbar(pendingAlreadyTaken)
                 ChatEvent.WorktreeCreating -> snackbar.showSnackbar(worktreeCreating)
+                is ChatEvent.WorktreePreserved -> snackbar.showSnackbar(
+                    String.format(worktreePreserved, event.branch.orEmpty()), duration = SnackbarDuration.Long,
+                )
                 is ChatEvent.Error -> snackbar.showSnackbar(event.message ?: sendFailed)
             }
         }
     }
+    // 作業フォルダごとの今のブランチ（サイドパネルの行に出す）
+    val headBranches by viewModel.headBranches.collectAsStateWithLifecycle()
+    CompositionLocalProvider(
+        jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalHeadBranches provides headBranches,
+        jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalDiffLoader provides viewModel::diffSummary,
+    ) {
     ChatContent(
         grouping = grouping,
         inboundImages = inboundImages,
@@ -215,6 +225,7 @@ internal fun ChatScreen(
             loadBranches = viewModel::branches,
         ),
     )
+    }
 }
 
 data class ChatActions(

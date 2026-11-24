@@ -24,4 +24,12 @@ class GroupByFolderTest {
         assertEquals(listOf("/w/app", "/w/boards", null), groups.map { it.first })
         assertEquals(listOf("a2", "a1"), groups.first().second.map { it.key })
     }
+
+    @Test fun worktreeSession_groupsUnderItsRepository() {
+        val worktree = session("wt", "/h/.openclaw/worktrees/cc99/refactor", 80)
+            .copy(worktreeBranch = "openclaw/refactor", worktreeRoot = "/w/app")
+        val groups = groupByFolder(listOf(session("a1", "/w/app", 10), worktree, session("b1", "/w/boards", 50)))
+        assertEquals(listOf("/w/app", "/w/boards"), groups.map { it.first })
+        assertEquals(listOf("wt", "a1"), groups.first().second.map { it.key })
+    }
 }

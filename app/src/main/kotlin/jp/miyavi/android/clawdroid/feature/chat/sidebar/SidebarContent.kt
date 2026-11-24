@@ -649,7 +649,9 @@ private fun SessionItem(
     var worktree by rememberSaveable { mutableStateOf(false) }
     var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    val title = session.title ?: stringResource(R.string.session_untitled)
+    // 名前の無いワークツリーのセッションは、ブランチ名を名前にする（マスター指定 2026-11-24）
+    val branchTitle = session.worktreeBranch?.let { it.removePrefix(stringResource(R.string.worktree_name_prefix)).ifEmpty { it } }
+    val title = session.title ?: branchTitle ?: stringResource(R.string.session_untitled)
     val menuLabel = stringResource(R.string.session_menu_open_label)
     val highlight = selectionHighlight(selected)
     if (tree != null) {
@@ -691,8 +693,18 @@ private fun SessionItem(
             onWorktree = if (onCreateWorktree != null) ({ worktree = true }) else null,
             onArchive = onArchive, onDelete = { confirmDelete = true })
     }
+    // ワークツリーのセッションは、何が起きるかを説明してから選んでもらう（マスター指定 2026-11-24）
+    if (confirmDelete && session.worktreeBranch != null) {
+        WorktreeDeleteDialog(
+            session = session,
+            title = title,
+            onDismiss = { confirmDelete = false },
+            onArchive = { confirmDelete = false; onArchive() },
+            onDelete = { confirmDelete = false; onDelete() },
+        )
+    }
     // 削除は元に戻せないので確認する（AGENTS.md 2.7: 確認は AlertDialog）
-    if (confirmDelete) {
+    if (confirmDelete && session.worktreeBranch == null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.session_delete_title)) },
@@ -745,6 +757,17 @@ private fun CompactSessionRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {
+            val prefix = stringResource(R.string.worktree_name_prefix)
+            val worktreeBranch = session.worktreeBranch?.let { it.removePrefix(prefix).ifEmpty { it } }
+            // ワークツリーは名前の前にワークツリー（並行開発）のアイコン（マスター指定 2026-11-24）
+            if (worktreeBranch != null) {
+                Icon(
+                    painterResource(R.drawable.ic_huge_branch),
+                    contentDescription = stringResource(R.string.session_worktree_cd, session.worktreeBranch),
+                    tint = highlight.headline,
+                    modifier = Modifier.size(Dimens.smallIcon),
+                )
+            }
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
@@ -753,11 +776,39 @@ private fun CompactSessionRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            // 名前の後ろにブランチ（行は 1 行のまま。AGENTS.md 2.3）。ふつうのセッションは作業フォルダの今のブランチ（Git でなければ出さない）、
+            // ワークツリーは名前がブランチ名と違うときだけ（同じ名前を 2 度並べない。マスター指定 2026-11-24）
+            val branch = if (worktreeBranch != null) worktreeBranch.takeIf { it != title }
+            else session.cwd?.trimEnd('/')?.let { LocalHeadBranches.current[it] }
+            branch?.let { WorktreeBranchLabel(it, highlight.headline) }
             timeLabel?.let {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             SessionMarks(session)
         }
+    }
+}
+
+/** セッションの変更量を読む（会話の画面が渡す。ワークツリーの削除の確認で使う）。 */
+val LocalDiffLoader = androidx.compose.runtime.staticCompositionLocalOf<suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff?> { { null } }
+
+/** 作業フォルダごとの今のブランチ（会話の画面が渡す）。 */
+val LocalHeadBranches = androidx.compose.runtime.compositionLocalOf<Map<String, String>> { emptyMap() }
+
+/** 行のブランチ（アイコンと名前。長い名前は省略記号）。 */
+@Composable
+private fun WorktreeBranchLabel(branch: String, rowColor: Color) {
+    val shown = branch
+    val cd = stringResource(R.string.session_worktree_cd, branch)
+    // 選んだ行（色の付いた面）の上では行の文字色に合わせ、ふだんは補足の色
+    val color = if (rowColor == MaterialTheme.colorScheme.onSurface) MaterialTheme.colorScheme.onSurfaceVariant else rowColor
+    Row(
+        Modifier.widthIn(max = Dimens.branchLabelMaxWidth).semantics(mergeDescendants = true) { contentDescription = cd },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Icon(painterResource(R.drawable.ic_huge_branch), contentDescription = null, tint = color, modifier = Modifier.size(Dimens.smallIcon))
+        Text(shown, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -791,7 +842,7 @@ private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (Str
 
 /** 作業フォルダごとのまとまり（まとまりは中のいちばん新しい更新日時の順。作業フォルダの無いものは最後）。 */
 internal fun groupByFolder(sessions: List<SessionSummary>): List<Pair<String?, List<SessionSummary>>> =
-    sessions.groupBy { it.cwd?.trimEnd('/') }
+    sessions.groupBy { it.projectFolder }
         .map { (folder, rows) -> folder to rows.sortedByDescending { it.updatedAt ?: 0 } }
         .sortedWith(compareBy<Pair<String?, List<SessionSummary>>> { it.first == null }.thenByDescending { it.second.first().updatedAt ?: 0 })
 

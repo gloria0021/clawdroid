@@ -54,6 +54,15 @@ class SessionsRepository(
     private val _sessions = MutableStateFlow<Map<String, SessionListState>>(emptyMap())
     val sessions: StateFlow<Map<String, SessionListState>> = _sessions.asStateFlow()
 
+    /**
+     * 作業フォルダごとの今のブランチ（`worktrees.branches` の headBranch。Git でないフォルダは入らない）。
+     * セッションの一覧には通常のセッションのブランチが無いので、フォルダごとに 1 回だけ問い合わせる（マスター指定 2026-11-24）。
+     */
+    private val _headBranches = MutableStateFlow<Map<String, String>>(emptyMap())
+    val headBranches: StateFlow<Map<String, String>> = _headBranches.asStateFlow()
+    /** 最後に問い合わせた時刻（Git でないフォルダも含む。間を空けて問い直す）。 */
+    private val branchCheckedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     init {
         // 接続（再接続を含む）のたびに取り直す
         scope.launch {
@@ -110,7 +119,10 @@ class SessionsRepository(
                 home = active.firstOrNull { it.isMain } ?: archived.firstOrNull { it.isMain },
                 loading = false,
             )
-        }.onSuccess { state -> _sessions.update { it + (agentId to state) } }
+        }.onSuccess { state ->
+            _sessions.update { it + (agentId to state) }
+            refreshHeadBranches(state.sessions + state.archived + listOfNotNull(state.home))
+        }
             .onFailure { e ->
                 _sessions.update { it + (agentId to (it[agentId] ?: SessionListState()).copy(loading = false, error = e.message)) }
             }
@@ -155,6 +167,7 @@ class SessionsRepository(
         }
         val agentId = row.agentId ?: payload?.string("agentId") ?: return
         if (row.isAutomation) return
+        refreshHeadBranches(listOf(row))
         _sessions.update { all ->
             val current = all[agentId] ?: return@update all
             if (row.isMain) return@update all + (agentId to current.copy(home = row))
@@ -223,7 +236,12 @@ class SessionsRepository(
      * セッションを削除する（会話の記録も消す）。アーカイブ済みならそのまま、アクティブならアーカイブしてから消す
      * （Gateway は archivedOnly の削除を operator.write に許し、それ以外は operator.admin を求めるため、公式アプリと同じ手順にする）。
      */
-    suspend fun delete(session: SessionSummary) {
+    /**
+     * セッションを消す。ワークツリーのセッションは、Gateway が未コミットの変更をスナップショットに保存してから
+     * ワークツリーを片付ける（ブランチはリポジトリに残る。docs/concepts/managed-worktrees.md）。使用中などで片付けられず
+     * 残したときは、その情報を返す（`worktreePreserved`）。
+     */
+    suspend fun delete(session: SessionSummary): PreservedWorktree? {
         // 先に一覧から外す（行が消える動きをすぐ見せる）。失敗したら取り直して戻す
         removeLocally(session)
         try {
@@ -235,13 +253,14 @@ class SessionsRepository(
                     session.sessionId?.let { put("expectedSessionId", it) }
                 })
             }
-            gateway.request("sessions.delete", buildJsonObject {
+            val result = gateway.request("sessions.delete", buildJsonObject {
                 put("key", session.key)
                 session.agentId?.let { put("agentId", it) }
                 put("deleteTranscript", true)
                 put("archivedOnly", true)
                 session.sessionId?.let { put("expectedSessionId", it) }
-            })
+            }).asObject()
+            return result?.obj("worktreePreserved")?.let { PreservedWorktree(it.string("branch"), it.string("reason")) }
         } finally {
             session.agentId?.let { refresh(it) }
         }
@@ -353,7 +372,11 @@ class SessionsRepository(
             put("parentSessionKey", parent.key)
             put("cwd", cwd)
             put("worktree", true)
-            name?.takeIf(String::isNotBlank)?.let { put("worktreeName", it) }
+            name?.takeIf(String::isNotBlank)?.let {
+                put("worktreeName", it)
+                // 表示名はブランチ名に（label と違い重複してよい。マスター指定 2026-11-24）。省いたときは画面側でブランチ名を出す
+                put("displayName", it)
+            }
             baseRef?.takeIf(String::isNotBlank)?.let { put("worktreeBaseRef", it) }
             if (fork) put("fork", true)
             // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
@@ -395,6 +418,26 @@ class SessionsRepository(
         )
     }
 
+    /** ワークツリーでないセッションの作業フォルダの、今のブランチを読む（同じフォルダは間を空けて 1 回だけ）。 */
+    fun refreshHeadBranches(rows: List<SessionSummary>) {
+        if (!gateway.supports("worktrees.branches")) return
+        val now = System.currentTimeMillis()
+        val folders = rows.asSequence()
+            .filter { it.worktreeBranch == null }
+            .mapNotNull { it.cwd?.trimEnd('/')?.takeIf(String::isNotBlank) }
+            .distinct()
+            .filter { now - (branchCheckedAt[it] ?: 0L) > BRANCH_RECHECK_MS }
+            .toList()
+        if (folders.isEmpty()) return
+        folders.forEach { branchCheckedAt[it] = now }
+        scope.launch {
+            folders.forEach { folder ->
+                val head = runCatching { branches(folder)?.head }.getOrNull()?.takeIf(String::isNotBlank)
+                _headBranches.update { if (head != null) it + (folder to head) else it - folder }
+            }
+        }
+    }
+
     /** リポジトリのブランチ（ローカルとリモート）と、今のブランチ・既定のブランチ。[cwd] はリポジトリの中のフォルダ。 */
     suspend fun branches(cwd: String): RepoBranches? {
         val result = gateway.request("worktrees.branches", buildJsonObject { put("repoRoot", cwd) }).asObject() ?: return null
@@ -406,6 +449,8 @@ class SessionsRepository(
 
     private companion object {
         const val MAX_FOLDER_CANDIDATES = 5
+        /** 同じフォルダのブランチを問い直すまでの間隔。 */
+        const val BRANCH_RECHECK_MS = 60_000L
         const val DIFF_POLLS = 10
         const val DIFF_POLL_MS = 1_000L
         /** ワークツリーを作るのは時間がかかることがある（リポジトリのコピー）。 */
@@ -420,6 +465,9 @@ class SessionsRepository(
 data class RepoBranch(val name: String, val remote: Boolean)
 
 /** ブランチの一覧（[branches] が空なら、今のブランチだけ分かっている）。 */
+/** 削除のときに Gateway が片付けずに残したワークツリー。 */
+data class PreservedWorktree(val branch: String?, val reason: String?)
+
 data class RepoBranches(val branches: List<RepoBranch>, val head: String?, val default: String?)
 
 /** フォルダの一覧（[parent] はファイルシステムの根では null）。 */
