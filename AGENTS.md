@@ -8,7 +8,7 @@
 
 | 領域 | 採用するもの |
 |---|---|
-| UI | Jetpack Compose（BOM）＋ Material 3、Material 3 Adaptive（list-detail） |
+| UI | Jetpack Compose（BOM）＋ **Material 3 Expressive**（`material3` 1.5 系。動きは `MotionScheme.expressive()`）、Material 3 Adaptive（list-detail） |
 | 画面遷移 | Navigation 3（`NavDisplay`、`ListDetailSceneStrategy`） |
 | 素材表現 | Haze（`haze` / `haze-blur` / `haze-glass` / `haze-glass-material3`）、MaterialKolor（カスタム色の配色生成） |
 | アイコン | Hugeicons Stroke Rounded（必要なものだけ VectorDrawable 化して `res/drawable/ic_huge_*.xml`） |
@@ -38,10 +38,10 @@
 ### 2.1 原則
 
 1. **主役はコンテンツ**。装飾・色・アイコンは、内容を読む・操作するのを助けるときだけ使う
-2. **シンプルなリスト**。情報密度を保ち、Material 3 で整える。カードやタイル型にしない
-3. **Material 3 の標準部品とトークンだけで作る**。値を直書きしない
+2. **シンプルなリスト**。情報密度を保ち、Material 3 Expressive で整える。カードやタイル型にしない
+3. **Material 3 Expressive の標準部品とトークンだけで作る**。値を直書きしない。Expressive は Material 3 の置き換えではなく最新の拡張で、同じ `androidx.compose.material3` に入っている。トークンと標準部品は共通で、そこに Expressive の部品・形・動きが足されている。デザインの基準はその Expressive（マスター指定 2026-11-24）
 4. **迷ったら引く**。要素を足すより削る
-5. **新しい Android の体験を意識する**。Jetpack Compose と Material 3 の最新の UI・操作パターン（edge-to-edge、予測型「戻る」、Dynamic Color、アプリ単位の言語、大画面の2ペイン）を優先し、読みやすさ・アクセシビリティ・性能・対応端末との互換性を確認する
+5. **新しい Android の体験を意識する**。Jetpack Compose と Material 3 Expressive の最新の UI・操作パターン（edge-to-edge、予測型「戻る」、Dynamic Color、アプリ単位の言語、大画面の2ペイン）を優先し、読みやすさ・アクセシビリティ・性能・対応端末との互換性を確認する
 
 ### 2.2 色
 
@@ -59,7 +59,7 @@
 | 本文の下地（角丸の面） | `surface` に `onSurface` を重ねた色（ライト 3% / ダーク 5%） |
 | 補助的な目印 | `tertiary` |
 | サイドパネルのホーム・自動化 | 文字とアイコンは `onSurface`。ホームを開いているあいだは選んだ行の面（マスター指定 2026-11-24） |
-| サイドパネルの並べ方の切り替え | 会話の送信ボタンと同じ `primary`（マスター指定 2026-11-24。以前は選んだ行の面の色） |
+| サイドパネルの チャット ⇔ 開発 の切り替え（同じ全件の見え方の切り替え。チャット = 更新日時の順の一覧、開発 = プロジェクトごとにまとめ、中は更新日時の順。マスター指定 2026-11-24） | 会話の送信ボタンと同じ `primary`（マスター指定 2026-11-24。以前は選んだ行の面の色） |
 | 新着・未読の目印 | `primary` |
 | 実行中の目印（サイドパネルの行） | `tertiary` の小さな `CircularProgressIndicator`。未読の点と同時に出さず、終わったら未読の点になる（マスター指定 2026-11-24） |
 | 件数バッジ・チップ | `secondaryContainer` / `onSecondaryContainer` |
@@ -87,7 +87,7 @@
 | 設定のセクション見出し | `labelLarge` / `primary` |
 
 - 太字は見出しだけ。本文中の強調に太字を使わない
-- サイドパネルの例外（マスター指定 2026-11-23）: エージェントの名前は `headlineSmall`（2行まで）。ホーム・自動化の文字は `titleMedium` の太字で、アイコンは設定と同じ 24dp（2026-11-24）。並べ方の切り替えの文字は `labelLarge` を 1sp 大きくした太字。履歴の行（更新順・フォルダ別とも）はタイトル `bodyMedium` 1行・時刻 `labelSmall` の1行
+- サイドパネルの例外（マスター指定 2026-11-23）: エージェントの名前は `headlineSmall`（2行まで）。ホーム・自動化の文字は `titleMedium` の太字で、アイコンは設定と同じ 24dp（2026-11-24）。並べ方の切り替えの文字は `labelLarge` を 1sp 大きくした太字。履歴の行（チャット・開発とも）はタイトル `bodyMedium` 1行・時刻 `labelSmall` の1行
 
 ### 2.4 余白・サイズ（4dp グリッド）
 
@@ -127,7 +127,8 @@
 | 通知・失敗 | `SnackbarHostState` で出し、透過効果のピルで描く Snackbar。再試行の操作付き | Toast、M3 標準の反転色の Snackbar |
 | 設定 | `ListItem` ＋ `Switch` / `Slider` / `SegmentedButton`、1画面に縦に並べる | 階層の深いサブ画面 |
 
-- M3 Expressive の API（`@ExperimentalMaterial3ExpressiveApi`）を使ってよいのは、FAB メニューとローディング表示だけ
+- 部品は M3 Expressive のものを優先する。同じ役割に無印の M3 と Expressive の両方があれば Expressive を使う（例: トグル・切り替えは `ToggleButton` / `ButtonGroup`、読み込みは `LoadingIndicator`）。`@OptIn(ExperimentalMaterial3ExpressiveApi::class)` は付けてよい（マスター指定 2026-11-24。以前は FAB メニューとローディング表示だけ）
+- ただしこの表とガラス風の面（2.10）の決まりが先。Expressive の浮くツールバーや FAB など、表で「使わない」とした役割に当たる部品は使わず、ガラスのピルで描く。色・形・動きは Expressive のトークン（`colorScheme` / `shapes` / `motionScheme`）から取る
 - 標準部品で表現できないものは、ガラス風の面（2.10）と高速スクロールバー以外に作らない。新しく自作の部品が必要になったら、作る前に相談する
 
 ### 2.8 動き

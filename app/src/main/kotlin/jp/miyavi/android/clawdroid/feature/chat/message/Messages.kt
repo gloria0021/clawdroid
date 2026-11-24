@@ -80,6 +80,9 @@ fun UserMessage(
     onOpenImage: (ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onCopy: ((String) -> Unit)? = null,
+    /** 文を入力欄へ写す（送り直し・手直し用）。送れないときは null。 */
+    onReuse: ((String) -> Unit)? = null,
 ) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         val images = remember(message.parts) { message.parts.filterIsInstance<MessagePart.Image>() }
@@ -104,13 +107,30 @@ fun UserMessage(
                 }
             }
         }
-        if (timeLabel != null) {
-            Text(
-                timeLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
+        // 下に時刻と操作（再利用・コピー）。並びはエージェントの応答の下と同じ（マスター指定 2026-11-24）
+        val metadataColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val actionable = text.isNotBlank()
+        if (timeLabel != null || actionable) Row(verticalAlignment = Alignment.CenterVertically) {
+            if (timeLabel != null) {
+                Text(
+                    timeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = metadataColor,
+                    modifier = Modifier.padding(top = if (actionable) 0.dp else Spacing.xs, end = if (actionable) Spacing.xs else 0.dp),
+                )
+            }
+            if (actionable) {
+                onReuse?.let { reuse ->
+                    IconButton(onClick = { reuse(text) }) {
+                        Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.chat_reuse_cd), tint = metadataColor, modifier = Modifier.offset(x = Spacing.xs).size(Dimens.smallIcon))
+                    }
+                }
+                onCopy?.let { copy ->
+                    IconButton(onClick = { copy(text) }) {
+                        Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = stringResource(R.string.action_copy), tint = metadataColor, modifier = Modifier.offset(x = if (onReuse != null) -Spacing.xs else 0.dp).size(Dimens.smallIcon))
+                    }
+                }
+            }
         }
     }
 }

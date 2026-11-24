@@ -158,6 +158,7 @@ internal fun ChatScreen(
     val snackbar = remember { SnackbarHostState() }
     val sendFailed = stringResource(R.string.chat_send_failed)
     val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
+    val attachmentTooLarge = stringResource(R.string.chat_attach_too_large)
     val retry = stringResource(R.string.action_retry)
     val worktreeCreating = stringResource(R.string.worktree_creating)
     val worktreePreserved = stringResource(R.string.worktree_preserved)
@@ -167,6 +168,7 @@ internal fun ChatScreen(
             when (event) {
                 ChatEvent.SendFailed -> if (snackbar.showSnackbar(sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) viewModel.send()
                 ChatEvent.PendingAlreadyTaken -> snackbar.showSnackbar(pendingAlreadyTaken)
+                ChatEvent.AttachmentTooLarge -> snackbar.showSnackbar(attachmentTooLarge)
                 ChatEvent.WorktreeCreating -> snackbar.showSnackbar(worktreeCreating)
                 is ChatEvent.WorktreePreserved -> snackbar.showSnackbar(
                     String.format(worktreePreserved, event.branch.orEmpty()), duration = SnackbarDuration.Long,
@@ -205,9 +207,11 @@ internal fun ChatScreen(
             newChat = viewModel::newChat,
             rename = viewModel::rename,
             archive = viewModel::setArchived,
+            finishWorktree = viewModel::finishWorktree,
             delete = viewModel::delete,
             textChange = viewModel::onTextChange,
             reply = viewModel::replyTo,
+            reuse = viewModel::reuse,
             addImage = viewModel::addImage,
             removeImage = viewModel::removeImage,
             voiceText = viewModel::appendVoiceText,
@@ -242,9 +246,11 @@ data class ChatActions(
     val newChat: () -> Unit,
     val rename: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit,
     val archive: (jp.miyavi.android.clawdroid.core.data.SessionSummary, Boolean) -> Unit,
+    val finishWorktree: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit = {},
     val delete: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val textChange: (String) -> Unit,
     val reply: (String) -> Unit,
+    val reuse: (String) -> Unit = {},
     val addImage: (android.net.Uri) -> Unit,
     val removeImage: (android.net.Uri) -> Unit,
     val voiceText: (String) -> Unit,
@@ -305,6 +311,9 @@ fun ChatContent(
     // 画像は一度に複数選べる（上限は MAX_ATTACH_IMAGES）
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_ATTACH_IMAGES)) { uris ->
         uris.forEach(actions.addImage)
+    }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.take(MAX_ATTACH_IMAGES).forEach(actions.addImage)
     }
     var openedImage by remember { mutableStateOf<jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery?>(null) }
     var openedVideo by rememberSaveable { mutableStateOf<String?>(null) }
@@ -446,13 +455,17 @@ fun ChatContent(
                                 onCancelPending = actions.cancelPending,
                                 onRestorePending = actions.restorePending,
                                 onTextChange = actions.textChange,
-                                onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                onPickPhotos = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                // 写真は別の項目なので、ファイルは文書の種類に絞る（*/* だとピッカーの「最近」が写真で埋まる。マスター指定 2026-11-24）
+                                onPickFiles = { pickFile.launch(DOCUMENT_MIME_TYPES) },
                                 onRemoveImage = actions.removeImage,
                                 onPasteImage = actions.addImage,
-                                onOpenImage = { images, index ->
+                                onOpenImage = { attachments, index ->
+                                    // ファイルは並びから外し、押した画像の位置を数え直す
+                                    val images = attachments.filter { it.image.isImage }
                                     openedImage = jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery(
                                         images.map { MessagePart.Image(url = null, base64 = it.image.base64, mimeType = it.image.mimeType) },
-                                        index,
+                                        images.indexOf(attachments[index]).coerceAtLeast(0),
                                     )
                                 },
                                 onSend = actions.send,
@@ -493,6 +506,10 @@ fun ChatContent(
                                 actions.reply(text)
                                 if (composerFocus.requestFocus()) keyboard?.show()
                             } else null,
+                            onReuse = if (canReply) { text ->
+                                actions.reuse(text)
+                                if (composerFocus.requestFocus()) keyboard?.show()
+                            } else null,
                             onOpenImage = { openedImage = it },
                             onOpenVideo = { openedVideo = it },
                             onRetry = actions.retryHistory,
@@ -520,6 +537,12 @@ fun ChatContent(
                 WorktreeSheet(current, onDismiss = { sessionAction = null }, loadBranches = actions.loadBranches) { name, base, fork ->
                     sessionAction = null
                     actions.createWorktree(current, name, base, fork)
+                }
+            }
+            SessionAction.FINISH -> if (current != null) {
+                FinishWorktreeDialog(current, actions.loadDiffSummary, onDismiss = { sessionAction = null }) {
+                    sessionAction = null
+                    actions.finishWorktree(current)
                 }
             }
             null -> Unit
@@ -683,6 +706,7 @@ private fun MessageList(
     contentPadding: PaddingValues,
     onCopy: (String) -> Unit,
     onReply: ((String) -> Unit)?,
+    onReuse: ((String) -> Unit)? = null,
     onOpenImage: (jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery) -> Unit,
     onOpenVideo: (String) -> Unit,
     onRetry: () -> Unit,
@@ -818,7 +842,7 @@ private fun MessageList(
                     ChatMessage.Role.USER -> Column(itemModifier) {
                         // この送信から別のモデルが答える
                         if (modelChange != null) ModelChangeDivider(modelChange, Modifier.padding(bottom = Spacing.l))
-                        UserMessage(message, item.timeLabel, onOpenImage, onOpenVideo)
+                        UserMessage(message, item.timeLabel, onOpenImage, onOpenVideo, onCopy = onCopy, onReuse = onReuse)
                     }
                     ChatMessage.Role.ASSISTANT, ChatMessage.Role.SYSTEM -> AssistantMessage(
                         message = message,
@@ -865,6 +889,7 @@ private fun ScrollToBottomButton(listState: LazyListState, hazeState: dev.chrisb
 
 /** 一度に添付できる画像の数。 */
 private const val MAX_ATTACH_IMAGES = 10
+private val DOCUMENT_MIME_TYPES = arrayOf("application/*", "text/*")
 
 private val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mov", "webm", "mkv", "3gp")
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif", "avif")

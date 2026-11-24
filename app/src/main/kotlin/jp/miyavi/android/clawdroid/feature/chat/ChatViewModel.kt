@@ -114,6 +114,7 @@ sealed interface ChatEvent {
     data class Error(val message: String?) : ChatEvent
     data object SendFailed : ChatEvent
     data object PendingAlreadyTaken : ChatEvent
+    data object AttachmentTooLarge : ChatEvent
     /** 削除したが、ワークツリーは使用中などで残った。 */
     data class WorktreePreserved(val branch: String?) : ChatEvent
 }
@@ -471,9 +472,13 @@ class ChatViewModel(
         _composer.update { it.copy(text = "$quote\n\n${it.text}") }
     }
 
+    /** 送ったメッセージの文を入力欄へ写す。書きかけがあれば消さずに後ろへ足す。 */
+    fun reuse(text: String) = _composer.update { it.copy(text = if (it.text.isBlank()) text else "${it.text.trimEnd()}\n\n$text") }
+
     fun addImage(uri: Uri) {
         viewModelScope.launch {
-            val image = withContext(Dispatchers.IO) { readImage(uri) } ?: return@launch
+            val image = withContext(Dispatchers.IO) { readAttachment(uri) }
+                ?: return@launch run { _events.tryEmit(ChatEvent.AttachmentTooLarge) }
             // 同じ画像は二重に入れない（一覧の key が重なるため）
             _composer.update { c -> if (c.images.any { it.uri == uri }) c else c.copy(images = c.images + PendingImage(uri, image)) }
         }
@@ -565,6 +570,12 @@ class ChatViewModel(
     fun rename(session: SessionSummary, label: String) = mutate { sessions.rename(session, label) }
     fun setArchived(session: SessionSummary, archived: Boolean) = mutate { sessions.setArchived(session, archived) }
 
+    /** 並行開発を終える。中身はアーカイブで、ワークツリーは Gateway がスナップショットを取ってから片付ける（解除すれば戻る）。 */
+    fun finishWorktree(session: SessionSummary) = mutate {
+        sessions.setArchived(session, true)
+        if (selectedSessionKey.value == session.key) newChat()
+    }
+
     /** セッションを削除する。開いていたセッションなら新規チャットに戻す。 */
     fun delete(session: SessionSummary) = mutate {
         val preserved = sessions.delete(session)
@@ -586,12 +597,20 @@ class ChatViewModel(
 
     fun reconnect() = gateway.reconnectNow()
 
-    private fun readImage(uri: Uri): OutgoingImage? = runCatching {
-        val mime = contentResolver.getType(uri) ?: "image/jpeg"
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readNBytes(MAX_IMAGE_BYTES + 1) } ?: return null
-        if (bytes.size > MAX_IMAGE_BYTES) return null
-        OutgoingImage(mime, Base64.encodeToString(bytes, Base64.NO_WRAP), uri.lastPathSegment)
+    /** 画像かファイルを読む。上限を超える・読めないときは null。 */
+    private fun readAttachment(uri: Uri): OutgoingImage? = runCatching {
+        val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+        val limit = if (mime.startsWith("image/")) MAX_IMAGE_BYTES else MAX_FILE_BYTES
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readNBytes(limit + 1) } ?: return null
+        if (bytes.size > limit) return null
+        OutgoingImage(mime, Base64.encodeToString(bytes, Base64.NO_WRAP), displayName(uri))
     }.getOrNull()
+
+    private fun displayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull() ?: uri.lastPathSegment
 
     override fun onCleared() {
         currentChat.value?.close()
@@ -601,6 +620,8 @@ class ChatViewModel(
         const val DRAFT_SAVE_DEBOUNCE_MS = 400L
         /** Gateway の既定の画像の上限（hello-ok の policy.attachments.maxImageBytes）。 */
         const val MAX_IMAGE_BYTES = 6 * 1024 * 1024
+        // shortcut: 既定の 1 フレーム 25 MiB に base64（4/3 倍）で収まる 15 MB に固定。hello-ok の policy を読むようにしたら置き換える
+        const val MAX_FILE_BYTES = 15 * 1024 * 1024
     }
 }
 

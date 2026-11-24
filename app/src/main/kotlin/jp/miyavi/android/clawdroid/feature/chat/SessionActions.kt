@@ -56,7 +56,7 @@ import jp.miyavi.android.clawdroid.core.designsystem.codeTextStyle
 import jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor
 
 /** タイトルバーの ⋮ から開くもの。 */
-enum class SessionAction { RENAME, DIFF, WORKTREE }
+enum class SessionAction { RENAME, DIFF, WORKTREE, FINISH }
 
 /** 会話のタイトルバーのメニュー（名前を変更・ピン留め・ファイル・ターミナル・新規ワークツリー・変更量）。 */
 @Composable
@@ -102,6 +102,10 @@ internal fun SessionMoreMenu(
             GlassMenuDivider()
             files()
             MenuRow(R.drawable.ic_huge_branch, R.string.session_menu_new_worktree) { open = false; onAction(SessionAction.WORKTREE) }
+            // 並行開発を開始のすぐ下。ワークツリーのセッションだけ。マージはエージェントへの指示で行い、ここでは終える（アーカイブ）だけ（マスター指定 2026-11-24）
+            if (session.worktreeBranch != null && !session.archived) {
+                MenuRow(R.drawable.ic_huge_archive, R.string.session_menu_finish) { open = false; onAction(SessionAction.FINISH) }
+            }
             // 変更量は合計の +/− を添えて（押すと詳細のシート）
             if (session.cwd != null) {
                 DropdownMenuItem(
@@ -134,6 +138,36 @@ internal fun SessionRenameDialog(initial: String, onDismiss: () -> Unit, onConfi
         title = { Text(stringResource(R.string.session_rename_title)) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
         confirmButton = { TextButton(onClick = { onConfirm(text.trim()) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+/**
+ * 「作業を終える」の確認。既定のブランチとの差分があれば数を添えて知らせる（スカッシュで取り込んだときも差分は残るので、止めずに知らせるだけ）。
+ * 作業内容は Gateway がスナップショットに残すので、差分があっても終えられる。
+ */
+@Composable
+internal fun FinishWorktreeDialog(
+    session: SessionSummary,
+    loadDiffSummary: suspend (SessionSummary) -> SessionDiff?,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val diff by produceState<SessionDiff?>(null, session.key) { value = loadDiffSummary(session) }
+    val pending = diff?.takeIf { it.unavailable == null && (it.additions > 0 || it.deletions > 0) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.worktree_finish_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                if (pending != null) {
+                    Text(stringResource(R.string.worktree_finish_pending, pending.baseRef ?: "main"), style = MaterialTheme.typography.bodyMedium)
+                    DiffCounts(pending.additions, pending.deletions, MaterialTheme.typography.labelLarge)
+                }
+                Text(stringResource(R.string.worktree_finish_desc), style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.worktree_finish_confirm)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

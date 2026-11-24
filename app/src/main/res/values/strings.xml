@@ -101,7 +101,10 @@
     <string name="chat_input_placeholder">メッセージ</string>
     <string name="chat_send_cd">送信</string>
     <string name="chat_stop_cd">停止</string>
-    <string name="chat_attach_cd">画像を添付</string>
+    <string name="chat_attach_cd">添付</string>
+    <string name="chat_attach_photos">写真</string>
+    <string name="chat_attach_files">ファイル</string>
+    <string name="chat_attach_too_large">添付が大きすぎるか、読み込めませんでした（画像は 6 MB、ファイルは 15 MB まで）</string>
     <string name="chat_voice_listening">聞き取り中…</string>
     <string name="chat_voice_cancel_cd">聞き取りをやめる</string>
     <string name="chat_voice_done_cd">聞き取りを終えて入力欄に入れる</string>
@@ -116,7 +119,7 @@
     <string name="link_download_started">ダウンロードを始めました。終わると通知でお知らせします</string>
     <string name="link_download_failed">このリンクはダウンロードできません</string>
     <string name="link_no_browser">開けるブラウザがありません</string>
-    <string name="panel_group_updated">更新順</string>
+    <string name="panel_group_updated">チャット</string>
     <string name="panel_group_folder">開発</string>
     <string name="panel_folder_none">作業フォルダなし</string>
     <string name="panel_folder_collapse">閉じる</string>
@@ -133,7 +136,7 @@
     <string name="worktree_title">並行開発を開始</string>
     <string name="worktree_create">作成</string>
     <string name="worktree_name">ブランチ名</string>
-    <string name="worktree_name_auto">空なら会話のタイトルから</string>
+    <string name="worktree_name_auto">空ならタイトルから</string>
     <string name="worktree_name_numbered">使用中のため %1$s で作ります</string>
     <string name="worktree_archived_owner">「%1$s」はアーカイブ済みのセッションが使っています</string>
     <string name="worktree_choice_new">新しく作る（%1$s）</string>
@@ -166,6 +169,11 @@
     <string name="session_menu_pin">ピン留め</string>
     <string name="session_menu_unpin">ピン留めを外す</string>
     <string name="session_menu_diff">変更量</string>
+    <string name="session_menu_finish">並行開発を終える</string>
+    <string name="worktree_finish_title">並行開発を終えますか？</string>
+    <string name="worktree_finish_pending">%1$s との差分があります。マージが済んでいるか確かめてください。</string>
+    <string name="worktree_finish_desc">セッションをアーカイブし、ワークツリーを片付けます。作業内容は保存され、30 日以内ならアーカイブを解除すると戻せます。</string>
+    <string name="worktree_finish_confirm">終える</string>
     <string name="session_diff_title">変更量</string>
     <string name="session_diff_failed">変更を読み込めませんでした</string>
     <string name="session_diff_not_git">作業フォルダが Git のリポジトリではありません</string>
@@ -388,6 +396,7 @@
         <item quantity="other">ツールの実行 %d 件</item>
     </plurals>
     <string name="chat_reply_cd">返信</string>
+    <string name="chat_reuse_cd">入力欄に写す</string>
     <string name="chat_elapsed_seconds">%1$d秒</string>
     <string name="chat_elapsed_minutes_seconds">%1$d分%2$d秒</string>
     <string name="chat_elapsed">回答まで約%1$s</string>

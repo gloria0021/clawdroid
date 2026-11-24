@@ -176,7 +176,7 @@ internal fun WorktreeSheet(
                         value = name,
                         onValueChange = { name = it.lowercase().replace(WORKTREE_NAME_INVALID, "-").take(WORKTREE_NAME_MAX) },
                         label = { Text(stringResource(R.string.worktree_name)) },
-                        placeholder = { Text(stringResource(R.string.worktree_name_auto)) },
+                        placeholder = { Text(stringResource(R.string.worktree_name_auto), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = { Icon(painterResource(R.drawable.ic_huge_branch_plus), contentDescription = null) },
                         prefix = { Text(stringResource(R.string.worktree_name_prefix)) },
                         supportingText = {
@@ -326,7 +326,7 @@ private fun BaseBranchField(value: String, onValueChange: (String) -> Unit, bran
             onValueChange = onValueChange,
             readOnly = picking,
             label = { Text(stringResource(R.string.worktree_base)) },
-            placeholder = { Text(stringResource(if (loading) R.string.worktree_base_loading else R.string.worktree_base_current)) },
+            placeholder = { Text(stringResource(if (loading) R.string.worktree_base_loading else R.string.worktree_base_current), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = { Icon(painterResource(R.drawable.ic_huge_branch), contentDescription = null) },
             trailingIcon = if (picking) {
                 { Icon(painterResource(if (open) R.drawable.ic_huge_arrow_up else R.drawable.ic_huge_arrow_down), contentDescription = null) }

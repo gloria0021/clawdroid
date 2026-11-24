@@ -60,7 +60,10 @@ sealed interface RunActivity {
 data class PendingInput(val runId: String, val text: String, val local: Boolean, val hasAttachments: Boolean = false)
 
 /** 送る画像（Base64 にしたもの）。 */
-data class OutgoingImage(val mimeType: String, val base64: String, val fileName: String?)
+/** 送る添付（画像かファイル）。画像以外は Gateway が保存して、記録に添付のリンクとして出す。 */
+data class OutgoingImage(val mimeType: String, val base64: String, val fileName: String?) {
+    val isImage: Boolean get() = mimeType.startsWith("image/")
+}
 
 /**
  * 1 つの会話を受け持つ。履歴を取り、開いているあいだは `sessions.messages.subscribe` で更新を受ける（research R4）。
@@ -354,7 +357,7 @@ class ChatSession(
             role = ChatMessage.Role.USER,
             parts = buildList {
                 if (text.isNotBlank()) add(MessagePart.Text(text))
-                images.forEach { add(MessagePart.Image(null, it.base64, it.mimeType)) }
+                images.filter { it.isImage }.forEach { add(MessagePart.Image(null, it.base64, it.mimeType)) }
             },
             timestamp = System.currentTimeMillis(),
             runId = idempotencyKey,
@@ -381,7 +384,7 @@ class ChatSession(
                     put("attachments", buildJsonArray {
                         images.forEach { img ->
                             add(buildJsonObject {
-                                put("type", "image")
+                                put("type", if (img.isImage) "image" else "file")
                                 put("mimeType", img.mimeType)
                                 img.fileName?.let { put("fileName", it) }
                                 put("content", img.base64)

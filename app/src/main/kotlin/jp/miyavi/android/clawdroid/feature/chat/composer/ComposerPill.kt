@@ -1,5 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.chat.composer
 
+import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Size
@@ -129,7 +131,8 @@ fun ComposerPill(
     onCancelPending: (String) -> Unit,
     onRestorePending: (String) -> Unit,
     onTextChange: (String) -> Unit,
-    onAttach: () -> Unit,
+    onPickPhotos: () -> Unit,
+    onPickFiles: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
     /** 貼り付けた画像（クリップボード・キーボード）。添付に足す。 */
     onPasteImage: (android.net.Uri) -> Unit = {},
@@ -262,8 +265,24 @@ fun ComposerPill(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        IconButton(onClick = onAttach, enabled = enabled) {
-                            Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
+                        // 添付は 写真 / ファイル を選ぶメニュー（マスター指定 2026-11-24）
+                        Box {
+                            var attachMenu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { attachMenu = true }, enabled = enabled) {
+                                Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
+                            }
+                            GlassDropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_attach_photos)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_huge_image), contentDescription = null) },
+                                    onClick = { attachMenu = false; onPickPhotos() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_attach_files)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_huge_file), contentDescription = null) },
+                                    onClick = { attachMenu = false; onPickFiles() },
+                                )
+                            }
                         }
                         ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession)
                         Spacer(Modifier.weight(1f))
@@ -587,15 +606,30 @@ private fun AttachmentThumbnail(
     val shape = MaterialTheme.shapes.medium
     // × を角に重ねるので、その分だけ右上をあける
     Box(Modifier.padding(top = Spacing.s, end = Spacing.s)) {
-        val bitmap = rememberBase64Bitmap(pending.image.base64)
+        val isImage = pending.image.isImage
+        val bitmap = if (isImage) rememberBase64Bitmap(pending.image.base64) else null
         Box(
             Modifier
                 .size(Dimens.attachmentThumbnail)
                 .shadow(Dimens.imageElevation, shape)
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                .clickable(onClickLabel = stringResource(R.string.chat_image_cd), onClick = onOpen),
+                .then(if (isImage) Modifier.clickable(onClickLabel = stringResource(R.string.chat_image_cd), onClick = onOpen) else Modifier),
+            contentAlignment = Alignment.Center,
         ) {
+            if (!isImage) {
+                // ファイルはアイコンと名前（中身は開かない）
+                Column(Modifier.padding(Spacing.xs), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(painterResource(R.drawable.ic_huge_file), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        pending.image.fileName.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             if (bitmap != null) {
                 Image(bitmap, contentDescription = stringResource(R.string.chat_image_cd), contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             }

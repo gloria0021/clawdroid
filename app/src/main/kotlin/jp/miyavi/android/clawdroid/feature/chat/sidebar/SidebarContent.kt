@@ -535,7 +535,8 @@ private fun SessionList(
     // アーカイブ済みは、ふだん閉じておく（マスター指定 2026-11-24）
     var archivedOpen by rememberSaveable { mutableStateOf(false) }
     val (active, archived) = remember(state.sessions, state.archived) {
-        // 更新日時の新しい順。ピン留めしたものはホームの下に出すので、ここには出さない（マスター指定 2026-11-23）
+        // 更新日時の新しい順。ピン留めしたものはホームの下に出すので、ここには出さない（マスター指定 2026-11-23）。
+        // チャット ⇔ 開発 は同じ全件の見え方の切り替え（作業フォルダの有無で絞らない。マスター指定 2026-11-24）
         val unique = state.sessions.distinctBy { it.key }
         val activeKeys = unique.mapTo(mutableSetOf()) { it.key }
         unique.filterNot { it.pinned }.sortedByDescending { it.updatedAt ?: 0 } to
@@ -931,7 +932,7 @@ internal fun groupByFolder(sessions: List<SessionSummary>): List<Pair<String?, L
         .map { (folder, rows) -> folder to rows.sortedByDescending { it.updatedAt ?: 0 } }
         .sortedWith(compareBy<Pair<String?, List<SessionSummary>>> { it.first == null }.thenByDescending { it.second.first().updatedAt ?: 0 })
 
-/** 履歴の並べ方の切り替え（押すたびに入れ替わる小さなボタン）。 */
+/** 履歴の見え方の切り替え（チャット = 更新日時の順の一覧、開発 = プロジェクトごと。押すたびに入れ替わる小さなボタン）。 */
 @Composable
 private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping) -> Unit) {
     TextButton(
@@ -941,7 +942,7 @@ private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping
         modifier = Modifier.heightIn(min = Dimens.compactTouchTarget),
     ) {
         Icon(
-            painterResource(if (grouping == SessionGrouping.FOLDER) R.drawable.ic_huge_source_code else R.drawable.ic_huge_clock),
+            painterResource(if (grouping == SessionGrouping.FOLDER) R.drawable.ic_huge_source_code else R.drawable.ic_huge_ai_chat),
             contentDescription = null,
             modifier = Modifier.size(Dimens.smallIcon),
         )
