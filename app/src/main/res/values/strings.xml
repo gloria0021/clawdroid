@@ -117,7 +117,7 @@
     <string name="link_download_failed">このリンクはダウンロードできません</string>
     <string name="link_no_browser">開けるブラウザがありません</string>
     <string name="panel_group_updated">更新順</string>
-    <string name="panel_group_folder">フォルダ別</string>
+    <string name="panel_group_folder">開発</string>
     <string name="panel_folder_none">作業フォルダなし</string>
     <string name="panel_folder_collapse">閉じる</string>
     <string name="panel_folder_expand">開く</string>
@@ -679,4 +679,6 @@
     <string name="worktree_delete_confirm">削除してワークツリーを片付ける</string>
     <string name="worktree_delete_archive">アーカイブ（会話を残し、あとで戻せる）</string>
     <string name="worktree_preserved">ワークツリー %1$s は使用中のため残しました。Web UI の Worktrees で片付けられます。</string>
+    <string name="session_diff_cd">追加 %1$d 行、削除 %2$d 行</string>
+    <string name="session_worktree_label_cd">ワークツリー %1$s</string>
 </resources>

@@ -49,6 +49,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.content.consume
+import androidx.compose.foundation.content.hasMediaType
+import androidx.compose.foundation.content.MediaType
+import androidx.compose.foundation.content.contentReceiver
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -81,7 +89,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import dev.chrisbanes.haze.HazeState
 import java.text.NumberFormat
@@ -103,6 +110,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.rememberBase64Bitmap
  * モデルのピルはコンテキストの消費で色が変わり、押すとセッションのシート（設定と使用量）を開く。
  * 入力が空のあいだは送信の位置に音声入力（生成中は停止）。生成中でも入力があれば送れる（FR-022・029）。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ComposerPill(
     hazeState: HazeState,
@@ -123,6 +131,8 @@ fun ComposerPill(
     onTextChange: (String) -> Unit,
     onAttach: () -> Unit,
     onRemoveImage: (android.net.Uri) -> Unit,
+    /** 貼り付けた画像（クリップボード・キーボード）。添付に足す。 */
+    onPasteImage: (android.net.Uri) -> Unit = {},
     /** 添付した画像を押したとき（全画面のプレビュー）。並びと押した位置。 */
     onOpenImage: (List<jp.miyavi.android.clawdroid.feature.chat.PendingImage>, Int) -> Unit = { _, _ -> },
     onSend: () -> Unit,
@@ -144,18 +154,33 @@ fun ComposerPill(
                 }
             }
         }
-        // 入力中の文字とカーソル（外から文字が変わったときは末尾にカーソルを置く）
-        var editingValue by remember { mutableStateOf(TextFieldValue(state.text)) }
-        val fieldValue = if (editingValue.text == state.text) editingValue else {
-            TextFieldValue(state.text, selection = TextRange(state.text.length))
+        // 入力中の文字とカーソル。画像の貼り付け（クリップボード・キーボード）を受けるため、状態型の入力欄にする
+        // （マスター指定 2026-11-24: Gemini のように貼り付けたい）。外から文字が変わったとき（送信で空に・音声・下書きの復元）は末尾にカーソル
+        val fieldState = rememberTextFieldState(state.text)
+        val sync = remember { ComposerTextSync() }
+        LaunchedEffect(state.text) {
+            if (sync.isEcho(state.text)) return@LaunchedEffect
+            if (fieldState.text.toString() != state.text) fieldState.setTextAndPlaceCursorAtEnd(state.text)
+        }
+        val currentOnTextChange by rememberUpdatedState(onTextChange)
+        LaunchedEffect(fieldState) {
+            snapshotFlow { fieldState.text.toString() }.collect { text ->
+                if (text != state.text) {
+                    sync.sent(text)
+                    currentOnTextChange(text)
+                }
+            }
         }
         // 補完。「/」で始めるとコマンド、「$」でスキルの候補を入力欄の上に出す
-        val cursor = fieldValue.selection.end
-        val suggestions = remember(fieldValue.text, cursor, slashCommands) { slashSuggestions(fieldValue.text, slashCommands, cursor) }
+        val fieldText = fieldState.text.toString()
+        val cursor = fieldState.selection.end
+        val suggestions = remember(fieldText, cursor, slashCommands) { slashSuggestions(fieldText, slashCommands, cursor) }
         SlashSuggestionPanel(hazeState, suggestions, onPick = { suggestion ->
-            val (text, at) = suggestion.applyTo(fieldValue.text)
-            editingValue = TextFieldValue(text, selection = TextRange(at))
-            onTextChange(text)
+            val (text, at) = suggestion.applyTo(fieldText)
+            fieldState.edit {
+                replace(0, length, text)
+                selection = TextRange(at)
+            }
         })
         // 入力欄は白い面（色付けしない）
         GlassPanel(
@@ -201,16 +226,22 @@ fun ComposerPill(
                     Text(hint, style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BasicTextField(
-                    value = fieldValue,
-                    onValueChange = {
-                        editingValue = it
-                        if (it.text != state.text) onTextChange(it.text)
-                    },
+                    state = fieldState,
                     enabled = enabled,
                     textStyle = textStyle,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        // 画像の貼り付け: 貼り付けのメニューと、キーボードのクリップボードの候補（commitContent）。文字はそのまま入力欄へ
+                        .contentReceiver { content ->
+                            if (!content.hasMediaType(MediaType.Image)) return@contentReceiver content
+                            content.consume { item ->
+                                val uri = item.uri
+                                if (uri != null && enabled) { onPasteImage(uri); true } else false
+                            }
+                        },
                 )
             }
             val canSend = state.text.isNotBlank() || state.images.isNotEmpty()
@@ -594,5 +625,30 @@ private fun AttachmentThumbnail(
                 }
             }
         }
+    }
+}
+
+/**
+ * 入力欄（端末側）と会話の状態（ViewModel 側）の文字のすり合わせ。入力欄から送った文字が遅れて戻ってきた（こだま）のか、
+ * 外で変わった（送信で空・音声・下書きの復元）のかを見分ける。こだまなら入力欄を書き戻さない（打ち込み中の文字を巻き戻さない）。
+ */
+private class ComposerTextSync {
+    private val pending = ArrayDeque<String>()
+
+    fun sent(text: String) {
+        pending.addLast(text)
+        while (pending.size > MAX_PENDING) pending.removeFirst()
+    }
+
+    /** [text] が送ったもののこだまなら、それまでの分を捨てて true。 */
+    fun isEcho(text: String): Boolean {
+        val index = pending.indexOf(text)
+        if (index < 0) return false
+        repeat(index + 1) { pending.removeFirst() }
+        return true
+    }
+
+    private companion object {
+        const val MAX_PENDING = 64
     }
 }

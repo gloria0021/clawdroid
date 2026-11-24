@@ -60,6 +60,10 @@ class SessionsRepository(
      */
     private val _headBranches = MutableStateFlow<Map<String, String>>(emptyMap())
     val headBranches: StateFlow<Map<String, String>> = _headBranches.asStateFlow()
+
+    /** 作業フォルダごとの未コミットの変更量（`sessions.diff` の合計だけ。変更が無いフォルダは入らない）。 */
+    private val _folderDiffs = MutableStateFlow<Map<String, DiffTotals>>(emptyMap())
+    val folderDiffs: StateFlow<Map<String, DiffTotals>> = _folderDiffs.asStateFlow()
     /** 最後に問い合わせた時刻（Git でないフォルダも含む。間を空けて問い直す）。 */
     private val branchCheckedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
@@ -418,22 +422,33 @@ class SessionsRepository(
         )
     }
 
-    /** ワークツリーでないセッションの作業フォルダの、今のブランチを読む（同じフォルダは間を空けて 1 回だけ）。 */
+    /**
+     * 作業フォルダの今のブランチ（ワークツリーでないもの）と未コミットの変更量を読む。同じフォルダは間を空けて 1 回だけ。
+     * 変更量は作業フォルダで決まるので、そのフォルダのセッションを 1 つ選んで問い合わせる。
+     */
     fun refreshHeadBranches(rows: List<SessionSummary>) {
-        if (!gateway.supports("worktrees.branches")) return
         val now = System.currentTimeMillis()
-        val folders = rows.asSequence()
-            .filter { it.worktreeBranch == null }
-            .mapNotNull { it.cwd?.trimEnd('/')?.takeIf(String::isNotBlank) }
-            .distinct()
-            .filter { now - (branchCheckedAt[it] ?: 0L) > BRANCH_RECHECK_MS }
+        val byFolder = rows.asSequence()
+            .filter { !it.archived }
+            .mapNotNull { row -> row.cwd?.trimEnd('/')?.takeIf(String::isNotBlank)?.let { it to row } }
+            .distinctBy { it.first }
+            .filter { (folder, _) -> now - (branchCheckedAt[folder] ?: 0L) > BRANCH_RECHECK_MS }
             .toList()
-        if (folders.isEmpty()) return
-        folders.forEach { branchCheckedAt[it] = now }
+        if (byFolder.isEmpty()) return
+        byFolder.forEach { (folder, _) -> branchCheckedAt[folder] = now }
+        val canBranch = gateway.supports("worktrees.branches")
+        val canDiff = gateway.supports("sessions.diff")
         scope.launch {
-            folders.forEach { folder ->
-                val head = runCatching { branches(folder)?.head }.getOrNull()?.takeIf(String::isNotBlank)
-                _headBranches.update { if (head != null) it + (folder to head) else it - folder }
+            byFolder.forEach { (folder, row) ->
+                if (canBranch && row.worktreeBranch == null) {
+                    val head = runCatching { branches(folder)?.head }.getOrNull()?.takeIf(String::isNotBlank)
+                    _headBranches.update { if (head != null) it + (folder to head) else it - folder }
+                }
+                if (canDiff) {
+                    val d = runCatching { diff(row, summaryOnly = true) }.getOrNull()?.takeIf { it.unavailable == null }
+                    val totals = d?.let { DiffTotals(it.additions, it.deletions) }?.takeIf { it.additions > 0 || it.deletions > 0 }
+                    _folderDiffs.update { if (totals != null) it + (folder to totals) else it - folder }
+                }
             }
         }
     }
@@ -465,6 +480,9 @@ class SessionsRepository(
 data class RepoBranch(val name: String, val remote: Boolean)
 
 /** ブランチの一覧（[branches] が空なら、今のブランチだけ分かっている）。 */
+/** 未コミットの変更の合計（サイドパネルの「+12 −3」）。 */
+data class DiffTotals(val additions: Int, val deletions: Int)
+
 /** 削除のときに Gateway が片付けずに残したワークツリー。 */
 data class PreservedWorktree(val branch: String?, val reason: String?)
 

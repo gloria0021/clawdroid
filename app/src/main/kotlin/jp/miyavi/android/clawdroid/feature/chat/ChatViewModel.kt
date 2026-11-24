@@ -136,6 +136,9 @@ class ChatViewModel(
     /** 作業フォルダごとの今のブランチ（サイドパネルの行に出す）。 */
     val headBranches: kotlinx.coroutines.flow.StateFlow<Map<String, String>> get() = sessions.headBranches
 
+    /** 作業フォルダごとの未コミットの変更量（サイドパネルに出す）。 */
+    val folderDiffs: kotlinx.coroutines.flow.StateFlow<Map<String, jp.miyavi.android.clawdroid.core.data.DiffTotals>> get() = sessions.folderDiffs
+
     private val selectedAgentId = MutableStateFlow<String?>(null)
     private val selectedSessionKey = MutableStateFlow<String?>(null)
     private val currentChat = MutableStateFlow<ChatSession?>(null)

@@ -176,8 +176,10 @@ internal fun ChatScreen(
     }
     // 作業フォルダごとの今のブランチ（サイドパネルの行に出す）
     val headBranches by viewModel.headBranches.collectAsStateWithLifecycle()
+    val folderDiffs by viewModel.folderDiffs.collectAsStateWithLifecycle()
     CompositionLocalProvider(
         jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalHeadBranches provides headBranches,
+        jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalFolderDiffs provides folderDiffs,
         jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalDiffLoader provides viewModel::diffSummary,
     ) {
     ChatContent(
@@ -440,6 +442,7 @@ fun ChatContent(
                                 onTextChange = actions.textChange,
                                 onAttach = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                 onRemoveImage = actions.removeImage,
+                                onPasteImage = actions.addImage,
                                 onOpenImage = { images, index ->
                                     openedImage = jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery(
                                         images.map { MessagePart.Image(url = null, base64 = it.image.base64, mimeType = it.image.mimeType) },

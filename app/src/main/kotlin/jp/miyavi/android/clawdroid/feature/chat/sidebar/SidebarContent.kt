@@ -99,6 +99,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.R
@@ -558,31 +559,40 @@ private fun SessionList(
         else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             // ふだんはアクティブなセッションだけを並べ、見出しは付けない。アーカイブ済みは末尾の閉じた見出しの中（マスター指定 2026-11-24）
             if (grouping == SessionGrouping.FOLDER) {
-                // 作業フォルダごとにまとめる。まとまりの並びも、中の並びも、更新日時の新しい順
-                val groups = groupByFolder(active)
-                groups.forEach { (folder, rows) ->
-                    val id = folder ?: ""
-                    val open = id !in collapsed
-                    item(key = "folder:$id", contentType = "folder") {
-                        FolderHeader(folder, rows.size, open, motionItem()) {
-                            collapsed = if (open) collapsed + id else collapsed - id
+                // 開発: ワークツリーの無いプロジェクトは 1 行、ワークツリーがあれば元のセッションの下に枝でぶら下げる
+                // （親子関係を見せる。マスター指定 2026-11-24）。元のセッションが無ければプロジェクトの見出しを親にする
+                developmentRows(groupByFolder(active)).forEach { row ->
+                    when (row) {
+                        is DevRow.Header -> {
+                            val id = row.folder ?: ""
+                            val open = id !in collapsed
+                            item(key = "folder:$id", contentType = "folder") {
+                                FolderHeader(row.folder, row.count, open, motionItem()) {
+                                    collapsed = if (open) collapsed + id else collapsed - id
+                                }
+                            }
                         }
-                    }
-                    if (open) itemsIndexed(rows, key = { _, it -> "session:${it.key}" }) { index, session ->
-                        SessionItem(
-                            session = session,
-                            selected = session.key == selectedSessionKey,
-                            timeLabel = session.updatedAt?.let(timeLabel),
-                            onClick = { onSelect(session) },
-                            onRename = { onRename(session, it) },
-                            onArchive = { onArchive(session, !session.archived) },
-                            onDelete = { onDelete(session) },
-                            onCreateWorktree = { name, base, fork -> onCreateWorktree(session, name, base, fork) },
-                            loadBranches = loadBranches,
-                            // フォルダの下に、木の枝でぶら下げる（文字は小さく、1 行）
-                            tree = if (index == rows.lastIndex) TreeBranch.LAST else TreeBranch.MIDDLE,
-                            modifier = motionItem(),
-                        )
+                        is DevRow.Session -> {
+                            val session = row.session
+                            // 見出しを閉じているあいだは、その下の枝を出さない
+                            if (row.underHeader != null && row.underHeader in collapsed) return@forEach
+                            item(key = "session:${session.key}", contentType = if (row.tree != null) "branch" else "session") {
+                                SessionItem(
+                                    session = session,
+                                    selected = session.key == selectedSessionKey,
+                                    timeLabel = session.updatedAt?.let(timeLabel),
+                                    onClick = { onSelect(session) },
+                                    onRename = { onRename(session, it) },
+                                    onArchive = { onArchive(session, !session.archived) },
+                                    onDelete = { onDelete(session) },
+                                    onCreateWorktree = { name, base, fork -> onCreateWorktree(session, name, base, fork) },
+                                    loadBranches = loadBranches,
+                                    tree = row.tree,
+                                    development = true,
+                                    modifier = motionItem(),
+                                )
+                            }
+                        }
                     }
                 }
             } else {
@@ -642,8 +652,10 @@ private fun SessionItem(
     modifier: Modifier = Modifier,
     onCreateWorktree: ((String?, String?, Boolean) -> Unit)? = null,
     loadBranches: suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
-    /** フォルダ別のときの枝の形（null なら通常の行）。 */
+    /** 開発のときの枝の形（null なら通常の行）。 */
     tree: TreeBranch? = null,
+    /** 開発の並びの行（2 行目にブランチと変更量を出す）。更新順ではタイトルと時刻だけ。 */
+    development: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var worktree by rememberSaveable { mutableStateOf(false) }
@@ -680,7 +692,7 @@ private fun SessionItem(
             },
         ) {
             Box(Modifier.padding(start = TreeChildStart, end = PanelItemInset)) {
-                CompactSessionRow(session, title, timeLabel, highlight, menuLabel, onClick) { menuOpen = true }
+                CompactSessionRow(session, development, title, timeLabel, highlight, menuLabel, onClick, child = true) { menuOpen = true }
                 SessionMenu(session, menuOpen, onDismiss = { menuOpen = false }, onRename = { renaming = true },
                     onWorktree = if (onCreateWorktree != null) ({ worktree = true }) else null,
                     onArchive = onArchive, onDelete = { confirmDelete = true })
@@ -688,7 +700,7 @@ private fun SessionItem(
         }
     } else Box(modifier.padding(horizontal = PanelItemInset)) {
         // 更新順もフォルダ別と同じ1行の行（選んだ面がフォルダ別と同じ大きさになる。マスター指定 2026-11-23）
-        CompactSessionRow(session, title, timeLabel, highlight, menuLabel, onClick) { menuOpen = true }
+        CompactSessionRow(session, development, title, timeLabel, highlight, menuLabel, onClick) { menuOpen = true }
         SessionMenu(session, menuOpen, onDismiss = { menuOpen = false }, onRename = { renaming = true },
             onWorktree = if (onCreateWorktree != null) ({ worktree = true }) else null,
             onArchive = onArchive, onDelete = { confirmDelete = true })
@@ -733,19 +745,31 @@ private fun SessionItem(
 @Composable
 private fun CompactSessionRow(
     session: SessionSummary,
+    /** 開発の並びの行か。開発では 2 行目にブランチ（ワークツリー）と変更量、更新順ではタイトルと時刻だけ（マスター指定 2026-11-24）。 */
+    development: Boolean,
     title: String,
     timeLabel: String?,
     highlight: SelectionHighlight,
     menuLabel: String,
     onClick: () -> Unit,
+    /** 親（元のセッション）の下にぶら下がる行か。リポジトリは親で分かるので、名前の下に出さない。 */
+    child: Boolean = false,
     onLongClick: () -> Unit,
 ) {
+    // 2 行目: ワークツリーはそのブランチ、ほかは作業フォルダの今のブランチ（Git でなければ出さない）。変更量は作業フォルダの未コミットの分
+    val folder = session.cwd?.trimEnd('/')
+    val prefix = stringResource(R.string.worktree_name_prefix)
+    val branch = if (!development) null
+    else session.worktreeBranch?.let { it.removePrefix(prefix).ifEmpty { it } } ?: folder?.let { LocalHeadBranches.current[it] }
+    val diff = if (!development) null else folder?.let { LocalFolderDiffs.current[it] }
+    val twoLines = branch != null || diff != null
     Box {
         SelectionPill(highlight)
         Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = Dimens.minTouchTarget)
+                // 2 行の行は M3 の 2 行の一覧と同じ高さ（64dp）と上下 12dp（マスター指定 2026-11-24）
+                .heightIn(min = if (twoLines) Dimens.listItemTwoLine else Dimens.minTouchTarget)
                 .combinedClickable(
                     interactionSource = highlight.interactions,
                     indication = null,
@@ -753,38 +777,56 @@ private fun CompactSessionRow(
                     onLongClick = onLongClick,
                     onLongClickLabel = menuLabel,
                 )
-                .padding(horizontal = Spacing.m, vertical = Spacing.s),
+                .padding(horizontal = Spacing.m, vertical = if (twoLines) Spacing.m else Spacing.s),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
-            val prefix = stringResource(R.string.worktree_name_prefix)
-            val worktreeBranch = session.worktreeBranch?.let { it.removePrefix(prefix).ifEmpty { it } }
-            // ワークツリーは名前の前にワークツリー（並行開発）のアイコン（マスター指定 2026-11-24）
-            if (worktreeBranch != null) {
-                Icon(
-                    painterResource(R.drawable.ic_huge_branch),
-                    contentDescription = stringResource(R.string.session_worktree_cd, session.worktreeBranch),
-                    tint = highlight.headline,
-                    modifier = Modifier.size(Dimens.smallIcon),
+            if (twoLines) {
+                // 開発の 2 行。左に 名前／リポジトリ · ⑂ ブランチ +変更量（量はブランチのすぐ横）、
+                // 右に時刻を 2 行の真ん中に一回り大きく（マスター指定 2026-11-24）
+                val repo = session.projectFolder?.substringAfterLast('/')?.takeIf { !child && it.isNotBlank() }
+                val selectedColor = highlight.headline.takeIf { it != MaterialTheme.colorScheme.onSurface }
+                val metaColor = selectedColor ?: MaterialTheme.colorScheme.onSurfaceVariant
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = highlight.headline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        repo?.let {
+                            Text(
+                                if (branch != null || diff != null) "$it ·" else it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = metaColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
+                        branch?.let { WorktreeBranchLabel(it, highlight.headline, worktree = session.worktreeBranch != null) }
+                        diff?.let { DiffTotalsText(it, selectedColor) }
+                    }
+                }
+                timeLabel?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = metaColor, maxLines = 1) }
+                SessionMarks(session)
+            } else {
+                // 1 行: 左にセッション名、右に時刻
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = highlight.headline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                timeLabel?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
+                SessionMarks(session)
             }
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = highlight.headline,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // 名前の後ろにブランチ（行は 1 行のまま。AGENTS.md 2.3）。ふつうのセッションは作業フォルダの今のブランチ（Git でなければ出さない）、
-            // ワークツリーは名前がブランチ名と違うときだけ（同じ名前を 2 度並べない。マスター指定 2026-11-24）
-            val branch = if (worktreeBranch != null) worktreeBranch.takeIf { it != title }
-            else session.cwd?.trimEnd('/')?.let { LocalHeadBranches.current[it] }
-            branch?.let { WorktreeBranchLabel(it, highlight.headline) }
-            timeLabel?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-            SessionMarks(session)
         }
     }
 }
@@ -792,14 +834,17 @@ private fun CompactSessionRow(
 /** セッションの変更量を読む（会話の画面が渡す。ワークツリーの削除の確認で使う）。 */
 val LocalDiffLoader = androidx.compose.runtime.staticCompositionLocalOf<suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff?> { { null } }
 
+/** 作業フォルダごとの未コミットの変更量（会話の画面が渡す）。 */
+val LocalFolderDiffs = androidx.compose.runtime.compositionLocalOf<Map<String, jp.miyavi.android.clawdroid.core.data.DiffTotals>> { emptyMap() }
+
 /** 作業フォルダごとの今のブランチ（会話の画面が渡す）。 */
 val LocalHeadBranches = androidx.compose.runtime.compositionLocalOf<Map<String, String>> { emptyMap() }
 
 /** 行のブランチ（アイコンと名前。長い名前は省略記号）。 */
 @Composable
-private fun WorktreeBranchLabel(branch: String, rowColor: Color) {
+private fun WorktreeBranchLabel(branch: String, rowColor: Color, worktree: Boolean = false) {
     val shown = branch
-    val cd = stringResource(R.string.session_worktree_cd, branch)
+    val cd = stringResource(if (worktree) R.string.session_worktree_label_cd else R.string.session_worktree_cd, branch)
     // 選んだ行（色の付いた面）の上では行の文字色に合わせ、ふだんは補足の色
     val color = if (rowColor == MaterialTheme.colorScheme.onSurface) MaterialTheme.colorScheme.onSurfaceVariant else rowColor
     Row(
@@ -840,6 +885,38 @@ private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (Str
     )
 }
 
+/** 開発の並びの 1 行。 */
+internal sealed interface DevRow {
+    /** プロジェクトの見出し（ワークツリーはあるが、元のセッションが無いときだけ）。 */
+    data class Header(val folder: String?, val count: Int) : DevRow
+    /** セッションの行。[tree] があれば親の下の枝。[underHeader] は見出しの下の枝のときの見出しの id（閉じる用）。 */
+    data class Session(val session: SessionSummary, val tree: TreeBranch? = null, val underHeader: String? = null) : DevRow
+}
+
+/**
+ * 開発の並び（マスター指定 2026-11-24）。プロジェクトごとに:
+ * - ワークツリーが無い: セッションをそのまま 1 行ずつ
+ * - ワークツリーがある: いちばん新しい元のセッションを親にし、その下にワークツリーを枝で。ほかの元のセッションは続けて 1 行ずつ
+ * - ワークツリーだけ（元のセッションが無い）: プロジェクトの見出しを親にする
+ */
+internal fun developmentRows(groups: List<Pair<String?, List<SessionSummary>>>): List<DevRow> = buildList {
+    groups.forEach { (folder, rows) ->
+        val worktrees = rows.filter { it.worktreeBranch != null }
+        val mains = rows.filter { it.worktreeBranch == null }
+        if (worktrees.isEmpty()) {
+            mains.forEach { add(DevRow.Session(it)) }
+            return@forEach
+        }
+        val parent = mains.firstOrNull()
+        val headerId = if (parent == null) folder ?: "" else null
+        if (parent != null) add(DevRow.Session(parent)) else add(DevRow.Header(folder, worktrees.size))
+        worktrees.forEachIndexed { index, wt ->
+            add(DevRow.Session(wt, if (index == worktrees.lastIndex) TreeBranch.LAST else TreeBranch.MIDDLE, headerId))
+        }
+        mains.drop(1).forEach { add(DevRow.Session(it)) }
+    }
+}
+
 /** 作業フォルダごとのまとまり（まとまりは中のいちばん新しい更新日時の順。作業フォルダの無いものは最後）。 */
 internal fun groupByFolder(sessions: List<SessionSummary>): List<Pair<String?, List<SessionSummary>>> =
     sessions.groupBy { it.projectFolder }
@@ -856,7 +933,7 @@ private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping
         modifier = Modifier.heightIn(min = Dimens.compactTouchTarget),
     ) {
         Icon(
-            painterResource(if (grouping == SessionGrouping.FOLDER) R.drawable.ic_huge_folder else R.drawable.ic_huge_clock),
+            painterResource(if (grouping == SessionGrouping.FOLDER) R.drawable.ic_huge_source_code else R.drawable.ic_huge_clock),
             contentDescription = null,
             modifier = Modifier.size(Dimens.smallIcon),
         )
@@ -872,7 +949,32 @@ private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping
 @Composable
 private fun FolderHeader(folder: String?, count: Int, open: Boolean, modifier: Modifier = Modifier, onToggle: () -> Unit) {
     val name = folder?.substringAfterLast('/')?.ifEmpty { folder } ?: stringResource(R.string.panel_folder_none)
-    CollapsibleHeader(R.drawable.ic_huge_folder, name, count, open, modifier, description = folder?.let { "$name, $it" }, onToggle = onToggle)
+    // 見出しはプロジェクトの名前と件数だけ。ブランチと変更量は各行に出す（マスター指摘 2026-11-24）
+    CollapsibleHeader(
+        R.drawable.ic_huge_folder, name, count, open, modifier,
+        description = folder?.let { "$name, $it" },
+        onToggle = onToggle,
+    )
+}
+
+/**
+ * 未コミットの変更の「+12 −3」（追加は tertiary、削除は error。変更量のシートと同じ色）。
+ * 選んだ行（色の付いた面）の上では、色分けをやめて行の文字色 [selectedColor] にする（tertiary・error は塗った面で読みにくい）。
+ */
+@Composable
+private fun DiffTotalsText(diff: jp.miyavi.android.clawdroid.core.data.DiffTotals, selectedColor: Color? = null) {
+    val colors = MaterialTheme.colorScheme
+    val cd = stringResource(R.string.session_diff_cd, diff.additions, diff.deletions)
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(color = selectedColor ?: colors.tertiary)) { append("+${diff.additions}") }
+            append(" ")
+            withStyle(androidx.compose.ui.text.SpanStyle(color = selectedColor ?: colors.error)) { append("−${diff.deletions}") }
+        },
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1,
+        modifier = Modifier.semantics { contentDescription = cd },
+    )
 }
 
 /** 開閉できる見出しの行（作業フォルダ・アーカイブ済み）。アイコン・名前・件数・開閉の矢印。 */
@@ -884,6 +986,7 @@ private fun CollapsibleHeader(
     open: Boolean,
     modifier: Modifier = Modifier,
     description: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
     onToggle: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -902,6 +1005,7 @@ private fun CollapsibleHeader(
     ) {
         Icon(painterResource(icon), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Dimens.smallIcon))
         Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        trailing?.invoke()
         Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         Icon(
             painterResource(if (open) R.drawable.ic_huge_arrow_up else R.drawable.ic_huge_arrow_down),

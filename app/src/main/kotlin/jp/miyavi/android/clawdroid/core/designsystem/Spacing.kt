@@ -15,6 +15,8 @@ object Spacing {
 /** 余白以外の決まった寸法。 */
 object Dimens {
     val minTouchTarget = 48.dp
+    /** M3 の 2 行の一覧の最低の高さ。 */
+    val listItemTwoLine = 64.dp
     /** ヘッダ行とチップのタップ領域（AGENTS.md 2.4 の例外）。 */
     val compactTouchTarget = 32.dp
     val maxReadingWidth = 720.dp
@@ -56,7 +58,7 @@ object Dimens {
     /** ダイアログの最大幅（M3 の基本のダイアログ）。 */
     val dialogMaxWidth = 560.dp
     /** サイドパネルの行のブランチ名の最大幅（名前を押しつぶさない）。 */
-    val branchLabelMaxWidth = 120.dp
+    val branchLabelMaxWidth = 140.dp
     /** 絵文字 1 文字の入力欄の幅。 */
     val emojiField = 72.dp
     /** 添付を外す × の丸と、その中のアイコン。 */

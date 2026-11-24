@@ -32,4 +32,26 @@ class GroupByFolderTest {
         assertEquals(listOf("/w/app", "/w/boards"), groups.map { it.first })
         assertEquals(listOf("wt", "a1"), groups.first().second.map { it.key })
     }
+
+    private fun wt(key: String, updated: Long) = session(key, "/h/wt/$key", updated).copy(worktreeBranch = "openclaw/$key", worktreeRoot = "/w/app")
+
+    @Test fun development_flatWithoutWorktrees_treeWithWorktrees() {
+        val rows = developmentRows(
+            groupByFolder(listOf(session("main", "/w/app", 50), wt("refactor", 80), wt("fix", 60), session("b", "/w/boards", 40))),
+        )
+        assertEquals(
+            listOf(
+                DevRow.Session(session("main", "/w/app", 50)),
+                DevRow.Session(wt("refactor", 80), TreeBranch.MIDDLE),
+                DevRow.Session(wt("fix", 60), TreeBranch.LAST),
+                DevRow.Session(session("b", "/w/boards", 40)),
+            ),
+            rows,
+        )
+    }
+
+    @Test fun development_worktreesWithoutMain_useHeader() {
+        val rows = developmentRows(groupByFolder(listOf(wt("refactor", 80))))
+        assertEquals(listOf(DevRow.Header("/w/app", 1), DevRow.Session(wt("refactor", 80), TreeBranch.LAST, "/w/app")), rows)
+    }
 }

@@ -131,7 +131,9 @@ fun ClawdroidTheme(
     val base = baseScheme(settings.theme, settings.customSeedArgb, dark)
     // モダンは面を黒へ寄せず、明るい無彩色のまま（マスター指定 2026-11-23: 濃すぎたので薄く）
     val tinted = remember(base, dark, settings.theme) {
-        if (settings.theme == AppTheme.MODERN) softModernScheme(base, dark) else tintedScheme(base, dark)
+        if (settings.theme == AppTheme.MODERN) softModernScheme(base, dark)
+        // カスタムは種色のくすみ（ニュアンス）を primary にも残す（マスター指定 2026-11-24）
+        else tintedScheme(base, dark, keepChroma = settings.theme == AppTheme.CUSTOM)
     }
     // OpenClaw: 面は Suna と同じ塗り方（赤みの落ち着いたオフホワイト）、赤はアクセントと利用者のメッセージの面だけ
     val red = if (settings.theme == AppTheme.OPENCLAW) {
@@ -193,7 +195,7 @@ private fun baseScheme(theme: AppTheme, customSeedArgb: Int?, dark: Boolean): Co
 /**
  * 背景を primaryContainer へ少し寄せ、リンクの色を背景に対して十分なコントラストにする（Gerbil と同じ処理）。
  */
-internal fun tintedScheme(base: ColorScheme, dark: Boolean): ColorScheme {
+internal fun tintedScheme(base: ColorScheme, dark: Boolean, keepChroma: Boolean = false): ColorScheme {
     val weight = if (dark) TINT_WEIGHT_DARK else TINT_WEIGHT_LIGHT
     val background = lerp(base.surface, base.primaryContainer, weight)
     return base.copy(
@@ -202,7 +204,7 @@ internal fun tintedScheme(base: ColorScheme, dark: Boolean): ColorScheme {
         surfaceContainerLow = lerp(base.surfaceContainerLow, base.primaryContainer, weight * 0.75f),
         surfaceContainer = lerp(base.surfaceContainer, base.primaryContainer, weight * 0.75f),
         surfaceContainerHigh = lerp(base.surfaceContainerHigh, base.primaryContainer, weight * 0.6f),
-        primary = vividLinkColor(base.primary, background, dark),
+        primary = vividLinkColor(base.primary, background, dark, keepChroma),
     )
 }
 
@@ -277,10 +279,14 @@ internal fun withContrastedSecondary(base: ColorScheme, contrasted: ColorScheme)
     onSecondaryContainer = contrasted.onSecondaryContainer,
 )
 
-internal fun vividLinkColor(base: Color, background: Color, isDark: Boolean): Color {
+/**
+ * リンク・強調の色を背景に対して読める明るさにする。[keepChroma] が false なら彩度も引き上げて鮮やかにする
+ * （Dynamic Color など）。true なら種色の彩度のまま（カスタムのニュアンスカラーを鮮やかにしない）。
+ */
+internal fun vividLinkColor(base: Color, background: Color, isDark: Boolean, keepChroma: Boolean = false): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(base.toArgb(), hsl)
-    if (hsl[1] > 0.08f) hsl[1] = maxOf(hsl[1], 0.75f).coerceAtMost(0.92f)
+    if (!keepChroma && hsl[1] > 0.08f) hsl[1] = maxOf(hsl[1], 0.75f).coerceAtMost(0.92f)
     hsl[2] = if (isDark) maxOf(hsl[2], 0.68f) else minOf(hsl[2], 0.44f)
     val bgArgb = background.toArgb()
     var argb = ColorUtils.HSLToColor(hsl)
