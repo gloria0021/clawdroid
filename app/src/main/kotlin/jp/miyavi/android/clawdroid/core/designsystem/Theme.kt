@@ -392,3 +392,56 @@ fun terminalChromeScheme(base: ColorScheme, palette: TerminalPalette): ColorSche
 private const val TERMINAL_CHROME_RAISED = 0.16f
 /** 押したままのキー（Ctrl）の面（背景にテーマカラーを混ぜる割合）。 */
 private const val TERMINAL_CHROME_SELECTED = 0.45f
+
+/** コードの色分けの色（spec 005 US5）。種類ごとに色相を分ける。 */
+@androidx.compose.runtime.Immutable
+data class CodeColors(
+    val keyword: Color,
+    val string: Color,
+    val literal: Color,
+    val comment: Color,
+    val metadata: Color,
+    val punctuation: Color,
+    val type: Color,
+    val function: Color,
+)
+
+/**
+ * コードエディターの配色（マスター指定 2026-11-24。「ガチのコードエディター」のように種類ごとに色を分ける）。
+ * ターミナルと同じく、色相ごとの彩度を落としたニュアンスカラーにテーマカラーを少し混ぜる。
+ * 明るさは背景（surface）に対して WCAG AA（4.5:1）を満たすまで寄せる。
+ */
+fun codeColors(scheme: ColorScheme): CodeColors {
+    val background = scheme.surface.toArgb()
+    val dark = scheme.surface.luminance() < 0.5f
+    val accentHue = FloatArray(3).also { ColorUtils.colorToHSL(scheme.primary.toArgb(), it) }[0]
+    fun tone(hue: Float): Color {
+        var lightness = if (dark) CODE_LIGHTNESS_DARK else CODE_LIGHTNESS_LIGHT
+        var argb: Int
+        while (true) {
+            val muted = Color(ColorUtils.HSLToColor(floatArrayOf(hue, CODE_SATURATION, lightness)))
+            val accent = Color(ColorUtils.HSLToColor(floatArrayOf(accentHue, CODE_SATURATION, lightness)))
+            argb = lerp(muted, accent, TERMINAL_ACCENT_MIX).toArgb()
+            if (ColorUtils.calculateContrast(argb, background) >= CODE_MIN_CONTRAST || lightness !in 0.05f..0.95f) break
+            lightness += if (dark) CODE_LIGHTNESS_STEP else -CODE_LIGHTNESS_STEP
+        }
+        return Color(argb)
+    }
+    // 紫（キーワード）・緑（文字列）・橙（数値など）・黄（注釈）・水色（型）・青（関数）。コメントと記号は控えめな文字色
+    return CodeColors(
+        keyword = tone(285f),
+        string = tone(130f),
+        literal = tone(25f),
+        comment = scheme.onSurfaceVariant,
+        metadata = tone(48f),
+        punctuation = scheme.onSurfaceVariant,
+        type = tone(185f),
+        function = tone(220f),
+    )
+}
+
+private const val CODE_SATURATION = 0.55f
+private const val CODE_LIGHTNESS_DARK = 0.70f
+private const val CODE_LIGHTNESS_LIGHT = 0.38f
+private const val CODE_LIGHTNESS_STEP = 0.03f
+private const val CODE_MIN_CONTRAST = 4.5

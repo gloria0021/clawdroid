@@ -47,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -318,6 +319,23 @@ private fun MainNavigation(container: AppContainer) {
                                     agentId = route.agentId,
                                     // 会話には必ず Gateway の作業フォルダ（無ければエージェントのワークスペース）がある
                                     hasWorkingFolder = true,
+                                    // ファイルの作成・削除・名前の変更は、使い捨てのシェルで（spec 005 R7）
+                                    ops = jp.miyavi.android.clawdroid.core.data.FileOpsRepository(
+                                        jp.miyavi.android.clawdroid.core.data.TerminalRepository(
+                                            container.gateway,
+                                            jp.miyavi.android.clawdroid.core.data.SharedPreferencesTerminalIdStore(
+                                                context.getSharedPreferences("terminal_ids", android.content.Context.MODE_PRIVATE),
+                                            ),
+                                        ),
+                                    ),
+                                    // 会話ごとの入れ物には SavedStateRegistry が無いので、手元の SavedStateHandle（ViewModel と同じ寿命）
+                                    // shortcut: 展開・開いていたファイルはプロセスの終了で消える。残すなら WorkStores に SavedStateHandle を持たせて会話ごとに渡す
+                                    saved = androidx.lifecycle.SavedStateHandle(),
+                                    settings = container.settings,
+                                    memory = jp.miyavi.android.clawdroid.feature.files.FileViewMemory(
+                                        context.getSharedPreferences("file_view", android.content.Context.MODE_PRIVATE),
+                                        "${route.sessionKey}|${route.agentId}",
+                                    ),
                                 )
                             }
                         },
@@ -387,6 +405,12 @@ private fun MainNavigation(container: AppContainer) {
                                 sessionKey = "",
                                 agentId = route.agentId,
                                 hasWorkingFolder = false,
+                                saved = createSavedStateHandle(),
+                                settings = container.settings,
+                                memory = jp.miyavi.android.clawdroid.feature.files.FileViewMemory(
+                                    context.getSharedPreferences("file_view", android.content.Context.MODE_PRIVATE),
+                                    "workspace|${route.agentId}",
+                                ),
                             )
                         }
                     },

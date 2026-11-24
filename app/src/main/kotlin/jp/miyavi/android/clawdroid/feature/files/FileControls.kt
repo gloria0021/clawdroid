@@ -47,6 +47,9 @@ internal data class FileControlsState(
     val search: FileSearch?,
     /** HTML のプレビューでは WebView の数え方を使う。 */
     val htmlCounts: Pair<Int, Int>?,
+    /** コードを読んでいる（折り返しを出す。spec 005 FR-053）。 */
+    val codeTools: Boolean = false,
+    val wrap: Boolean = false,
 )
 
 internal class FileControlsActions(
@@ -57,6 +60,7 @@ internal class FileControlsActions(
     val onPrevious: () -> Unit,
     val onNext: () -> Unit,
     val onCloseSearch: () -> Unit,
+    val onToggleWrap: () -> Unit = {},
 )
 
 /**
@@ -108,6 +112,11 @@ private fun ActionRow(state: FileControlsState, actions: FileControlsActions) {
         if (state.editable) {
             IconButton(onClick = actions.onEdit) { Icon(painterResource(R.drawable.ic_huge_edit), stringResource(R.string.files_edit_cd)) }
             VerticalDivider(Modifier.height(Spacing.xl))
+        }
+        if (state.codeTools) {
+            androidx.compose.material3.IconToggleButton(checked = state.wrap, onCheckedChange = { actions.onToggleWrap() }) {
+                Icon(painterResource(R.drawable.ic_huge_wrap), stringResource(R.string.files_wrap_cd))
+            }
         }
         IconButton(onClick = actions.onOpenSearch) { Icon(painterResource(R.drawable.ic_huge_search), stringResource(R.string.files_search_cd)) }
     }

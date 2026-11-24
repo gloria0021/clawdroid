@@ -63,6 +63,8 @@ fun AgentFileScreen(viewModel: AgentFileViewModel, onBack: () -> Unit) {
                 FilesEvent.Saved -> snackbar.showSnackbar(saved)
                 is FilesEvent.SaveFailed -> snackbar.showSnackbar(event.message?.let { "$saveFailed: $it" } ?: saveFailed)
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
+                // エージェントのファイルでは作成・削除をしない
+                is FilesEvent.Operated -> Unit
             }
         }
     }
@@ -137,7 +139,9 @@ internal fun AgentFileContent(
         ) { padding ->
             val showControls = ready != null && !ready.editing && ready.file.text != null
             Box(Modifier.fillMaxSize()) {
-                Column(Modifier.fillMaxSize().hazeSource(hazeState)) {
+                // WebView（HTML のプレビュー）はガラスの透かしに取り込まない（取り込むと描画のスレッドで落ちる）
+                val showsWebView = ready != null && ready.preview == jp.miyavi.android.clawdroid.feature.files.PreviewFormat.HTML && !ready.showCode && !ready.editing
+                Column(Modifier.fillMaxSize().then(if (showsWebView) Modifier else Modifier.hazeSource(hazeState))) {
                     val controlsSpace = if (showControls) Dimens.floatingButtonSize + Spacing.l else 0.dp
                     // 大きすぎて編集できないときは、本文の上に理由を 1 行（FR-024）
                     val tooLarge = ready?.file?.tooLargeToEdit == true

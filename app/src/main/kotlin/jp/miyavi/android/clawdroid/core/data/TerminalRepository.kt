@@ -10,12 +10,20 @@ import jp.miyavi.android.clawdroid.core.gateway.long
 import jp.miyavi.android.clawdroid.core.gateway.string
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** Gateway の PTY（open / attach の結果）。 */
-data class TerminalInfo(val sessionId: String, val cwd: String, val shell: String, val confined: Boolean)
+data class TerminalInfo(
+    val sessionId: String,
+    val cwd: String,
+    val shell: String,
+    val confined: Boolean,
+    /** 開いた直後に作業フォルダへ移った（そのあとシェルが画面を消す）。 */
+    val changedDirectory: Boolean = false,
+)
 
 /** つなぎ直したときの続き（離れていたあいだの出力を含む）。 */
 data class TerminalReplay(val info: TerminalInfo, val buffer: String, val seq: Long?)
@@ -84,8 +92,9 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
             }).asObject())
         } ?: throw TerminalDeniedException(TerminalDenial.FAILED)
         ids.put(conversationKey, info.sessionId)
-        if (!cwd.isNullOrBlank() && cwd != info.cwd) input(info.sessionId, changeDirectoryCommand(cwd))
-        return info.copy(cwd = cwd?.takeIf(String::isNotBlank) ?: info.cwd)
+        val moved = !cwd.isNullOrBlank() && cwd != info.cwd
+        if (moved) input(info.sessionId, changeDirectoryCommand(cwd!!))
+        return info.copy(cwd = cwd?.takeIf(String::isNotBlank) ?: info.cwd, changedDirectory = moved)
     }
 
     /** 前に開いたものが残っていれば、続きにつなぎ直す。無ければ null。 */
@@ -129,6 +138,47 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
 
     fun forget(conversationKey: String) = ids.put(conversationKey, null)
 
+    /**
+     * 使い捨てのシェルを開いて [input] を送り、[done] が結果を返すまで出力を集める。閉じるのは必ず（spec 005 R7）。
+     * 会話のターミナルの記録には触れない。時間切れ・切断・開けないときは null。
+     */
+    suspend fun <T : Any> runOnce(agentId: String?, input: String, timeoutMs: Long, done: (String) -> T?): T? {
+        if (availability() != null) return null
+        val info = guarded {
+            parseInfo(gateway.request("terminal.open", buildJsonObject {
+                agentId?.let { put("agentId", it) }
+                put("cols", ONE_SHOT_COLUMNS)
+                put("rows", ONE_SHOT_ROWS)
+            }).asObject())
+        } ?: return null
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+                kotlinx.coroutines.coroutineScope {
+                    val output = StringBuilder()
+                    val result = kotlinx.coroutines.CompletableDeferred<T?>()
+                    // 出力を受け始めてから送る（最初の出力を取りこぼさない）
+                    val collector = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                        events(info.sessionId).collect { event ->
+                            when (event) {
+                                is TerminalEvent.Data -> {
+                                    output.append(event.data)
+                                    done(output.toString())?.let { result.complete(it) }
+                                }
+                                is TerminalEvent.Exit -> result.complete(null)
+                            }
+                        }
+                    }
+                    input(info.sessionId, input)
+                    result.await().also { collector.cancel() }
+                }
+            }
+        } finally {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                runCatching { gateway.request("terminal.close", buildJsonObject { put("sessionId", info.sessionId) }) }
+            }
+        }
+    }
+
     private suspend fun <T> guarded(block: suspend () -> T): T? = try {
         block()
     } catch (e: GatewayRpcException) {
@@ -142,6 +192,9 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
     }
 
     companion object {
+        private const val ONE_SHOT_COLUMNS = 200
+        private const val ONE_SHOT_ROWS = 24
+
         /** 作業フォルダへ移る入力。パスはシングルクォートで包み、中の ' は '\'' にする。 */
         fun changeDirectoryCommand(cwd: String): String = "cd -- '" + cwd.replace("'", "'\\''") + "' && clear\r"
 

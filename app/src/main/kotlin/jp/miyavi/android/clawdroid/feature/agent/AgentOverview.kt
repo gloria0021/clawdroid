@@ -98,15 +98,9 @@ internal fun AgentOverview(
                     onRetry = if (c.unsupported) null else onRetryConfig,
                 )
             }
+            // 読めたときの出どころの説明は出さない（マスター指定 2026-11-24）
             is Load.Loaded -> if (c.value == null) item(key = "configMissing") {
                 ConfigNotice(stringResource(R.string.agent_overview_config_missing), onRetry = null)
-            } else item(key = "source") {
-                Text(
-                    stringResource(R.string.agent_overview_source_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.readingWidth().padding(horizontal = Spacing.l),
-                )
             }
         }
 

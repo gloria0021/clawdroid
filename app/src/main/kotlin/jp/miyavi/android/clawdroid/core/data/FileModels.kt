@@ -36,6 +36,8 @@ data class FileListing(
     val entries: List<FileEntry>,
     /** 作業フォルダの一覧が途中で打ち切られたか。 */
     val truncated: Boolean,
+    /** 作業フォルダの絶対パス（`sessions.files.list` の root。ファイルの操作に使う）。 */
+    val root: String? = null,
 )
 
 /** 開いたファイルの中身の種類。 */
@@ -162,6 +164,7 @@ internal object FileParse {
                 parentPath = browser.string("parentPath"),
                 entries = sortEntries(browser.array("entries").mapNotNull { it.asObject()?.let(::entry) }),
                 truncated = browser.bool("truncated") == true,
+                root = root.string("root"),
             )
         }
         val files = root?.array("files").orEmpty().mapNotNull { element ->

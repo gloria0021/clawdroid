@@ -1,6 +1,7 @@
 package jp.miyavi.android.clawdroid.feature.files
 
 import jp.miyavi.android.clawdroid.core.data.FileRoot
+import jp.miyavi.android.clawdroid.core.data.isSecretName
 import jp.miyavi.android.clawdroid.core.data.FileSource
 import jp.miyavi.android.clawdroid.core.data.OpenResult
 import jp.miyavi.android.clawdroid.core.data.OpenedFile
@@ -34,13 +35,18 @@ class OpenedFileController(
     private var searchJob: Job? = null
 
     /** 開く。下書きがあれば戻す。未作成のエージェントのファイルは編集から始める。 */
-    fun open(root: FileRoot, path: String) {
+    fun open(root: FileRoot, path: String, edit: Boolean = false) {
         openJob?.cancel()
         write { OpenedState.Loading(path) }
         openJob = scope.launch {
             val result = runCatchingNonCancel { files.open(root, path) }
             val next = when (result) {
-                is OpenResult.Opened -> readyState(result.file)
+                // 作ったばかりのファイルは編集から始める（spec 005 US6）
+                is OpenResult.Opened -> readyState(result.file).let { ready ->
+                    if (edit && ready is OpenedState.Ready && ready.file.editable && !ready.editing) {
+                        ready.copy(editText = ready.file.text.orEmpty(), cursor = 0, baseHash = ready.file.hash)
+                    } else ready
+                }
                 OpenResult.Missing -> OpenedState.Failed(path, missing = true)
                 null -> OpenedState.Failed(path, missing = false)
             }
@@ -110,7 +116,8 @@ class OpenedFileController(
         draftJob?.cancel()
         draftJob = scope.launch {
             delay(DRAFT_SAVE_DEBOUNCE_MS)
-            if (ready.dirty) {
+            // 秘密の値を含みそうなファイルは、端末に下書きを残さない（spec 005 FR-068・research R8。002 FR-011 の例外）
+            if (ready.dirty && !isSecretName(ready.file.path)) {
                 drafts.upsert(FileDraftEntity(draftKey(ready.file), text, ready.baseHash.orEmpty(), cursor, System.currentTimeMillis()))
             } else {
                 drafts.delete(draftKey(ready.file))
@@ -188,11 +195,17 @@ class OpenedFileController(
     private suspend fun analyze(file: OpenedFile, text: String?): OpenedState.Ready {
         if (file.kind != PreviewKind.TEXT || text == null) return OpenedState.Ready(file, emptyList())
         val preview = previewFormatOf(file.name)
+        // HTML は相対の CSS・JS・画像を Gateway から取って埋め込む（プレビューはネットワークに出ないため）
+        val inline = if (preview == PreviewFormat.HTML) {
+            val refs = htmlAssetRefs(text)
+            runCatchingNonCancel { files.htmlAssets(file.root, file.path, refs) }?.takeIf { it.isNotEmpty() }?.let { inlineHtmlAssets(text, it) }
+        } else null
         return withContext(Dispatchers.Default) {
             OpenedState.Ready(
                 file = file,
                 spans = CodeHighlighter.spans(file.name, text),
                 preview = preview,
+                htmlInline = inline,
                 blocks = if (preview == PreviewFormat.MARKDOWN) markdownBlocks(text) else emptyList(),
             )
         }

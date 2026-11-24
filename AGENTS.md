@@ -110,7 +110,7 @@
 - 公式データから必要なものだけを VectorDrawable にして `res/drawable/ic_huge_<名前>.xml` に置き、`painterResource(R.drawable.ic_huge_*)` で使う。アイコンフォントやライブラリ全体は入れない
 - 色は描画側で `LocalContentColor`（`Icon` の既定）に任せ、XML に色を固定しない。線の太さ・角丸は公式データのまま変えない
 - ライセンス（MIT）は `assets/licenses/` に同梱する
-- TopAppBar に置くアイコンは最大2つ＋ ⋮。それ以外は ⋮ メニューに入れる（会話の画面は帯を置かず、右上に「Clawdroid」のガラスのピルだけを浮かせ、押すとメニュー（名前を変更・ピン留め、区切って ファイル・ターミナル・並行開発を開始・変更量）。サイドパネルは左端からのスワイプで開く。マスター指定 2026-11-23、右寄せは 2026-11-24）
+- TopAppBar に置くアイコンは最大2つ＋ ⋮。それ以外は ⋮ メニューに入れる（会話の画面は帯を置かず、右上に「Clawdroid」のガラスのピルだけを浮かせ、押すとメニュー（名前を変更・ピン留め、区切って ファイル・ターミナル・並行開発を開始・並行開発を終える（ワークツリーの会話だけ）・変更量）。サイドパネルは左端からのスワイプで開く。マスター指定 2026-11-23、右寄せは 2026-11-24）
 - アイコンだけのボタンには必ず `contentDescription`（`strings.xml` の `*_cd`）を付ける。飾りのアイコンは `null`
 
 ### 2.7 コンポーネントの使い分け
@@ -126,6 +126,7 @@
 | メニュー（⋮・長押し）・ポップアップ | 透過効果のドロップダウン（背景の不透明度 80%、角丸 `shapes.large`、影なし） | 素の `DropdownMenu` |
 | 通知・失敗 | `SnackbarHostState` で出し、透過効果のピルで描く Snackbar。再試行の操作付き | Toast、M3 標準の反転色の Snackbar |
 | 設定 | `ListItem` ＋ `Switch` / `Slider` / `SegmentedButton`、1画面に縦に並べる | 階層の深いサブ画面 |
+| ファイルのツリー（spec 005） | スマホはコードを全面に出し、ツリーは左から引き出すパネル（`ModalNavigationDrawer`）。2 ペインを置ける幅ではツリーを左に出したまま。出し分けは M3 Adaptive の区画数（`calculatePaneScaffoldDirective(...).maxHorizontalPartitions`）で決める（list-detail の例外。マスター指定 2026-11-24） | フォルダごとに画面を積む一覧 |
 
 - 部品は M3 Expressive のものを優先する。同じ役割に無印の M3 と Expressive の両方があれば Expressive を使う（例: トグル・切り替えは `ToggleButton` / `ButtonGroup`、読み込みは `LoadingIndicator`）。`@OptIn(ExperimentalMaterial3ExpressiveApi::class)` は付けてよい（マスター指定 2026-11-24。以前は FAB メニューとローディング表示だけ）
 - ただしこの表とガラス風の面（2.10）の決まりが先。Expressive の浮くツールバーや FAB など、表で「使わない」とした役割に当たる部品は使わず、ガラスのピルで描く。色・形・動きは Expressive のトークン（`colorScheme` / `shapes` / `motionScheme`）から取る

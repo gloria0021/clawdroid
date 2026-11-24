@@ -2,6 +2,7 @@ package jp.miyavi.android.clawdroid.core.data
 
 import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
 import jp.miyavi.android.clawdroid.core.gateway.GatewayRpcException
+import jp.miyavi.android.clawdroid.core.gateway.array
 import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.long
 import jp.miyavi.android.clawdroid.core.gateway.string
@@ -41,6 +42,9 @@ interface FileSource {
     suspend fun list(root: FileRoot, path: String): FileListing
     suspend fun open(root: FileRoot, path: String): OpenResult
     suspend fun save(file: OpenedFile, content: String, expectedHash: String = file.hash.orEmpty()): SaveResult
+
+    /** HTML の相対の資材（CSS・JS・画像）を data: の URL で返す。取れないものは入らない。 */
+    suspend fun htmlAssets(root: FileRoot, path: String, refs: List<String>): Map<String, String> = emptyMap()
 }
 
 /**
@@ -199,6 +203,24 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
         )
     }
 
+    override suspend fun htmlAssets(root: FileRoot, path: String, refs: List<String>): Map<String, String> {
+        if (root !is FileRoot.Session || refs.isEmpty()) return emptyMap()
+        val result = runCatching {
+            gateway.request("sessions.files.assets", buildJsonObject {
+                put("sessionKey", root.sessionKey)
+                put("agentId", root.agentId)
+                put("path", path)
+                put("refs", kotlinx.serialization.json.buildJsonArray { refs.take(HTML_ASSET_MAX_REFS).forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
+            }).asObject()
+        }.getOrNull() ?: return emptyMap()
+        return result.array("assets").mapNotNull { it.asObject() }.mapNotNull { asset ->
+            val ref = asset.string("ref") ?: return@mapNotNull null
+            val mime = asset.string("mimeType") ?: return@mapNotNull null
+            val content = asset.string("content") ?: return@mapNotNull null
+            ref to "data:$mime;base64,$content"
+        }.toMap()
+    }
+
     private fun sessionPath(root: FileRoot.Session, path: String) = buildJsonObject {
         put("sessionKey", root.sessionKey)
         put("agentId", root.agentId)
@@ -208,6 +230,8 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
     private val GatewayRpcException.detailType: String? get() = error.details?.string("type")
 
     private companion object {
+        /** sessions.files.assets が 1 回に受ける参照の数。 */
+        const val HTML_ASSET_MAX_REFS = 64
         const val WORKSPACE_PAGE = 200
         /** ワークスペースの 1 つのフォルダで読む上限。 */
         const val WORKSPACE_MAX_ENTRIES = 2_000

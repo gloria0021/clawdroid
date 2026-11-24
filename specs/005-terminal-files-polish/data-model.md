@@ -13,8 +13,8 @@
 
 | 値 | 選ぶ条件（桁数 `columns`） | 行数 |
 |---|---|---|
-| `SIDE_BY_SIDE` | `columns >= 71` | 10 |
-| `STACKED` | `47 <= columns < 71` | 10 + 1（空行）+ 3 |
+| `SIDE_BY_SIDE` | `columns >= 70` | 10 |
+| `STACKED` | `47 <= columns < 70` | 10 + 1（空行）+ 3 |
 | `MASCOT_ONLY` | `20 <= columns < 47` | 10 + 1 + 1（「OpenClaw」） |
 | `TEXT_ONLY` | `columns < 20` | 1 |
 

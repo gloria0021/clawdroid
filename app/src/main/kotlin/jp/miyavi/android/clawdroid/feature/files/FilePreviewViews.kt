@@ -173,7 +173,7 @@ internal fun HtmlPreview(html: String, query: String, find: HtmlFindState, conte
                         find.active = if (count == 0) 0 else active + 1
                     }
                     find.webView = this
-                    val offlinePolicy = """<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; form-action 'none'; base-uri 'none'">"""
+                    val offlinePolicy = """<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' data:; script-src 'unsafe-inline' data:; font-src data:; form-action 'none'; base-uri 'none'">"""
                     loadDataWithBaseURL(null, offlinePolicy + html, "text/html", "utf-8", null)
                 }
             },

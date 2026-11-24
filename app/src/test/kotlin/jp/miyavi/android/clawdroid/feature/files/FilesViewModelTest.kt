@@ -82,39 +82,41 @@ class FilesViewModelTest {
         withTimeout(5_000) { while (!condition()) delay(10) }
     }
 
-    @Test fun navigateDownAndBack_oneLevelAtATime() {
+    private val FilesViewModel.rootListing get() = state.value.tree.children[""]
+
+    @Test fun treeExpandsInPlace_andBackLeavesTheScreen() {
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("src", "src", true, null, null))
-        waitFor { (vm.state.value.listing as? ListingState.Loaded)?.listing?.path == "src" }
+        waitFor { vm.state.value.tree.children["src"] is ListingState.Loaded }
+        assertEquals(listOf("src", "src/a.kt", "README.md"), vm.state.value.rows.map { it.key })
         vm.openEntry(FileEntry("src/a.kt", "a.kt", false, 9, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
-        assertTrue(vm.back()) // ファイル → 一覧
-        assertNull(vm.state.value.opened)
-        assertTrue(vm.back()) // src → 根
-        waitFor { vm.state.value.atRoot }
-        assertFalse(vm.back()) // 根では画面を閉じてよい
+        // 読んでいるときの戻るは画面を閉じてよい（ツリーはパネル）
+        assertFalse(vm.back())
+        // 閉じても中身は残し、開き直しで読み直さない
+        vm.toggleFolder("src")
+        assertEquals(listOf("src", "README.md"), vm.state.value.rows.map { it.key })
+        assertTrue(vm.state.value.tree.children["src"] is ListingState.Loaded)
     }
 
-    @Test fun parentListings_stayForPredictiveBack() {
-        val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
-        vm.openEntry(FileEntry("src", "src", true, null, null))
-        waitFor { vm.state.value.listing is ListingState.Loaded && vm.state.value.path == "src" }
-        // 下のページ（根）の一覧が残っている
-        assertEquals(listOf("", "src"), vm.state.value.folderStack)
-        assertTrue(vm.state.value.listings[""] is ListingState.Loaded)
-        // 戻ると読み直さずにその一覧を見せ、下のフォルダの一覧は捨てる
-        vm.goUp()
-        assertTrue(vm.state.value.listing is ListingState.Loaded)
-        assertEquals(setOf(""), vm.state.value.listings.keys)
-        assertFalse(vm.state.value.handlesBackInPage)
+    @Test fun expandedFoldersAndOpenedFile_surviveProcessDeath() {
+        val saved = androidx.lifecycle.SavedStateHandle()
+        val vm = FilesViewModel(files, { _, _ -> }, drafts, "agent:a:s1", "a", true, saved = saved)
+        waitFor { vm.rootListing is ListingState.Loaded }
+        vm.toggleFolder("src")
+        vm.openEntry(FileEntry("src/a.kt", "a.kt", false, 9, null))
+        waitFor { vm.state.value.opened is OpenedState.Ready }
+        val again = FilesViewModel(files, { _, _ -> }, drafts, "agent:a:s1", "a", true, saved = saved)
+        waitFor { again.state.value.tree.children["src"] is ListingState.Loaded && again.state.value.opened is OpenedState.Ready }
+        assertEquals(setOf("src"), again.state.value.tree.expanded)
+        assertEquals("src/a.kt", again.state.value.opened?.path)
     }
 
     @Test fun noWorkingFolder_startsInWorkspace_andWorkspaceIsReadOnly() {
         val vm = viewModel(hasWorkingFolder = false)
         assertEquals(workspace, vm.state.value.root)
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("NOTES.md", "NOTES.md", false, 3, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         val ready = vm.state.value.opened as OpenedState.Ready
@@ -125,7 +127,7 @@ class FilesViewModelTest {
 
     @Test fun editSave_thenConflictChoices() {
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         vm.startEditing()
@@ -149,7 +151,7 @@ class FilesViewModelTest {
 
     @Test fun unsavedEdits_survive_asDraft_andBackAsksToDiscard() {
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         vm.startEditing()
@@ -160,7 +162,7 @@ class FilesViewModelTest {
 
         // 開き直すと（プロセスが終わったあとも）下書きが戻る
         val again = viewModel()
-        waitFor { again.state.value.listing is ListingState.Loaded }
+        waitFor { again.rootListing is ListingState.Loaded }
         again.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { again.state.value.opened is OpenedState.Ready }
         val restored = again.state.value.opened as OpenedState.Ready
@@ -177,7 +179,7 @@ class FilesViewModelTest {
 
     @Test fun backWhileEditingWithoutChanges_returnsToViewing() {
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         vm.startEditing()
@@ -187,14 +189,13 @@ class FilesViewModelTest {
         val viewing = vm.state.value.opened as OpenedState.Ready
         assertFalse(viewing.editing)
         assertFalse(vm.state.value.confirmDiscard)
-        assertTrue(vm.back()) // 読む表示 → 一覧
-        assertNull(vm.state.value.opened)
+        assertFalse(vm.back()) // 読む表示 → 画面を閉じてよい
     }
 
     @Test fun markdown_opensAsPreview_andTogglesToCode_keepingSearch() {
         files.content = "# Title\n\nfirst apple\n\n- apple pie\n- banana\n"
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         val ready = vm.state.value.opened as OpenedState.Ready
@@ -222,7 +223,7 @@ class FilesViewModelTest {
 
     @Test fun plainText_hasNoPreview_andEditingClosesSearch() {
         val vm = viewModel()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("src/a.kt", "a.kt", false, 9, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
         val ready = vm.state.value.opened as OpenedState.Ready
@@ -249,9 +250,9 @@ class FilesViewModelTest {
     @Test fun listFailure_thenRetry() {
         files.failList = true
         val vm = viewModel()
-        waitFor { vm.state.value.listing == ListingState.Failed }
+        waitFor { vm.rootListing == ListingState.Failed }
         files.failList = false
         vm.retry()
-        waitFor { vm.state.value.listing is ListingState.Loaded }
+        waitFor { vm.rootListing is ListingState.Loaded }
     }
 }

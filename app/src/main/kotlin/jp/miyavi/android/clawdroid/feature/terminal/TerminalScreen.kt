@@ -24,10 +24,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import java.util.Properties
@@ -71,12 +73,13 @@ fun TerminalScreen(
     onSwitchToFiles: (() -> Unit)? = null,
 ) {
     val status by viewModel.status.collectAsStateWithLifecycle()
-    val ctrlArmed by viewModel.ctrlArmed.collectAsStateWithLifecycle()
     val hazeState = rememberHazeState()
     val colors = MaterialTheme.colorScheme
     val textSizePx = with(LocalDensity.current) { codeTextStyle().fontSize.toPx() }.toInt()
     // ターミナルの配色（背景はダークグレー固定、ANSI はテーマカラーを混ぜたニュアンスカラー）
     val palette = remember(colors.primary) { terminalPalette(colors.primary) }
+    // 看板のマスコットは、暗い背景で見えるテーマカラー（カーソルと同じ色）
+    SideEffect { viewModel.bannerArgb = palette.cursor }
 
     Scaffold(
         containerColor = colors.surface,
@@ -133,16 +136,19 @@ fun TerminalScreen(
             MaterialTheme(colorScheme = chrome) {
                 SpecialKeysRow(
                     hazeState = hazeState,
-                    ctrlArmed = ctrlArmed,
                     onKey = viewModel::sendKey,
-                    onToggleCtrl = viewModel::toggleCtrl,
-                    modifier = Modifier.align(Alignment.CenterHorizontally).navigationBarsPadding().padding(Spacing.s),
+                    onCopy = { viewModel.copySelection?.invoke() },
+                    onPaste = viewModel::paste,
+                    connected = status == TerminalStatus.Connected,
+                    modifier = Modifier.align(Alignment.Start).navigationBarsPadding().padding(Spacing.s),
                 )
             }
         }
     }
     // 画面が消えたら、描き直しの知らせを外す（ViewModel は回転を越えて残る）
-    DisposableEffect(viewModel) { onDispose { viewModel.onScreenChanged = null; viewModel.onCopy = null; viewModel.onPasteRequest = null } }
+    // 画面を開くたびに看板を出す（2 回目からは描き直しを頼む）
+    LaunchedEffect(viewModel) { viewModel.onScreenShown() }
+    DisposableEffect(viewModel) { onDispose { viewModel.onScreenChanged = null; viewModel.onCopy = null; viewModel.onPasteRequest = null; viewModel.copySelection = null } }
 }
 
 /**
@@ -197,7 +203,18 @@ private fun StatusPanel(hazeState: dev.chrisbanes.haze.HazeState, status: Termin
 private fun createTerminalView(context: Context, viewModel: TerminalViewModel, textSizePx: Int): TerminalView {
     val view = TerminalView(context, null)
     view.setTerminalViewClient(object : TerminalViewClient {
-        override fun onScale(scale: Float): Float = 1f
+        // ピンチで文字の大きさを 50〜200% に（ファイルビューアと同じ。マスター指定 2026-11-24）。
+        // 少しずつ溜め、一定を超えたら文字の大きさを変える（Termux と同じ考え方）。行と桁は大きさに合わせて Gateway へ知らせる
+        override fun onScale(scale: Float): Float {
+            if (kotlin.math.abs(scale - 1f) < SCALE_STEP) return scale
+            val next = (viewModel.textScale * scale).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
+            if (next != viewModel.textScale) {
+                viewModel.textScale = next
+                view.setTextSize((textSizePx * next).toInt())
+                view.mEmulator?.let { viewModel.onSize(it.mColumns, it.mRows) }
+            }
+            return 1f
+        }
         override fun onSingleTapUp(e: MotionEvent?) {
             view.requestFocus()
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(view, 0)
@@ -207,10 +224,18 @@ private fun createTerminalView(context: Context, viewModel: TerminalViewModel, t
         override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
         override fun isTerminalViewSelected(): Boolean = true
         override fun copyModeChanged(copyMode: Boolean) = Unit
-        override fun onKeyDown(keyCode: Int, e: KeyEvent?, session: TerminalSession?): Boolean = false
+        // 外付けキーボード: Ctrl+Shift+C でコピー、Ctrl+Shift+V で貼り付け。Shift なしの Ctrl+C は既定の処理で割り込み（spec 005 R2）
+        override fun onKeyDown(keyCode: Int, e: KeyEvent?, session: TerminalSession?): Boolean {
+            if (e == null || !e.isCtrlPressed || !e.isShiftPressed) return false
+            return when (keyCode) {
+                KeyEvent.KEYCODE_C -> { copySelection(view, viewModel); true }
+                KeyEvent.KEYCODE_V -> { viewModel.paste(); true }
+                else -> false
+            }
+        }
         override fun onKeyUp(keyCode: Int, e: KeyEvent?): Boolean = false
         override fun onLongPress(event: MotionEvent?): Boolean = false
-        override fun readControlKey(): Boolean = viewModel.consumeCtrl()
+        override fun readControlKey(): Boolean = false
         override fun readAltKey(): Boolean = false
         override fun readShiftKey(): Boolean = false
         override fun readFnKey(): Boolean = false
@@ -227,12 +252,17 @@ private fun createTerminalView(context: Context, viewModel: TerminalViewModel, t
         override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) = Unit
         override fun logStackTrace(tag: String?, e: Exception?) = Unit
     })
-    view.setTextSize(textSizePx)
+    view.setTextSize((textSizePx * viewModel.textScale).toInt())
+    // 大きさが変わったら（ピンチ・回転・キーボード）、行と桁を Gateway に合わせる（002 FR-023）
+    view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        view.mEmulator?.let { viewModel.onSize(it.mColumns, it.mRows) }
+    }
     view.setTypeface(Typeface.MONOSPACE)
     view.isFocusable = true
     view.isFocusableInTouchMode = true
     view.attachSession(viewModel.bridge.session)
     viewModel.onScreenChanged = { view.post { view.onScreenUpdated() } }
+    viewModel.copySelection = { copySelection(view, viewModel) }
     viewModel.onCopy = { text ->
         (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("terminal", text))
     }
@@ -242,3 +272,14 @@ private fun createTerminalView(context: Context, viewModel: TerminalViewModel, t
     view.requestFocus()
     return view
 }
+
+/** 選んでいる文字をコピーして選択を解く。選んでいなければ何もしない。 */
+private fun copySelection(view: TerminalView, viewModel: TerminalViewModel) {
+    val text = (view.selectedText ?: view.storedSelectedText)?.takeIf(String::isNotEmpty) ?: return
+    view.stopTextSelectionMode()
+    viewModel.onCopy?.invoke(text)
+}
+
+private const val SCALE_STEP = 0.04f
+private const val MIN_TEXT_SCALE = 0.5f
+private const val MAX_TEXT_SCALE = 2f

@@ -209,8 +209,8 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     val percent = remember(locale) { NumberFormat.getPercentInstance(locale) }
-    val timeOnly = remember(locale) { DateFormat.getTimeInstance(DateFormat.SHORT, locale) }
-    val dateAndTime = remember(locale) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale) }
+    // リセットまでの残りは、シートを開いた時点から数える
+    val now = remember(providers) { System.currentTimeMillis() }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         // コンテキストウィンドウ: 見出しの右に「使った量 / 上限 · 割合」、下に内訳の色で塗り分けた細い棒と内訳の行
@@ -263,14 +263,31 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
                         }
                     }
                 }
-                // 枠（5時間・週間など）は 1 枠 1 行。ラベルと割合をインジケーターの上に重ねる（Control UI と同じ見せ方）
-                provider.windows.forEach { window ->
-                    UsageMeter(
-                        fraction = window.usedFraction,
-                        label = windowLabel(window.label),
-                        percentage = percent.format(window.usedFraction),
-                        reset = window.resetAt?.let { (if (android.text.format.DateUtils.isToday(it)) timeOnly else dateAndTime).format(Date(it)) },
-                    )
+                // 枠（5時間・週間など）は 2 つずつ横に並べる（横幅を活かす。マスター指定 2026-11-24）。
+                // ラベルと割合はインジケーターの上に重ねる（Control UI と同じ見せ方）
+                provider.windows.chunked(METERS_PER_ROW).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                        row.forEach { window ->
+                            // 枠の名前と割合は帯の上、帯の中はリセットまでの残り時間だけ（幅いっぱいに使い、切らない。マスター指定 2026-11-24）
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                val high = contextLevel(window.usedFraction) == ContextLevel.HIGH
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(windowLabel(window.label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                                    Text(
+                                        percent.format(window.usedFraction),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = if (high) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                                UsageMeter(
+                                    fraction = window.usedFraction,
+                                    remaining = window.resetAt?.let { remainingText(it - now) },
+                                )
+                            }
+                        }
+                        // 端数の枠も同じ幅にそろえる
+                        repeat(METERS_PER_ROW - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
@@ -388,7 +405,7 @@ private fun MutedText(text: String) {
  * 塗りはテーマの強い色、上限に近い（80% 以上）ときは error のくすみ色。伸びはばねで動く。
  */
 @Composable
-private fun UsageMeter(fraction: Float, label: String, percentage: String, reset: String? = null) {
+private fun UsageMeter(fraction: Float, remaining: String? = null, modifier: Modifier = Modifier) {
     val motion = MaterialTheme.motionScheme
     val colors = MaterialTheme.colorScheme
     val progress = remember { Animatable(0f) }
@@ -401,7 +418,7 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
     val edge = with(density) { Dimens.usageMeterEdge.toPx() }
     val shape = MaterialTheme.shapes.medium
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = Dimens.compactTouchTarget + Spacing.s)
             .clip(shape)
@@ -416,18 +433,38 @@ private fun UsageMeter(fraction: Float, label: String, percentage: String, reset
         Row(
             Modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurface)
-            if (reset != null) {
-                Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Spacing.m + Spacing.xs))
-                Text(reset, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            if (remaining != null) {
+                // 切らずに出し切る（文字が大きいときは折り返して帯が高くなる）
+                Text(remaining, style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
             }
-            Spacer(Modifier.weight(1f))
-            Text(percentage, style = MaterialTheme.typography.labelLarge, color = if (high) colors.error else colors.onSurface)
         }
     }
 }
+
+/** リセットまでの残り（あと1日16時間・あと16時間42分・あと42分）。過ぎていれば「まもなく」。 */
+@Composable
+private fun remainingText(millis: Long): String {
+    val (days, hours, minutes) = remainingParts(millis) ?: return stringResource(R.string.usage_reset_soon)
+    return when {
+        days > 0 -> stringResource(R.string.usage_remaining_days, days, hours)
+        hours > 0 -> stringResource(R.string.usage_remaining_hours, hours, minutes)
+        else -> stringResource(R.string.usage_remaining_minutes, minutes.coerceAtLeast(1))
+    }
+}
+
+/** 残りを 日・時間・分 に分ける（分は切り上げ）。過ぎていれば null。 */
+internal fun remainingParts(millis: Long): Triple<Long, Long, Long>? {
+    if (millis <= 0) return null
+    val totalMinutes = (millis + MINUTE_MS - 1) / MINUTE_MS
+    return Triple(totalMinutes / (24 * 60), totalMinutes / 60 % 24, totalMinutes % 60)
+}
+
+private const val MINUTE_MS = 60_000L
+
+/** 使用量の枠を 1 行に並べる数。 */
+private const val METERS_PER_ROW = 2
 
 /** 使用量の塗りで、強調の色を背景に溶かす割合（文字が読める淡さ）。 */
 private const val METER_FILL_MIX = 0.78f

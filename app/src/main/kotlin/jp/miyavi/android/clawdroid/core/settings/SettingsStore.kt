@@ -141,6 +141,11 @@ class SettingsStore(context: Context) {
         p[SESSION_GROUPING_BY_AGENT] = json.encodeToString(current + (agentId to v.name))
     }
 
+    /** コードを折り返すか（spec 005 FR-053。既定は折り返さない）。 */
+    val codeWrap: Flow<Boolean> = store.data.map { it[CODE_WRAP] ?: false }.distinctUntilChanged()
+
+    suspend fun setCodeWrap(v: Boolean) = store.edit { it[CODE_WRAP] = v }
+
     suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
 
     suspend fun selectSession(agentId: String, sessionKey: String?) = store.edit { p ->
@@ -170,6 +175,7 @@ class SettingsStore(context: Context) {
         val SELECTED_SESSIONS = stringPreferencesKey("selected_sessions")
         val AGENT_LAYOUT = stringPreferencesKey("agent_layout")
         val SESSION_GROUPING_BY_AGENT = stringPreferencesKey("session_grouping_by_agent")
+        val CODE_WRAP = booleanPreferencesKey("code_wrap")
     }
 }
 

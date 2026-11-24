@@ -422,10 +422,17 @@ class ChatSession(
             refreshHistory()
         }
 
+    /**
+     * 中断。今動いている実行だけを止め、待っている送信は残す（止めたあとに順に送られる。Claude Code と同じ）。
+     * runId を付けない chat.abort は待っている送信まで取り消すので、実行の ID が分かるときは必ず付ける
+     * （docs/concepts/queue.md）。分からないとき（ほかの端末で始まった実行を拾えていない）だけ会話ごと止める。
+     */
     suspend fun abort() {
+        val runId = _state.value.activeRunId
         gateway.request("chat.abort", buildJsonObject {
             put("sessionKey", sessionKey)
             put("agentId", agentId)
+            runId?.let { put("runId", it) }
         })
     }
 

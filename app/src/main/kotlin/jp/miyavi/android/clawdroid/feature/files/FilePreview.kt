@@ -68,3 +68,24 @@ internal fun findMatches(text: String, query: String, limit: Int = MAX_MATCHES):
 
 /** 一致が多すぎると色付けが重くなるので、ここで打ち切る。 */
 internal const val MAX_MATCHES = 5_000
+
+private val HTML_ASSET_ATTR = Regex("""(\b(?:href|src)\s*=\s*)(["'])([^"'#]+?)\2""", RegexOption.IGNORE_CASE)
+
+/** 相対の資材（CSS・JS を先に。数の上限は 64）。スキームの付いた URL・// で始まる URL・ページ内リンクは外す。 */
+internal fun htmlAssetRefs(html: String): List<String> =
+    HTML_ASSET_ATTR.findAll(html).map { it.groupValues[3].trim() }
+        .filter { ref -> ref.isNotEmpty() && !ref.startsWith("//") && !Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:").containsMatchIn(ref) }
+        .filter { ref -> ref.substringBefore('?').substringAfterLast('.', "").lowercase() in HTML_ASSET_EXTENSIONS }
+        .distinct()
+        .sortedBy { ref -> if (ref.substringBefore('?').endsWith(".css") || ref.substringBefore('?').endsWith(".js")) 0 else 1 }
+        .take(64)
+        .toList()
+
+/** 取れた資材を data: の URL に差し替える。 */
+internal fun inlineHtmlAssets(html: String, assets: Map<String, String>): String =
+    HTML_ASSET_ATTR.replace(html) { m ->
+        val data = assets[m.groupValues[3].trim()] ?: return@replace m.value
+        m.groupValues[1] + m.groupValues[2] + data + m.groupValues[2]
+    }
+
+private val HTML_ASSET_EXTENSIONS = setOf("css", "js", "mjs", "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "avif")

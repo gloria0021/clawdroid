@@ -43,7 +43,7 @@ sealed interface TerminalStatus {
 }
 
 /** 特殊キーの行から送るキー（FR-022）。 */
-enum class SpecialKey { ESC, TAB, UP, DOWN, LEFT, RIGHT }
+enum class SpecialKey { ESC, TAB, UP, DOWN, LEFT, RIGHT, INTERRUPT, ENTER }
 
 /**
  * ターミナル（spec 002 US4）。Termux のエミュレータ（[bridge]）を持ち、構成の変更（回転）を越えて画面の中身を保つ。
@@ -59,14 +59,17 @@ class TerminalViewModel(
     private val _status = MutableStateFlow<TerminalStatus>(TerminalStatus.Opening)
     val status: StateFlow<TerminalStatus> = _status.asStateFlow()
 
-    /** Ctrl を押して、次の 1 文字と組み合わせる待ち（FR-022）。 */
-    private val _ctrlArmed = MutableStateFlow(false)
-    val ctrlArmed: StateFlow<Boolean> = _ctrlArmed.asStateFlow()
-
     /** 画面（TerminalView）へ描き直しを知らせる先。回転で作り直されるので差し替える。 */
     @Volatile var onScreenChanged: (() -> Unit)? = null
     var onCopy: ((String) -> Unit)? = null
     var onPasteRequest: (() -> String?)? = null
+    /** 画面で選んでいる文字をコピーする（画面が持つ。選んでいなければ何もしない）。 */
+    var copySelection: (() -> Unit)? = null
+    /** 文字の大きさの倍率（ピンチ。画面を開き直しても続きから）。 */
+    var textScale: Float = 1f
+
+    /** 看板のマスコットの色（画面のテーマから。spec 005 R3）。 */
+    @Volatile var bannerArgb: Int = 0xFFE0E0E0.toInt()
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val sessionClient: TerminalSessionClient = object : TerminalSessionClient {
@@ -74,7 +77,7 @@ class TerminalViewModel(
         override fun onTitleChanged(changedSession: TerminalSession) = Unit
         override fun onSessionFinished(finishedSession: TerminalSession) = Unit
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) { text?.let { onCopy?.invoke(it) } }
-        override fun onPasteTextFromClipboard(session: TerminalSession?) { onPasteRequest?.invoke()?.let { bridge.emulator.paste(it) } }
+        override fun onPasteTextFromClipboard(session: TerminalSession?) = paste()
         // 意味のない触覚・音は出さない（AGENTS.md 2.8）
         override fun onBell(session: TerminalSession) = Unit
         override fun onColorsChanged(session: TerminalSession) { onScreenChanged?.invoke() }
@@ -96,6 +99,8 @@ class TerminalViewModel(
     private var started = false
     private var size = INITIAL_COLUMNS to INITIAL_ROWS
     private var eventsJob: Job? = null
+    /** 看板を、シェルが画面を消したあとに描く待ち。 */
+    @Volatile private var bannerPending = false
     private var resizeJob: Job? = null
     private val inputs = Channel<String>(Channel.UNLIMITED)
 
@@ -152,7 +157,9 @@ class TerminalViewModel(
                     // 手元に出ている分は描き直さず、離れていたあいだの分だけを足す
                     if (lastSeq < 0 || replay.seq == null || replay.seq > lastSeq) {
                         if (lastSeq >= 0) bridge.emulator.reset()
-                        appendOnMain(replay.buffer)
+                        // 画面が空のところへつなぎ直す（アプリを開き直した・別の会話から戻った）ときも看板を出す。
+                        // 続きの出力に画面を消す並びがあれば、その後ろに入れる（消されないように）
+                        appendOnMain(if (lastSeq < 0) withBanner(replay.buffer) else replay.buffer)
                     }
                     lastSeq = replay.seq ?: lastSeq
                     listen(replay.info.sessionId)
@@ -164,10 +171,23 @@ class TerminalViewModel(
                         _status.value = TerminalStatus.Lost
                         return@launch
                     }
-                    val info = repository.open(conversationKey, agentId, cwd, size.first, size.second)
+                    // 作業フォルダへの移動は、出力を受け始めてから送る（移動と画面の消去の出力を取りこぼさない）
+                    val info = repository.open(conversationKey, agentId, null, size.first, size.second)
                     sessionId = info.sessionId
                     lastSeq = -1
+                    val moveTo = cwd?.takeIf { it.isNotBlank() && it != info.cwd }
+                    // 看板は手元で描く（spec 005 FR-020）。作業フォルダへ移るときはシェルが画面を消すので、消したあとに描く
+                    if (moveTo != null) {
+                        bannerPending = true
+                        viewModelScope.launch {
+                            delay(BANNER_FALLBACK_MS)
+                            if (bannerPending) { bannerPending = false; appendOnMain(bannerAnsi(size.first, bannerArgb)) }
+                        }
+                    } else {
+                        appendOnMain(bannerAnsi(size.first, bannerArgb))
+                    }
                     listen(info.sessionId)
+                    if (moveTo != null) runCatching { repository.input(info.sessionId, TerminalRepository.changeDirectoryCommand(moveTo)) }
                 }
                 _status.value = TerminalStatus.Connected
             } catch (e: TerminalDeniedException) {
@@ -212,7 +232,13 @@ class TerminalViewModel(
                         // attach の buffer と重なった分は捨てる
                         if (event.seq <= lastSeq) return@collect
                         lastSeq = event.seq
-                        appendOnMain(event.data)
+                        val clearEnd = if (bannerPending) clearScreenEnd(event.data) else -1
+                        if (clearEnd >= 0) {
+                            bannerPending = false
+                            appendOnMain(event.data.substring(0, clearEnd) + bannerAnsi(size.first, bannerArgb) + event.data.substring(clearEnd))
+                        } else {
+                            appendOnMain(event.data)
+                        }
                     }
                     is TerminalEvent.Exit -> _status.value = when (event.reason) {
                         ExitReason.PROCESS_EXIT, ExitReason.CLOSED -> {
@@ -226,6 +252,33 @@ class TerminalViewModel(
                 }
             }
         }
+    }
+
+    private var shownBefore = false
+
+    /**
+     * ターミナルの画面を開いた（spec 005 US3。開くたびに看板を出す。マスター指定 2026-11-24）。
+     * 最初の 1 回は開くときに描くので何もしない。2 回目からは、シェルに Ctrl+L（画面を消してプロンプトと入力中の文字を描き直す）を
+     * 送り、消したあとに看板を入れる。vim などが画面を使っているあいだ（代替の画面）は邪魔をしない。
+     */
+    fun onScreenShown() {
+        if (!shownBefore) { shownBefore = true; return }
+        val id = sessionId ?: return
+        if (_status.value != TerminalStatus.Connected || bridge.emulator.isAlternateBufferActive) return
+        bannerPending = true
+        viewModelScope.launch {
+            runCatching { repository.input(id, CLEAR_SCREEN) }
+            // 画面が消えなかった（シェルが Ctrl+L を扱わない）ときは、途中に割り込まないよう看板をあきらめる
+            delay(REDRAW_WAIT_MS)
+            bannerPending = false
+        }
+    }
+
+    /** 看板を、続きの出力の最後の画面の消去の後ろ（無ければ先頭）に入れる。 */
+    private fun withBanner(data: String): String {
+        val banner = bannerAnsi(size.first, bannerArgb)
+        val at = clearScreenEnd(data)
+        return if (at < 0) banner + data else data.substring(0, at) + banner + data.substring(at)
     }
 
     private fun appendOnMain(data: String) {
@@ -242,6 +295,9 @@ class TerminalViewModel(
         val emulator = bridge.emulator
         val code = when (key) {
             SpecialKey.ESC -> "\u001b"
+            // 割り込み（Ctrl+C）。Ctrl の一時押しを使わずに 1 回で送る（spec 005 FR-001）
+            SpecialKey.INTERRUPT -> "\u0003"
+            SpecialKey.ENTER -> "\r"
             SpecialKey.TAB -> "\t"
             SpecialKey.UP -> KeyHandler.getCode(android.view.KeyEvent.KEYCODE_DPAD_UP, 0, emulator.isCursorKeysApplicationMode, emulator.isKeypadApplicationMode)
             SpecialKey.DOWN -> KeyHandler.getCode(android.view.KeyEvent.KEYCODE_DPAD_DOWN, 0, emulator.isCursorKeysApplicationMode, emulator.isKeypadApplicationMode)
@@ -251,10 +307,11 @@ class TerminalViewModel(
         bridge.write(code)
     }
 
-    fun toggleCtrl() { _ctrlArmed.value = !_ctrlArmed.value }
-
-    /** TerminalView が文字を打つ直前に聞く。Ctrl は 1 文字で使い切る。 */
-    fun consumeCtrl(): Boolean = _ctrlArmed.value.also { if (it) _ctrlArmed.value = false }
+    /** クリップボードの文字を貼り付ける。bracketed paste と制御文字の除去はエミュレータに任せる（spec 005 FR-011〜013）。 */
+    fun paste() {
+        val text = onPasteRequest?.invoke()?.takeIf(String::isNotEmpty) ?: return
+        if (_status.value == TerminalStatus.Connected) bridge.emulator.paste(text)
+    }
 
     override fun onCleared() {
         // 画面を離れても PTY は残す（戻ってきたら続きから。FR-024）
@@ -268,6 +325,21 @@ class TerminalViewModel(
         const val TRANSCRIPT_ROWS = 2_000
         const val INPUT_BUFFER = 4_096
         const val RESIZE_DEBOUNCE_MS = 150L
+        /** 画面を消す出力が来なくても、この時間が過ぎたら看板を描く。 */
+        const val BANNER_FALLBACK_MS = 3_000L
+        /** Ctrl+L（多くのシェルで画面を消して描き直す）。 */
+        const val CLEAR_SCREEN = "\u000c"
+        const val REDRAW_WAIT_MS = 1_500L
         val RESUMABLE = setOf<TerminalStatus>(TerminalStatus.Reattaching, TerminalStatus.Connected)
     }
+}
+
+/** 画面を消す制御の並び（`clear` の出力）の終わりの位置。無ければ -1。 */
+internal fun clearScreenEnd(data: String): Int {
+    var end = -1
+    for (seq in listOf("\u001b[2J", "\u001b[3J")) {
+        val at = data.lastIndexOf(seq)
+        if (at >= 0) end = maxOf(end, at + seq.length)
+    }
+    return end
 }
