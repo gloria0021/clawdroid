@@ -74,9 +74,9 @@ fun ThinkingIndicator(
         modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.Center,
     ) {
-        // 末尾の「…」を 1 秒ごとに 1 → 2 → 3 個と増える点に替える。残りの点は透明で幅を取り、文字が横に揺れないようにする
+        // 末尾の「…」を 1 秒ごとに 1 → 2 → 3 → 0 個と回る点に替える。残りの点は透明で幅を取り、文字が横に揺れないようにする
         val color = MaterialTheme.colorScheme.onSurfaceVariant
-        val dots = (elapsed % DOT_COUNT).toInt() + 1
+        val dots = ((elapsed + 1) % (DOT_COUNT + 1)).toInt()
         Text(
             buildAnnotatedString {
                 append(shown.removeSuffix("…"))
@@ -131,4 +131,4 @@ private const val TICK_MS = 1_000L
 /** 言い回しの末尾で増える点の最大数。 */
 private const val DOT_COUNT = 3
 /** ネタを入れ替える間隔（秒）。 */
-private const val PHRASE_SECONDS = 9L
+private const val PHRASE_SECONDS = 12L
