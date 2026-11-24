@@ -92,6 +92,19 @@ class GatewayClient(
     private val clientInfo: ClientInfo,
     private val handshakeTimeoutMs: Long = DEFAULT_HANDSHAKE_TIMEOUT_MS,
 ) {
+    private val tlsClient = httpClient.newBuilder().followRedirects(false).build()
+    private val lanClient = tlsClient.newBuilder().proxy(java.net.Proxy.NO_PROXY)
+        .dns(object : okhttp3.Dns {
+            override fun lookup(hostname: String): List<java.net.InetAddress> = httpClient.dns.lookup(hostname)
+                .filter(GatewayUrl::isPrivateAddress).ifEmpty { throw java.net.UnknownHostException("Private address required") }
+        }).addInterceptor { chain ->
+            val host = chain.request().url.host
+            if (!GatewayUrl.isPrivateHost(host)) throw java.io.IOException("Private Gateway required")
+            chain.proceed(chain.request())
+        }.build()
+
+    private fun transport(tls: Boolean) = if (tls) tlsClient else lanClient
+
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.NotConfigured)
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
@@ -238,7 +251,7 @@ class GatewayClient(
             for (token in tokens) {
                 val request = Request.Builder().url(url).header("Accept", "image/*").header("Authorization", "Bearer $token").build()
                 val result = runCatching {
-                    httpClient.newCall(request).execute().use { response ->
+                    transport(url.isHttps).newCall(request).execute().use { response ->
                         if (response.code == 401 || response.code == 403) return@use null to true
                         val body = response.body
                         if (!response.isSuccessful || body.contentLength() > maxBytes) return@use null to false
@@ -279,13 +292,14 @@ class GatewayClient(
         val connection = secrets.loadConnection() ?: return LinkAttempt.FAIL
         val base = connection.url.wsToHttpUrl() ?: return LinkAttempt.FAIL
         val url = base.resolve(relativeUrl) ?: return LinkAttempt.FAIL
+        if (url.scheme != base.scheme || url.host != base.host || url.port != base.port) return LinkAttempt.FAIL
         val token = listOfNotNull(connection.deviceToken, connection.gatewayToken).map(String::trim).firstOrNull(String::isNotEmpty)
         return withContext(Dispatchers.IO) {
             val request = Request.Builder().url(url).apply {
                 token?.let { header("Authorization", "Bearer $it") }
                 if (from > 0) header("Range", "bytes=$from-")
             }.build()
-            val call = httpClient.newCall(request)
+            val call = transport(url.isHttps).newCall(request)
             // 中止（コルーチンの取り消し）で、読み込み中の通信も止める
             val cancelOnStop = currentCoroutineContext()[Job]?.invokeOnCompletion { if (it != null) call.cancel() }
             try {
@@ -411,7 +425,7 @@ class GatewayClient(
     private suspend fun runSession(connection: GatewayConnection): SessionOutcome {
         val signals = Channel<Signal>(Channel.UNLIMITED)
         val ws = try {
-            httpClient.newWebSocket(Request.Builder().url(connection.url).build(), object : WebSocketListener() {
+            transport(connection.url.startsWith("wss:", ignoreCase = true)).newWebSocket(Request.Builder().url(connection.url).build(), object : WebSocketListener() {
                 override fun onMessage(webSocket: WebSocket, text: String) { signals.trySend(Signal.Text(text)) }
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                     webSocket.close(code, null)

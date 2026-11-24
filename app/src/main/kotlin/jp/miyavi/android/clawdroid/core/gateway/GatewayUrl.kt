@@ -46,13 +46,20 @@ object GatewayUrl {
         if (host == "localhost" || host.endsWith(".local") || host.endsWith(".ts.net") || host.endsWith(".lan")) return true
         // 点の無いホスト名（LAN の名前解決）
         if (!host.contains('.') && !host.contains(':')) return true
-        val octets = host.split('.').mapNotNull { it.toIntOrNull() }
-        if (octets.size != 4 || octets.any { it !in 0..255 }) return host.startsWith("fd") || host.startsWith("[fd")
-        val (a, b) = octets[0] to octets[1]
-        return a == 10 || a == 127 ||
-            (a == 172 && b in 16..31) ||
-            (a == 192 && b == 168) ||
-            (a == 100 && b in 64..127) || // Tailscale（CGNAT 100.64.0.0/10）
-            (a == 169 && b == 254)
+        val literal = host.removeSurrounding("[", "]")
+        if (':' in literal && literal.matches(Regex("[0-9a-fA-F:.]+"))) {
+            return runCatching { isPrivateAddress(java.net.InetAddress.getByName(literal)) }.getOrDefault(false)
+        }
+        val parts = literal.split('.')
+        if (parts.size != 4 || parts.any { !it.matches(Regex("0|[1-9][0-9]{0,2}")) }) return false
+        val numbers = parts.map { it.toInt() }
+        return numbers.all { it <= 255 } && isPrivateAddress(java.net.InetAddress.getByAddress(numbers.map { it.toByte() }.toByteArray()))
+    }
+
+    internal fun isPrivateAddress(address: java.net.InetAddress): Boolean {
+        val bytes = address.address
+        return address.isLoopbackAddress || address.isLinkLocalAddress ||
+            (bytes.size == 4 && (address.isSiteLocalAddress || (bytes[0].toInt() == 100 && bytes[1].toInt() in 64..127))) ||
+            (bytes.size == 16 && (bytes[0].toInt() and 0xfe) == 0xfc)
     }
 }

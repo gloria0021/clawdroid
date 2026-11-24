@@ -318,7 +318,6 @@ fun LiveAssistantMessage(
         header = {
             if (running) ThinkingIndicator(
                 startedAt,
-                outputText = text,
                 reportedOutputTokens = reportedOutputTokens,
                 label = if (compacting) stringResource(R.string.chat_compacting) else null,
             )

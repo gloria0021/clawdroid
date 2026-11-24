@@ -65,6 +65,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.semantics.selected
@@ -857,19 +858,26 @@ private fun WorktreeBranchLabel(branch: String, rowColor: Color, worktree: Boole
     }
 }
 
-/** 実行中・未読の目印（実行中 = tertiary、未読 = primary。AGENTS.md 2.2）。 */
+/**
+ * 実行中・未読の目印（実行中 = tertiary、未読 = primary。AGENTS.md 2.2）。
+ * 実行中は小さな回るプログレス、終わったら未読の点。両方は同時に出さない（実行中を優先。マスター指定 2026-11-24）。
+ */
 @Composable
 private fun SessionMarks(session: SessionSummary) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-        if (session.running) {
+    when {
+        session.running -> {
             val cd = stringResource(R.string.session_running_cd)
-            Box(Modifier.size(Dimens.unreadDot).background(MaterialTheme.colorScheme.tertiary, CircleShape).semantics { contentDescription = cd })
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.tertiary,
+                strokeWidth = Dimens.runningIndicatorStroke,
+                modifier = Modifier.size(Dimens.runningIndicator).semantics { contentDescription = cd },
+            )
         }
-        if (session.unread) {
+        session.unread -> {
             val cd = stringResource(R.string.session_unread_cd)
             Box(Modifier.size(Dimens.unreadDot).background(MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = cd })
         }
-        if (!session.running && !session.unread) Spacer(Modifier.size(Dimens.unreadDot))
+        else -> Spacer(Modifier.size(Dimens.unreadDot))
     }
 }
 
@@ -928,8 +936,8 @@ internal fun groupByFolder(sessions: List<SessionSummary>): List<Pair<String?, L
 private fun GroupingToggle(grouping: SessionGrouping, onChange: (SessionGrouping) -> Unit) {
     TextButton(
         onClick = { onChange(if (grouping == SessionGrouping.UPDATED) SessionGrouping.FOLDER else SessionGrouping.UPDATED) },
-        // ホーム・自動化と同じく、リストで選んだ行の面と同じ色（マスター指定 2026-11-23）
-        colors = ButtonDefaults.textButtonColors(contentColor = accentContainer().container),
+        // 会話の送信ボタン（FilledIconButton の面）と同じ濃いテーマカラー（マスター指定 2026-11-24。以前は選んだ行の面の色で薄かった）
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
         modifier = Modifier.heightIn(min = Dimens.compactTouchTarget),
     ) {
         Icon(

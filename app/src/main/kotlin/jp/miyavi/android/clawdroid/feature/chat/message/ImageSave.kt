@@ -22,25 +22,18 @@ import okhttp3.Request
  */
 internal suspend fun saveImageToDownloads(context: Context, image: MessagePart.Image, inbound: InboundImageSource?): Boolean {
     return try {
-        val bytes = imageBytes(context, image, inbound) ?: return false
-        val mime = image.mimeType?.takeIf { it.startsWith("image/") } ?: sniffMime(bytes) ?: "image/png"
-        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "png"
-        val name = "clawdroid-${System.currentTimeMillis()}.$extension"
         withContext(Dispatchers.IO) {
-            val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, name)
-                put(MediaStore.Downloads.MIME_TYPE, mime)
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }) ?: return@withContext false
-            val ok = runCatching { resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } != null }.getOrDefault(false)
-            if (ok) {
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-            } else {
-                resolver.delete(uri, null, null)
+            val web = image.url?.takeUnless(::isInboundMediaUrl)?.takeIf { image.base64 == null }?.let(::webUri)
+            if (web != null) {
+                if (web.scheme !in setOf("http", "https")) return@withContext false
+                val client = (context.applicationContext as ClawdroidApp).container.httpClient
+                return@withContext client.newCall(Request.Builder().url(web.toString()).build()).execute().use { res ->
+                    res.isSuccessful && res.body.contentLength() <= MAX_SAVE_BYTES &&
+                        saveStream(context, res.body.byteStream(), image.mimeType)
+                }
             }
-            ok
+            val bytes = imageBytes(image, inbound) ?: return@withContext false
+            saveStream(context, bytes.inputStream(), image.mimeType)
         }
     } catch (e: CancellationException) {
         throw e
@@ -49,20 +42,52 @@ internal suspend fun saveImageToDownloads(context: Context, image: MessagePart.I
     }
 }
 
-private suspend fun imageBytes(context: Context, image: MessagePart.Image, inbound: InboundImageSource?): ByteArray? {
+private const val MAX_SAVE_BYTES = 32 * 1024 * 1024
+
+private fun saveStream(context: Context, source: java.io.InputStream, hint: String?): Boolean = source.buffered().use { input ->
+        input.mark(16)
+        val header = input.readNBytes(12)
+        if (header.isEmpty()) return false
+        input.reset()
+        val mime = sniffMime(header) ?: hint?.takeIf { it.startsWith("image/") } ?: "image/png"
+        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "png"
+        val name = "clawdroid-${System.currentTimeMillis()}.$extension"
+        run {
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, name)
+                put(MediaStore.Downloads.MIME_TYPE, mime)
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }) ?: return false
+            val ok = runCatching { resolver.openOutputStream(uri, "wt")?.use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0L
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    total += n
+                    if (total > MAX_SAVE_BYTES) throw java.io.IOException("Image too large")
+                    output.write(buffer, 0, n)
+                }
+             } != null }.getOrDefault(false)
+            if (ok) {
+                resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+            } else {
+                resolver.delete(uri, null, null)
+            }
+            ok
+        }
+}
+
+private suspend fun imageBytes(image: MessagePart.Image, inbound: InboundImageSource?): ByteArray? {
     image.base64?.let { data ->
+        if (data.length > MAX_SAVE_BYTES * 4 / 3 + 256) return null
         return withContext(Dispatchers.Default) { runCatching { Base64.decode(data.substringAfter("base64,"), Base64.DEFAULT) }.getOrNull() }
     }
     val url = image.url ?: return null
     if (isInboundMediaUrl(url)) return inbound?.bytes(url)
-    val web = webUri(url)?.toString() ?: return null
-    if (!web.startsWith("http://") && !web.startsWith("https://")) return null
-    val client = (context.applicationContext as ClawdroidApp).container.httpClient
-    return withContext(Dispatchers.IO) {
-        client.newCall(Request.Builder().url(web).build()).execute().use { response ->
-            if (!response.isSuccessful) null else response.body.bytes().takeIf { it.isNotEmpty() }
-        }
-    }
+    return null
 }
 
 /** 先頭のバイトから画像の種類を見分ける（mimeType が無いとき）。 */

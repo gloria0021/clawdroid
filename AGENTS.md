@@ -59,8 +59,9 @@
 | 本文の下地（角丸の面） | `surface` に `onSurface` を重ねた色（ライト 3% / ダーク 5%） |
 | 補助的な目印 | `tertiary` |
 | サイドパネルのホーム・自動化 | 文字とアイコンは `onSurface`。ホームを開いているあいだは選んだ行の面（マスター指定 2026-11-24） |
-| サイドパネルの並べ方の切り替え | 選んだ行の面と同じ色（`accentContainer().container`。マスター指定 2026-11-23） |
+| サイドパネルの並べ方の切り替え | 会話の送信ボタンと同じ `primary`（マスター指定 2026-11-24。以前は選んだ行の面の色） |
 | 新着・未読の目印 | `primary` |
+| 実行中の目印（サイドパネルの行） | `tertiary` の小さな `CircularProgressIndicator`。未読の点と同時に出さず、終わったら未読の点になる（マスター指定 2026-11-24） |
 | 件数バッジ・チップ | `secondaryContainer` / `onSecondaryContainer` |
 | 検索で一致した語 | 背景 `tertiaryContainer` / 文字 `onTertiaryContainer` |
 | エラー | `error`、ラベルは `errorContainer` / `onErrorContainer` |

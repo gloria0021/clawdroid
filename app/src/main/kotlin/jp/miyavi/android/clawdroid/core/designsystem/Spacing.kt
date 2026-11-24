@@ -32,6 +32,9 @@ object Dimens {
     val imageElevation = 3.dp
     val tabPillHeight = 32.dp
     val unreadDot = 8.dp
+    /** サイドパネルの行の「実行中」の小さな回るプログレスと、その線の太さ。 */
+    val runningIndicator = 12.dp
+    val runningIndicatorStroke = 2.dp
     val emptyStateIcon = 72.dp
     /** 接続の画面のマスコットの丸。 */
     val onboardingMascot = 96.dp

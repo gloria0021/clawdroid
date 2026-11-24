@@ -588,7 +588,7 @@ class ChatViewModel(
 
     private fun readImage(uri: Uri): OutgoingImage? = runCatching {
         val mime = contentResolver.getType(uri) ?: "image/jpeg"
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readNBytes(MAX_IMAGE_BYTES + 1) } ?: return null
         if (bytes.size > MAX_IMAGE_BYTES) return null
         OutgoingImage(mime, Base64.encodeToString(bytes, Base64.NO_WRAP), uri.lastPathSegment)
     }.getOrNull()

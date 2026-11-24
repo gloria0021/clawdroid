@@ -30,6 +30,9 @@ import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.RollingCounter
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -41,19 +44,11 @@ import kotlin.random.Random
 fun ThinkingIndicator(
     startedAt: Long?,
     modifier: Modifier = Modifier,
-    outputText: String = "",
     reportedOutputTokens: Long? = null,
     /** 決まった言い回し（コンテキストの圧縮中など）。null ならネタを入れ替えて出す。 */
     label: String? = null,
 ) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(startedAt) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(TICK_MS)
-        }
-    }
-    val elapsed = ((now - (startedAt ?: now)) / 1_000).coerceAtLeast(0)
+    val elapsed = rememberElapsedSeconds(startedAt)
     val phrases = stringArrayResource(R.array.chat_thinking_phrases)
     // ネタは毎回ランダムに選ぶ。直前と同じネタは続けない（マスター指定 2026-11-23）
     // 切り替えは経過秒で数え、末尾の点が 1 個に戻る瞬間にそろえる
@@ -125,6 +120,25 @@ private fun RollingElapsed(seconds: Long) {
             }
         }
     }
+}
+
+/** 画面を離れた間は刻まず、復帰時に開始時刻から計算し直す。 */
+@Composable
+private fun rememberElapsedSeconds(startedAt: Long?): Long {
+    if (startedAt == null) return 0L
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    fun ageMs() = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+    var seconds by remember(startedAt) { mutableLongStateOf(ageMs() / TICK_MS) }
+    LaunchedEffect(startedAt, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val age = ageMs()
+                seconds = age / TICK_MS
+                delay(TICK_MS - age % TICK_MS)
+            }
+        }
+    }
+    return seconds
 }
 
 private const val TICK_MS = 1_000L

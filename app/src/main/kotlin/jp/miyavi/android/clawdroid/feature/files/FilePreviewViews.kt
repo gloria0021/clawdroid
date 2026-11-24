@@ -155,6 +155,7 @@ internal fun HtmlPreview(html: String, query: String, find: HtmlFindState, conte
             factory = { context ->
                 WebView(context).apply {
                     settings.javaScriptEnabled = true
+                    settings.blockNetworkLoads = true
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.setSupportMultipleWindows(false)
@@ -163,7 +164,7 @@ internal fun HtmlPreview(html: String, query: String, find: HtmlFindState, conte
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                             val url = request.url
                             if (url.scheme == "about" || url.scheme == "data") return false // ページ内の移動
-                            webUri(url.toString())?.let(openLink)
+                            if (request.isForMainFrame && request.hasGesture()) webUri(url.toString())?.let(openLink)
                             return true
                         }
                     }
@@ -172,7 +173,8 @@ internal fun HtmlPreview(html: String, query: String, find: HtmlFindState, conte
                         find.active = if (count == 0) 0 else active + 1
                     }
                     find.webView = this
-                    loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+                    val offlinePolicy = """<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; form-action 'none'; base-uri 'none'">"""
+                    loadDataWithBaseURL(null, offlinePolicy + html, "text/html", "utf-8", null)
                 }
             },
             update = { it.settings.textZoom = textZoom },

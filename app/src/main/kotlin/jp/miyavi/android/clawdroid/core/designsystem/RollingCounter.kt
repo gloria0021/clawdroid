@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Alignment
@@ -26,7 +25,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.IntOffset
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow
@@ -66,7 +64,7 @@ fun RollingCounter(
     }
     // 幅を動かさない（揺れないように）: 桁の数は「動く前と後の大きいほう」で決め、上の桁の 0 は見えなくするだけで場所は取っておく。
     // 桁の幅は 0〜9 でいちばん広い数字に合わせる（プロポーショナルな字体でも 1 と 8 で幅が変わらない）
-    val digits by remember(minDigits) { derivedStateOf { maxOf(minDigits, digitCount(maxOf(abs(animated.value), abs(value.toFloat())).roundToInt())) } }
+    val digits by remember(minDigits, value) { derivedStateOf { maxOf(minDigits, digitCount(maxOf(abs(animated.value), abs(value.toFloat())).roundToInt())) } }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val digitWidth = remember(style, density) {
@@ -100,14 +98,14 @@ private fun Digit(position: Int, alwaysShown: Boolean, value: () -> Float, style
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             // 枠（1 行ぶん）に縛られると 2 つ目の数字が高さ 0 になるので、2 行ぶんで並べて枠で切る（去る数字と来る数字を同時に見せる）
-            modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true).offset {
+            modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true).graphicsLayer {
                 // 下の桁がすべて 9 のあいだだけ、1 の位の端数ぶん回る（繰り上がり）
                 val v = value().coerceAtLeast(0f)
                 val below = v % unit
                 // 回るのは端数の終わりの区間だけ（ばねの終わりは 1 の位がゆっくり進むので、途中の半端な位置で止まって
                 // 数字が読めなくなるのを防ぐ。それまでは今の数字のまま、区間に入ったら素早く次へ回る）
                 val progress = if (below >= unit - 1f) rollProgress(v - floor(v)) else 0f
-                IntOffset(0, -(progress * lineHeightPx).roundToInt())
+                translationY = -progress * lineHeightPx
             },
         ) {
             Text(current.toString(), style = style, color = color, modifier = Modifier.height(lineHeight))
