@@ -49,6 +49,8 @@ data class ChatState(
 sealed interface RunActivity {
     data class Phase(val phase: String) : RunActivity
     data class Tool(val name: String) : RunActivity
+    /** コンテキストを圧縮している（agent の compaction の流れ）。 */
+    data object Compacting : RunActivity
 }
 
 /**
@@ -166,12 +168,16 @@ class ChatSession(
                 val known = messages.mapNotNull { it.runId }.toSet() + queued.map { it.runId }
                 val localPending = current.pending.filter { it.local && it.runId !in known }
                 // 実行の始まりは、最後の利用者のメッセージの時刻（無ければ今）
+                val activeRunId = if (!running) null else if (runChanged) current.activeRunId
+                    else inFlight?.string("runId") ?: current.activeRunId
                 val startedAt = when {
                     !running -> null
                     else -> {
-                        // 実行中の応答は最後の利用者のメッセージから始まっている。途中のツールの通知などで手元に入った「今」より前ならそちらを使う
-                        val lastUser = messages.lastOrNull { it.role == ChatMessage.Role.USER }?.timestamp
-                        listOfNotNull(lastUser, current.runStartedAt).minOrNull() ?: System.currentTimeMillis()
+                        // 実行中の応答はその実行の利用者のメッセージから始まっている。途中のツールの通知などで手元に入った「今」より前ならそちらを使う。
+                        // 別の実行のメッセージ（履歴に残らない /compact などで、前の送信が最後の利用者のメッセージになる）は使わない
+                        val runUser = messages.lastOrNull { it.role == ChatMessage.Role.USER }
+                            ?.takeIf { activeRunId != null && it.runId == activeRunId }?.timestamp
+                        listOfNotNull(runUser, current.runStartedAt).minOrNull() ?: System.currentTimeMillis()
                     }
                 }
                 current.copy(
@@ -182,8 +188,7 @@ class ChatSession(
                     }.distinctBy { it.runId },
                     runStartedAt = startedAt,
                     activity = if (running) current.activity else null,
-                    activeRunId = if (!running) null else if (runChanged) current.activeRunId
-                        else inFlight?.string("runId") ?: current.activeRunId,
+                    activeRunId = activeRunId,
                     usageByRun = replayUsage.fold(current.usageByRun) { acc, usage -> acc.withUsage(usage) },
                     live = (if (runChanged) current.live else live)?.withoutCommitted(),
                     running = running,
@@ -224,9 +229,13 @@ class ChatSession(
         val payload = event.payload.asObject() ?: return
         val key = payload.string("sessionKey") ?: payload.string("key") ?: payload.obj("session")?.string("key")
         if (event.name == "agent") {
-            val usage = parseRunOutputUsage(payload) ?: return
             if (key != null && key != sessionKey) return
             if (payload.string("agentId")?.let { it != agentId } == true) return
+            if (payload.string("stream") == "compaction") {
+                onCompactionEvent(payload, keyed = key != null)
+                return
+            }
+            val usage = parseRunOutputUsage(payload) ?: return
             _state.update { current ->
                 if (key == null && usage.runId != current.activeRunId) current
                 else current.copy(
@@ -260,6 +269,25 @@ class ChatSession(
         }
     }
 
+    /**
+     * コンテキストの圧縮の始まりと終わり（`stream = compaction`、data.phase = start / end）。
+     * 実行中の考え中の表示を「圧縮しています」に替え、終われば戻す。要約は履歴の取り直しで区切りとして入る。
+     */
+    private fun onCompactionEvent(payload: JsonObject, keyed: Boolean) {
+        val runId = payload.string("runId")
+        val phase = payload.obj("data")?.string("phase")
+        _state.update {
+            if (!it.running || (runId != null && runId in it.completedRunIds)) return@update it
+            if (!keyed && runId != it.activeRunId) return@update it
+            when (phase) {
+                "start" -> it.copy(activity = RunActivity.Compacting)
+                "end" -> if (it.activity == RunActivity.Compacting) it.copy(activity = null) else it
+                else -> it
+            }
+        }
+        if (phase == "end") scheduleRefresh()
+    }
+
     /** chat の流れ（`ref-schema/logs-chat.ts` の ChatEvent）。 */
     private fun onChatEvent(payload: JsonObject) {
         val runId = payload.string("runId") ?: return
@@ -269,7 +297,8 @@ class ChatSession(
                 it.copy(
                     running = true,
                     runStartedAt = it.runStartedAt ?: System.currentTimeMillis(),
-                    activity = payload.string("phase")?.let(RunActivity::Phase) ?: it.activity,
+                    activity = if (it.activity == RunActivity.Compacting) it.activity
+                        else payload.string("phase")?.let(RunActivity::Phase) ?: it.activity,
                     activeRunId = runId,
                 )
             }
@@ -334,7 +363,12 @@ class ChatSession(
         )
         _state.update {
             if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true, hasAttachments = images.isNotEmpty()), error = null)
-            else it.copy(messages = it.messages + optimistic, activeRunId = idempotencyKey, running = true, runStartedAt = System.currentTimeMillis(), activity = null, error = null)
+            else it.copy(
+                messages = it.messages + optimistic, activeRunId = idempotencyKey, running = true, runStartedAt = System.currentTimeMillis(),
+                // CLI の圧縮は進みの通知が来ないので、`/compact` を送った時点で圧縮中にする
+                activity = if (isCompactCommand(text)) RunActivity.Compacting else null,
+                error = null,
+            )
         }
         try {
             gateway.request("chat.send", buildJsonObject {
@@ -420,3 +454,6 @@ class ChatRepository(private val gateway: GatewayClient, private val scope: Coro
     fun session(sessionKey: String, agentId: String): ChatSession =
         sessions.getOrPut(sessionKey) { ChatSession(gateway, scope, sessionKey, agentId) }
 }
+
+/** `/compact`（指示付きも）を送ったか。 */
+internal fun isCompactCommand(text: String): Boolean = text.trim().let { it == "/compact" || it.startsWith("/compact ") }

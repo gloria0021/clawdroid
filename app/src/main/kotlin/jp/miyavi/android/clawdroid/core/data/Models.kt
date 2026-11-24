@@ -140,6 +140,8 @@ data class ChatMessage(
     val modelSelection: ModelSelection? = null,
     /** モデルの切り替えの記録（`custom` の `session-model-change`）。 */
     val modelChange: ModelChange? = null,
+    /** 会話ではなくシステムのお知らせ（コンテキストの圧縮など）。吹き出しではなく区切りで出す。 */
+    val notice: SystemNotice? = null,
 ) {
     enum class Role { USER, ASSISTANT, TOOL_RESULT, SYSTEM }
 
@@ -158,6 +160,16 @@ sealed interface MessagePart {
         val isError: Boolean,
         val isResult: Boolean,
     ) : MessagePart
+}
+
+/** 会話の中に入る、システムのお知らせ（Control UI の system notice / divider に当たるもの）。 */
+sealed interface SystemNotice {
+    /** コンテキストの圧縮（OpenClaw の圧縮の記録、または Claude CLI の要約）。トークン数は分かるときだけ。 */
+    data class Compaction(val tokensBefore: Long?, val tokensAfter: Long?) : SystemNotice
+    /** CLI の実行環境が会話に足した文脈。 */
+    data object InjectedContext : SystemNotice
+    /** バックグラウンドのタスクの知らせ。 */
+    data object TaskNotification : SystemNotice
 }
 
 /** 送信時のモデル（`provider/model`）と、その直前のモデル。 */
@@ -349,8 +361,10 @@ internal object Parse {
                 if (image) MessagePart.Image(url = url, base64 = null, mimeType = media.string("contentType")) else null
             }
         } else emptyList()
+        if (hidden(obj, meta, role, parts)) return null
         val entryId = meta?.string("id")
-        val selection = if (role == ChatMessage.Role.USER) meta?.obj("modelSelection") else null
+        val notice = notice(obj, meta, parts)
+        val selection = if (role == ChatMessage.Role.USER && notice == null) meta?.obj("modelSelection") else null
         val modelChange = obj.takeIf { it.string("customType") == "session-model-change" }?.obj("details")?.let { details ->
             val from = details.string("from")?.takeIf(String::isNotBlank) ?: return@let null
             val to = details.string("to")?.takeIf(String::isNotBlank) ?: return@let null
@@ -358,7 +372,8 @@ internal object Parse {
         }
         return ChatMessage(
             id = entryId ?: "i$index-${obj.long("timestamp") ?: 0}",
-            role = role,
+            // 利用者の発言の形で届くお知らせは、利用者のメッセージとして扱わない（実行の始まりや返信の突き合わせに混ぜない）
+            role = if (notice != null) ChatMessage.Role.SYSTEM else role,
             parts = attached.filterNot { a -> parts.any { it is MessagePart.Image && it.url == a.url } } + parts,
             timestamp = obj.long("timestamp"),
             // 利用者のメッセージは送信の idempotencyKey が run の識別（受け付け待ちとの突き合わせに使う）
@@ -370,8 +385,52 @@ internal object Parse {
             truncated = meta?.bool("truncated") == true,
             modelSelection = selectedModel(selection)?.let { ModelSelection(it, selectedModel(selection?.obj("previous"))) },
             modelChange = modelChange,
+            notice = notice,
         )
     }
+
+    /**
+     * システムのお知らせか。`__openclaw.kind = compaction`（OpenClaw の圧縮）と、
+     * `provenance.kind = internal_system` の CLI の文脈・タスクの知らせ（Control UI と同じ見分け方）。
+     * Claude CLI の圧縮の要約も cli_harness_context で届くので、要約の書き出しで圧縮と分かる。
+     */
+    private fun notice(obj: JsonObject, meta: JsonObject?, parts: List<MessagePart>): SystemNotice? {
+        if (meta?.string("kind") == "compaction") {
+            return SystemNotice.Compaction(meta.long("tokensBefore"), meta.long("tokensAfter"))
+        }
+        val provenance = obj.obj("provenance") ?: meta?.obj("provenance") ?: return null
+        if (provenance.string("kind") != "internal_system") return null
+        return when (provenance.string("sourceTool")) {
+            "cli_harness_context" -> {
+                val text = parts.filterIsInstance<MessagePart.Text>().firstOrNull()?.markdown.orEmpty().trimStart()
+                if (text.startsWith(CLI_COMPACT_SUMMARY_LEAD)) SystemNotice.Compaction(null, null) else SystemNotice.InjectedContext
+            }
+            "claude_cli_task_notification" -> SystemNotice.TaskNotification
+            else -> null
+        }
+    }
+
+    /**
+     * 画面に出さない記録。Claude CLI のスラッシュコマンドの出力（`/compact` のあとの `<local-command-stdout>Compacted …` など）と、
+     * 圧縮の成功を知らせる Gateway の一言（要約の区切りが代わりに出る。失敗・見送りは残す）。
+     */
+    private fun hidden(obj: JsonObject, meta: JsonObject?, role: ChatMessage.Role, parts: List<MessagePart>): Boolean {
+        val text = parts.filterIsInstance<MessagePart.Text>().firstOrNull()?.markdown?.trimStart() ?: return false
+        return when (role) {
+            ChatMessage.Role.USER -> meta?.string("importedFrom") == "claude-cli" && CLI_LOCAL_COMMAND_TAGS.any(text::startsWith)
+            ChatMessage.Role.ASSISTANT -> obj.string("model") == "gateway-injected" &&
+                text.trimStart('⚙', '️', ' ').let { rest -> GATEWAY_COMPACTED_LEADS.any(rest::startsWith) }
+            else -> false
+        }
+    }
+
+    private val CLI_LOCAL_COMMAND_TAGS = listOf("<local-command-stdout>", "<local-command-stderr>", "<local-command-caveat>")
+
+    /** Gateway の `/compact` の成功の返事の書き出し（commands-handlers の文言）。 */
+    private val GATEWAY_COMPACTED_LEADS = listOf("Compaction finished", "Compacted", "Server-side compaction")
+
+    /** Claude CLI が圧縮のあとに入れる要約の書き出し。 */
+    private const val CLI_COMPACT_SUMMARY_LEAD = "This session is being continued from a previous conversation"
 
     /** `{ provider, model }` を `provider/model` にする（Control UI と同じく両方そろったときだけ）。 */
     private fun selectedModel(obj: JsonObject?): String? {

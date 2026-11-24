@@ -1,6 +1,18 @@
 package jp.miyavi.android.clawdroid.feature.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.RadioButton
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.staticCompositionLocalOf
+import jp.miyavi.android.clawdroid.core.data.WORKTREE_BRANCH_PREFIX
+import jp.miyavi.android.clawdroid.core.data.freeWorktreeName
 import jp.miyavi.android.clawdroid.core.designsystem.GlassDropdownMenu
 import jp.miyavi.android.clawdroid.core.designsystem.GlassMenuDivider
 import jp.miyavi.android.clawdroid.core.data.RepoBranches
@@ -58,8 +70,23 @@ import jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor
 private val WORKTREE_NAME = Regex("^[a-z0-9][a-z0-9-]{0,63}$")
 private val WORKTREE_NAME_INVALID = Regex("[^a-z0-9-]")
 private const val WORKTREE_NAME_MAX = 64
-/** Gateway がワークツリーのブランチに付ける頭。 */
-private const val WORKTREE_BRANCH_PREFIX = "openclaw/"
+
+/**
+ * 並行開発の名前を決めるための道具（会話の画面が渡す）。
+ * 同じ名前を何度も使えるよう、使えない名前を知って -2, -3… を先に見せ、
+ * その名前をアーカイブ済みのセッションが持っていれば「戻す」も選べるようにする（マスター指定 2026-11-24）。
+ */
+@Stable
+internal class WorktreeNaming(
+    /** 同じリポジトリで使えない名前（取れなければ null）。 */
+    val takenNames: suspend (SessionSummary) -> Set<String>?,
+    /** エージェントのアーカイブ済みのセッション。 */
+    val archived: (agentId: String) -> List<SessionSummary>,
+    /** アーカイブ済みのセッションを戻して開く。 */
+    val restore: (SessionSummary) -> Unit,
+)
+
+internal val LocalWorktreeNaming = staticCompositionLocalOf<WorktreeNaming?> { null }
 
 /**
  * 新規ワークツリーのシート（会話の画面のメニューと、サイドパネルの長押しから）。
@@ -82,6 +109,9 @@ internal fun WorktreeSheet(
     var baseTouched by rememberSaveable { mutableStateOf(false) }
     var baseLoading by rememberSaveable { mutableStateOf(true) }
     var fork by rememberSaveable { mutableStateOf(true) }
+    // 名前がアーカイブ済みのセッションと重なったとき、戻すほうを選んだか（既定は新しく作る）
+    var restoreChosen by rememberSaveable { mutableStateOf(false) }
+    val naming = LocalWorktreeNaming.current
     // ブランチの候補（構成の変更では取り直す。軽い読み取りなので保存しない）
     var branches by remember { mutableStateOf<RepoBranches?>(null) }
     LaunchedEffect(session.key) {
@@ -91,13 +121,21 @@ internal fun WorktreeSheet(
         if (!baseTouched && initial != null) base = initial
         baseLoading = false
     }
-    // 手で入れた名前が既にあるブランチ（openclaw/<名前>）と重なると Gateway が断るので、作る前に止める。
-    // 空なら Gateway が会話のタイトルから決め、重なれば -2, -3… と番号を付けて避ける
-    val takenNames = remember(branches) {
-        branches?.branches.orEmpty().filterNot { it.remote }.mapNotNull { it.name.removePrefix(WORKTREE_BRANCH_PREFIX).takeIf { n -> n != it.name } }.toSet()
+    // 使えない名前（Gateway の台帳とローカルのブランチ）。重なれば作るときに -2, -3… が付くので、先にその名前を見せる
+    var takenNames by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(session.key) {
+        takenNames = naming?.let { runCatching { it.takenNames(session) }.getOrNull() }.orEmpty()
     }
-    val nameTaken = name.isNotEmpty() && name in takenNames
-    val validName = (name.isEmpty() || WORKTREE_NAME.matches(name)) && !nameTaken
+    val validName = name.isEmpty() || WORKTREE_NAME.matches(name)
+    val resolvedName = if (name.isNotEmpty() && validName) freeWorktreeName(name, takenNames) else name
+    // その名前のワークツリーをアーカイブ済みのセッションが持っていれば、戻すこともできる（削除済みなら番号だけ）
+    val archivedOwner = remember(name, naming, session.key) {
+        if (name.isEmpty() || naming == null) null
+        else naming.archived(session.agentId.orEmpty()).firstOrNull {
+            it.worktreeBranch == WORKTREE_BRANCH_PREFIX + name && it.projectFolder == session.projectFolder
+        }
+    }
+    val restoring = archivedOwner != null && restoreChosen
     AppBottomSheet(
         onDismissRequest = onDismiss,
         hazeState = hazeState,
@@ -141,12 +179,33 @@ internal fun WorktreeSheet(
                         placeholder = { Text(stringResource(R.string.worktree_name_auto)) },
                         leadingIcon = { Icon(painterResource(R.drawable.ic_huge_branch_plus), contentDescription = null) },
                         prefix = { Text(stringResource(R.string.worktree_name_prefix)) },
-                        supportingText = { Text(stringResource(if (nameTaken) R.string.worktree_name_taken else R.string.worktree_name_hint)) },
+                        supportingText = {
+                            Text(
+                                if (resolvedName != name) stringResource(R.string.worktree_name_numbered, WORKTREE_BRANCH_PREFIX + resolvedName)
+                                else stringResource(R.string.worktree_name_hint),
+                            )
+                        },
                         isError = !validName,
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    AnimatedVisibility(
+                        visible = archivedOwner != null,
+                        enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                        exit = shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+                        label = "worktreeRestoreChoice",
+                    ) {
+                        RestoreChoice(name = name, numbered = resolvedName, restore = restoreChosen, onChange = { restoreChosen = it })
+                    }
+                    // 戻すときは元のワークツリーと会話がそのまま戻るので、元にするブランチと引き継ぎは要らない
+                    AnimatedVisibility(
+                        visible = !restoring,
+                        enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                        exit = shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+                        label = "worktreeNewFields",
+                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     BaseBranchField(
                         value = base,
                         onValueChange = { base = it.trim(); baseTouched = true },
@@ -174,17 +233,74 @@ internal fun WorktreeSheet(
                         // 行の toggleable が受けるので、スイッチ自身は押せなくする（読み上げが二重にならない）
                         Switch(checked = fork, onCheckedChange = null)
                     }
+                    }
+                    }
                 }
             }
             Button(
-                onClick = { onCreate(name.ifBlank { null }, base.ifBlank { null }, fork) },
+                onClick = {
+                    val owner = archivedOwner
+                    if (restoring && owner != null && naming != null) {
+                        onDismiss()
+                        naming.restore(owner)
+                    } else {
+                        onCreate(name.ifBlank { null }, base.ifBlank { null }, fork)
+                    }
+                },
                 enabled = validName,
                 contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s).heightIn(min = Dimens.minTouchTarget),
             ) {
-                Icon(painterResource(R.drawable.ic_huge_branch_plus), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Icon(
+                    painterResource(if (restoring) R.drawable.ic_huge_archive else R.drawable.ic_huge_branch_plus),
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize),
+                )
                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                Text(stringResource(R.string.worktree_create))
+                Text(stringResource(if (restoring) R.string.worktree_restore else R.string.worktree_create))
+            }
+        }
+    }
+}
+
+/**
+ * 名前がアーカイブ済みのセッションのワークツリーと重なったときの選択。既定は番号を付けて新しく作る。
+ * 戻すと、Gateway がワークツリーを復元し、そのセッションの会話をそのまま続けられる。
+ */
+@Composable
+private fun RestoreChoice(name: String, numbered: String, restore: Boolean, onChange: (Boolean) -> Unit) {
+    Column(Modifier.selectableGroup().padding(top = Spacing.xs)) {
+        Text(
+            stringResource(R.string.worktree_archived_owner, name),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(stringResource(R.string.worktree_choice_new, numbered), null, selected = !restore) { onChange(false) }
+        ChoiceRow(
+            stringResource(R.string.worktree_choice_restore, name),
+            stringResource(R.string.worktree_choice_restore_desc),
+            selected = restore,
+        ) { onChange(true) }
+    }
+}
+
+@Composable
+private fun ChoiceRow(label: String, description: String?, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = Dimens.minTouchTarget)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(vertical = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.l),
+    ) {
+        // 行の selectable が受けるので、ボタン自身は押せなくする
+        RadioButton(selected = selected, onClick = null)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            description?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

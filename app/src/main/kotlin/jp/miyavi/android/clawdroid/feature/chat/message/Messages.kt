@@ -59,6 +59,7 @@ import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.MessagePart
 import jp.miyavi.android.clawdroid.core.data.ModelChange
+import jp.miyavi.android.clawdroid.core.data.SystemNotice
 import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
@@ -233,6 +234,70 @@ fun ModelChangeDivider(change: ModelChange, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * システムのお知らせの区切り（コンテキストの圧縮など）。線のあいだにアイコンと一言、押すと中身（要約など）を開く。
+ * 利用者の吹き出しに見せない（Control UI の区切り・お知らせと同じ扱い）。
+ */
+@Composable
+fun SystemNoticeDivider(
+    notice: SystemNotice,
+    body: String,
+    parsed: com.mikepenz.markdown.model.State?,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val label = when (notice) {
+        is SystemNotice.Compaction -> {
+            val before = notice.tokensBefore
+            val after = notice.tokensAfter
+            if (before != null && after != null) {
+                stringResource(R.string.chat_notice_compaction_tokens, formatReportedOutputTokens(before), formatReportedOutputTokens(after))
+            } else stringResource(R.string.chat_notice_compaction)
+        }
+        SystemNotice.InjectedContext -> stringResource(R.string.chat_notice_injected_context)
+        SystemNotice.TaskNotification -> stringResource(R.string.chat_notice_task)
+    }
+    val icon = when (notice) {
+        is SystemNotice.Compaction -> R.drawable.ic_huge_layers
+        SystemNotice.InjectedContext -> R.drawable.ic_huge_info
+        SystemNotice.TaskNotification -> R.drawable.ic_huge_notification
+    }
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val hasBody = body.isNotBlank()
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = Dimens.compactTouchTarget)
+                .then(
+                    if (hasBody) Modifier.clip(MaterialTheme.shapes.medium).clickable(
+                        onClickLabel = stringResource(if (expanded) R.string.chat_notice_hide else R.string.chat_notice_show),
+                    ) { expanded = !expanded } else Modifier,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        ) {
+            HorizontalDivider(Modifier.weight(1f))
+            Icon(painterResource(icon), contentDescription = null, tint = color, modifier = Modifier.size(Spacing.l))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = color, textAlign = TextAlign.Center)
+            if (hasBody) {
+                Icon(
+                    painterResource(if (expanded) R.drawable.ic_huge_arrow_up else R.drawable.ic_huge_arrow_down),
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(Spacing.l),
+                )
+            }
+            HorizontalDivider(Modifier.weight(1f))
+        }
+        if (hasBody) {
+            AnimatedVisibility(visible = expanded, enter = expandEnter(), exit = shrinkExit()) {
+                Column(Modifier.padding(top = Spacing.s)) { MarkdownText(body, parsed) }
+            }
+        }
+    }
+}
+
 /** 推論・ツール実行・本文生成を同じ応答ヘッダーで表示する。 */
 @Composable
 fun LiveAssistantMessage(
@@ -242,6 +307,8 @@ fun LiveAssistantMessage(
     startedAt: Long?,
     reportedOutputTokens: Long?,
     modifier: Modifier = Modifier,
+    /** コンテキストを圧縮しているあいだは、ネタの言い回しの代わりにそう出す。 */
+    compacting: Boolean = false,
 ) {
     ReplyLayout(
         agent,
@@ -249,7 +316,12 @@ fun LiveAssistantMessage(
         modifier,
         avatarBusy = running,
         header = {
-            if (running) ThinkingIndicator(startedAt, outputText = text, reportedOutputTokens = reportedOutputTokens)
+            if (running) ThinkingIndicator(
+                startedAt,
+                outputText = text,
+                reportedOutputTokens = reportedOutputTokens,
+                label = if (compacting) stringResource(R.string.chat_compacting) else null,
+            )
         },
     ) {
         // 未完の Markdown をチャンクごとに再解析せず、確定後に Markdown として描画する。
@@ -332,7 +404,12 @@ fun ToolToggle(parts: List<MessagePart.ToolCall>, expanded: Boolean, modifier: M
     ) {
         val tint = if (parts.any { it.isError }) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
         Icon(painterResource(R.drawable.ic_huge_tool), null, Modifier.size(Spacing.l), tint = tint)
-        Text(pluralStringResource(R.plurals.chat_tools_count, parts.size, parts.size), style = MaterialTheme.typography.labelLarge, color = tint)
+        // 件数だけを差分の数と同じ桁の回転で数え上げる（実行中に増えていく）。前後の文言は訳文の数字の位置で分ける
+        val label = pluralStringResource(R.plurals.chat_tools_count, parts.size, parts.size).split(parts.size.toString(), limit = 2)
+        jp.miyavi.android.clawdroid.core.designsystem.RollingCounter(
+            parts.size, MaterialTheme.typography.labelLarge, tint,
+            prefix = label.first(), suffix = label.getOrElse(1) { "" }, animateFirst = false,
+        )
         Icon(painterResource(R.drawable.ic_huge_arrow_down), contentDescription = null, modifier = Modifier.size(Spacing.l).rotate(if (expanded) 180f else 0f), tint = tint)
     }
 }

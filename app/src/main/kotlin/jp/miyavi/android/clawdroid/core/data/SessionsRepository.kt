@@ -2,6 +2,7 @@ package jp.miyavi.android.clawdroid.core.data
 
 import jp.miyavi.android.clawdroid.core.gateway.int
 import jp.miyavi.android.clawdroid.core.gateway.long
+import jp.miyavi.android.clawdroid.core.gateway.GatewayRpcException
 import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
@@ -371,22 +372,59 @@ class SessionsRepository(
      */
     suspend fun createWorktree(parent: SessionSummary, agentId: String, name: String?, baseRef: String?, fork: Boolean): String? {
         val cwd = parent.cwd ?: return null
-        val result = gateway.request("sessions.create", buildJsonObject {
-            put("agentId", agentId)
-            put("parentSessionKey", parent.key)
-            put("cwd", cwd)
-            put("worktree", true)
-            name?.takeIf(String::isNotBlank)?.let {
-                put("worktreeName", it)
-                // 表示名はブランチ名に（label と違い重複してよい。マスター指定 2026-11-24）。省いたときは画面側でブランチ名を出す
-                put("displayName", it)
+        val wanted = name?.trim()?.takeIf(String::isNotBlank)
+        // 同じ名前を何度も使えるよう、予約済み（使用中・復元用のスナップショットが残っている）なら -2, -3… を付ける。
+        // 古いスナップショットは消さない（前回の作業を復元できるまま。マスター指定 2026-11-24）
+        var candidate = wanted?.let { w -> takenWorktreeNames(parent)?.let { freeWorktreeName(w, it) } ?: w }
+        repeat(WORKTREE_NAME_RETRIES) {
+            try {
+                val result = gateway.request("sessions.create", buildJsonObject {
+                    put("agentId", agentId)
+                    put("parentSessionKey", parent.key)
+                    put("cwd", cwd)
+                    put("worktree", true)
+                    candidate?.let { put("worktreeName", it) }
+                    // 表示名は入れた名前のまま（ブランチが refactor-2 でも、セッションは「refactor」）
+                    wanted?.let { put("displayName", it) }
+                    baseRef?.takeIf(String::isNotBlank)?.let { put("worktreeBaseRef", it) }
+                    if (fork) put("fork", true)
+                    // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
+                }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject()
+                refresh(agentId)
+                return result?.string("key") ?: result?.string("sessionKey")
+            } catch (e: GatewayRpcException) {
+                // 台帳を読めなかった・読んだ後に取られたときは、番号を進めて作り直す
+                val base = wanted ?: throw e
+                if (!e.error.message.contains(WORKTREE_NAME_IN_USE, ignoreCase = true)) throw e
+                candidate = nextWorktreeName(base, candidate)
             }
-            baseRef?.takeIf(String::isNotBlank)?.let { put("worktreeBaseRef", it) }
-            if (fork) put("fork", true)
-            // 名前（label）は付けない。Gateway は同じ名前のセッションを断るため、元と同じ名前だと作れない
-        }, timeoutMs = WORKTREE_TIMEOUT_MS).asObject()
-        refresh(agentId)
-        return result?.string("key") ?: result?.string("sessionKey")
+        }
+        throw IllegalStateException("no free worktree name for $wanted")
+    }
+
+    /**
+     * 同じリポジトリで使えないワークツリー名（Gateway の台帳で予約中のもの＋ローカルの `openclaw/<名前>` ブランチ）。
+     * 台帳を読めなければ null。
+     */
+    suspend fun takenWorktreeNames(parent: SessionSummary): Set<String>? {
+        val cwd = parent.cwd ?: return null
+        val repoRoot = parent.projectFolder ?: cwd.trimEnd('/')
+        val reserved = runCatching {
+            gateway.request("worktrees.list", JsonObject(emptyMap())).asObject()?.array("worktrees").orEmpty()
+                .mapNotNull { it as? JsonObject }
+                .filter { w -> w.string("repoRoot")?.trimEnd('/') == repoRoot && (w.long("removedAt") == null || w.string("snapshotRef") != null) }
+                .mapNotNull { it.string("name") }
+                .toSet()
+        }.getOrNull() ?: return null
+        val branchNames = runCatching { branches(cwd) }.getOrNull()?.branches.orEmpty()
+            .filterNot { it.remote }
+            .mapNotNull { b -> b.name.removePrefix(WORKTREE_BRANCH_PREFIX).takeIf { it != b.name } }
+        return reserved + branchNames
+    }
+
+    private fun nextWorktreeName(base: String, current: String?): String {
+        val n = current?.removePrefix("$base-")?.toIntOrNull() ?: 1
+        return "$base-${n + 1}"
     }
 
     /**
@@ -464,6 +502,10 @@ class SessionsRepository(
 
     private companion object {
         const val MAX_FOLDER_CANDIDATES = 5
+        /** ワークツリーの名前が使用中だったときに番号を進めて作り直す回数。 */
+        const val WORKTREE_NAME_RETRIES = 5
+        /** Gateway の「名前は使用中」のエラーの文言（details に種類が無いため文言で見分ける）。 */
+        const val WORKTREE_NAME_IN_USE = "worktree name is already in use"
         /** 同じフォルダのブランチを問い直すまでの間隔。 */
         const val BRANCH_RECHECK_MS = 60_000L
         const val DIFF_POLLS = 10
@@ -513,3 +555,14 @@ data class DiffFile(
     val binary: Boolean,
     val patch: String?,
 )
+
+/** Gateway がワークツリーのブランチに付ける頭（固定の名前空間）。 */
+internal const val WORKTREE_BRANCH_PREFIX = "openclaw/"
+
+/** [taken] を避けた名前。[wanted] が空いていればそのまま、使われていれば -2, -3… と番号を付ける。 */
+internal fun freeWorktreeName(wanted: String, taken: Set<String>): String {
+    if (wanted !in taken) return wanted
+    var n = 2
+    while ("$wanted-$n" in taken) n++
+    return "$wanted-$n"
+}

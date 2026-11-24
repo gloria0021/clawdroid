@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -17,11 +18,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
+import jp.miyavi.android.clawdroid.core.designsystem.RollingCounter
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
 import kotlinx.coroutines.delay
 import kotlin.random.Random
@@ -36,6 +43,8 @@ fun ThinkingIndicator(
     modifier: Modifier = Modifier,
     outputText: String = "",
     reportedOutputTokens: Long? = null,
+    /** 決まった言い回し（コンテキストの圧縮中など）。null ならネタを入れ替えて出す。 */
+    label: String? = null,
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(startedAt) {
@@ -47,15 +56,16 @@ fun ThinkingIndicator(
     val elapsed = ((now - (startedAt ?: now)) / 1_000).coerceAtLeast(0)
     val phrases = stringArrayResource(R.array.chat_thinking_phrases)
     // ネタは毎回ランダムに選ぶ。直前と同じネタは続けない（マスター指定 2026-11-23）
+    // 切り替えは経過秒で数え、末尾の点が 1 個に戻る瞬間にそろえる
+    val phraseTick = elapsed / PHRASE_SECONDS
     var phraseIndex by remember(startedAt, phrases.size) { mutableIntStateOf(Random.nextInt(phrases.size)) }
-    LaunchedEffect(startedAt, phrases.size) {
-        if (phrases.size < 2) return@LaunchedEffect
-        while (true) {
-            delay(PHRASE_SECONDS * 1_000)
+    val firstTick = remember(startedAt) { phraseTick }
+    LaunchedEffect(phraseTick, phrases.size) {
+        if (phraseTick != firstTick && phrases.size >= 2) {
             phraseIndex = (phraseIndex + 1 + Random.nextInt(phrases.size - 1)) % phrases.size
         }
     }
-    val label = phrases[phraseIndex]
+    val shown = label ?: phrases[phraseIndex]
     // Gateway から実際の数が届いたときだけ出す（画面の文からの見積もりは、思考やツールの分が入らず小さく出て誤解を招くので出さない。
     // マスター指定 2026-11-23）
     val count = remember(reportedOutputTokens) { reportedOutputTokens?.let(::formatReportedOutputTokens) }
@@ -64,19 +74,23 @@ fun ThinkingIndicator(
         modifier.heightIn(min = Dimens.compactTouchTarget).semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.Center,
     ) {
+        // 末尾の「…」を 1 秒ごとに 1 → 2 → 3 個と増える点に替える。残りの点は透明で幅を取り、文字が横に揺れないようにする
+        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        val dots = (elapsed % DOT_COUNT).toInt() + 1
         Text(
-            label,
+            buildAnnotatedString {
+                append(shown.removeSuffix("…"))
+                append(".".repeat(dots))
+                withStyle(SpanStyle(color = color.copy(alpha = 0f))) { append(".".repeat(DOT_COUNT - dots)) }
+            },
+            modifier = Modifier.clearAndSetSemantics { contentDescription = shown },
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-            Text(
-                formatElapsed(elapsed),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            RollingElapsed(elapsed)
             if (count != null) Text(
                 stringResource(R.string.chat_output_tokens_live, count),
                 style = MaterialTheme.typography.labelMedium,
@@ -88,13 +102,33 @@ fun ThinkingIndicator(
     }
 }
 
-/** 「12s」「3m 05s」「1h 02m」。 */
-private fun formatElapsed(seconds: Long): String = when {
-    seconds < 60 -> "${seconds}s"
-    seconds < 3_600 -> "%dm %02ds".format(seconds / 60, seconds % 60)
-    else -> "%dh %02dm".format(seconds / 3_600, (seconds % 3_600) / 60)
+/**
+ * 「12s」「3m 05s」「1h 02m」を、差分の数と同じ桁の回転で数え上げる。
+ * 下の単位は上の単位が変わるたびに作り直し、59 → 0 を逆回転させずに 0 から始める。
+ */
+@Composable
+private fun RollingElapsed(seconds: Long) {
+    val style = MaterialTheme.typography.labelMedium
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row {
+        when {
+            seconds < 60 -> RollingCounter(seconds.toInt(), style, color, suffix = "s", animateFirst = false)
+            seconds < 3_600 -> {
+                val minutes = (seconds / 60).toInt()
+                RollingCounter(minutes, style, color, suffix = "m ", animateFirst = false)
+                key(minutes) { RollingCounter((seconds % 60).toInt(), style, color, suffix = "s", minDigits = 2, animateFirst = false) }
+            }
+            else -> {
+                val hours = (seconds / 3_600).toInt()
+                RollingCounter(hours, style, color, suffix = "h ", animateFirst = false)
+                key(hours) { RollingCounter(((seconds % 3_600) / 60).toInt(), style, color, suffix = "m", minDigits = 2, animateFirst = false) }
+            }
+        }
+    }
 }
 
 private const val TICK_MS = 1_000L
+/** 言い回しの末尾で増える点の最大数。 */
+private const val DOT_COUNT = 3
 /** ネタを入れ替える間隔（秒）。 */
-private const val PHRASE_SECONDS = 5L
+private const val PHRASE_SECONDS = 9L

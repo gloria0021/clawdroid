@@ -422,6 +422,22 @@ class ChatViewModel(
         }
     }
 
+    /** 並行開発のシートで、同じ名前と重ならない名前を出すための、使えない名前。 */
+    suspend fun takenWorktreeNames(parent: SessionSummary): Set<String>? =
+        runCatching { sessions.takenWorktreeNames(parent) }.getOrNull()
+
+    /** アーカイブ済みのワークツリーのセッションを戻して開く（Gateway がワークツリーも復元する）。 */
+    fun restoreWorktree(session: SessionSummary) {
+        val agentId = session.agentId ?: selectedAgentId.value ?: return
+        viewModelScope.launch {
+            runCatching { sessions.setArchived(session, false) }
+                .onFailure { _events.tryEmit(ChatEvent.Error(it.message)); return@launch }
+            selectedAgentId.value = agentId
+            openSession(session.key, agentId)
+            settings.selectSession(agentId, session.key)
+        }
+    }
+
     private suspend fun applyAgent(agentId: String, sessionKey: String?) {
         selectedAgentId.value = agentId
         sessions.ensureLoaded(agentId)

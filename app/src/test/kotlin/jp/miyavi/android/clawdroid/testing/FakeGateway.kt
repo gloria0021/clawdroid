@@ -23,7 +23,7 @@ import okhttp3.WebSocketListener
  */
 class FakeGateway {
     /** ハンドラから投げると、その RPC を失敗（`ok: false`）で返す。 */
-    class RpcError(val code: String, val details: JsonObject? = null) : Exception(code)
+    class RpcError(val code: String, val details: JsonObject? = null, val text: String? = null) : Exception(code)
 
     sealed interface ConnectBehavior {
         data class Accept(val deviceToken: String? = "device-token-1", val tickIntervalMs: Long = 30_000) : ConnectBehavior
@@ -102,7 +102,7 @@ class FakeGateway {
                     val payload = try {
                         handler(params) ?: JsonObject(emptyMap())
                     } catch (e: RpcError) {
-                        webSocket.send(error(id, e.code, e.details))
+                        webSocket.send(error(id, e.code, e.details, e.text))
                         return
                     }
                     webSocket.send(
@@ -176,10 +176,10 @@ class FakeGateway {
         }
     }
 
-    private fun error(id: String, code: String, details: JsonObject?) = buildJsonObject {
+    private fun error(id: String, code: String, details: JsonObject?, text: String? = null) = buildJsonObject {
         put("type", "res"); put("id", id); put("ok", false)
         put("error", buildJsonObject {
-            put("code", code); put("message", code.lowercase())
+            put("code", code); put("message", text ?: code.lowercase())
             details?.let { put("details", it) }
         })
     }.toString()

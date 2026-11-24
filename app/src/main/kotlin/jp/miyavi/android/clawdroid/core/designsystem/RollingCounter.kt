@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -38,8 +39,19 @@ import kotlinx.coroutines.withContext
  * 回る量は描画（配置）の中で読むので、毎フレームの組み立て直しは桁の数字が変わるときだけ。
  */
 @Composable
-fun RollingCounter(value: Int, style: TextStyle, color: Color, modifier: Modifier = Modifier, prefix: String = "") {
-    val animated = remember { Animatable(0f) }
+fun RollingCounter(
+    value: Int,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    prefix: String = "",
+    suffix: String = "",
+    /** 0 で埋めて常に見せる桁数（「3m 05s」の秒など）。 */
+    minDigits: Int = 1,
+    /** false なら最初の表示は今の値から始める（スクロールで入ってきた行や開き直しで数え上げない）。 */
+    animateFirst: Boolean = true,
+) {
+    val animated = remember { Animatable(if (animateFirst) 0f else value.toFloat()) }
     val motion = MaterialTheme.motionScheme
     val spec = motion.defaultEffectsSpec<Float>()
     LaunchedEffect(value) {
@@ -54,24 +66,25 @@ fun RollingCounter(value: Int, style: TextStyle, color: Color, modifier: Modifie
     }
     // 幅を動かさない（揺れないように）: 桁の数は「動く前と後の大きいほう」で決め、上の桁の 0 は見えなくするだけで場所は取っておく。
     // 桁の幅は 0〜9 でいちばん広い数字に合わせる（プロポーショナルな字体でも 1 と 8 で幅が変わらない）
-    val digits by remember { derivedStateOf { digitCount(maxOf(abs(animated.value), abs(value.toFloat())).roundToInt()) } }
+    val digits by remember(minDigits) { derivedStateOf { maxOf(minDigits, digitCount(maxOf(abs(animated.value), abs(value.toFloat())).roundToInt())) } }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val digitWidth = remember(style, density) {
         with(density) { (0..9).maxOf { measurer.measure(it.toString(), style).size.width }.toDp() }
     }
     val lineHeight = with(density) { style.lineHeight.toDp() }
-    Row(modifier.clearAndSetSemantics { contentDescription = "$prefix$value" }) {
+    Row(modifier.clearAndSetSemantics { contentDescription = "$prefix$value$suffix" }) {
         if (prefix.isNotEmpty()) Text(prefix, style = style, color = color)
         for (position in digits - 1 downTo 0) {
-            Digit(position, { animated.value }, style, color, Modifier.width(digitWidth).height(lineHeight))
+            Digit(position, position < minDigits, { animated.value }, style, color, Modifier.width(digitWidth).height(lineHeight))
         }
+        if (suffix.isNotEmpty()) Text(suffix, style = style, color = color)
     }
 }
 
 /** 1 つの桁。いまの数字と次の数字を縦に並べ、回る量だけずらして窓から見せる。 */
 @Composable
-private fun Digit(position: Int, value: () -> Float, style: TextStyle, color: Color, modifier: Modifier) {
+private fun Digit(position: Int, alwaysShown: Boolean, value: () -> Float, style: TextStyle, color: Color, modifier: Modifier) {
     val unit = 10f.pow(position)
     val current by remember(position) { derivedStateOf { (floor(value().coerceAtLeast(0f) / unit).toInt()) % 10 } }
     val density = LocalDensity.current
@@ -79,14 +92,15 @@ private fun Digit(position: Int, value: () -> Float, style: TextStyle, color: Co
     val lineHeight = with(density) { style.lineHeight.toDp() }
     Box(
         modifier.clipToBounds().graphicsLayer {
-            // 上の桁の 0（まだ届いていない桁）は見せない。1 の位はいつも見せる
-            alpha = if (position == 0 || value().coerceAtLeast(0f) >= unit - 1f) 1f else 0f
+            // 上の桁の 0（まだ届いていない桁）は見せない。1 の位と 0 で埋める桁はいつも見せる
+            alpha = if (alwaysShown || value().coerceAtLeast(0f) >= unit - 1f) 1f else 0f
         },
         contentAlignment = Alignment.TopCenter,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.offset {
+            // 枠（1 行ぶん）に縛られると 2 つ目の数字が高さ 0 になるので、2 行ぶんで並べて枠で切る（去る数字と来る数字を同時に見せる）
+            modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true).offset {
                 // 下の桁がすべて 9 のあいだだけ、1 の位の端数ぶん回る（繰り上がり）
                 val v = value().coerceAtLeast(0f)
                 val below = v % unit

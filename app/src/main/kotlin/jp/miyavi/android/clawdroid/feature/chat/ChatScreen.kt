@@ -119,6 +119,7 @@ import jp.miyavi.android.clawdroid.feature.chat.message.AssistantMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.ImageOverlay
 import jp.miyavi.android.clawdroid.feature.chat.message.LiveAssistantMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.ModelChangeDivider
+import jp.miyavi.android.clawdroid.feature.chat.message.SystemNoticeDivider
 import jp.miyavi.android.clawdroid.feature.chat.message.ToolGroup
 import jp.miyavi.android.clawdroid.feature.chat.message.UserMessage
 import jp.miyavi.android.clawdroid.feature.chat.message.VideoPreviewSheet
@@ -181,6 +182,11 @@ internal fun ChatScreen(
         jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalHeadBranches provides headBranches,
         jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalFolderDiffs provides folderDiffs,
         jp.miyavi.android.clawdroid.feature.chat.sidebar.LocalDiffLoader provides viewModel::diffSummary,
+        LocalWorktreeNaming provides WorktreeNaming(
+            takenNames = viewModel::takenWorktreeNames,
+            archived = { agentId -> state.sessionsByAgent[agentId]?.archived.orEmpty() },
+            restore = viewModel::restoreWorktree,
+        ),
     ) {
     ChatContent(
         grouping = grouping,
@@ -783,6 +789,7 @@ private fun MessageList(
                         running = chat.running,
                         startedAt = chat.runStartedAt,
                         reportedOutputTokens = chat.reportedOutputTokens,
+                        compacting = chat.activity == jp.miyavi.android.clawdroid.core.data.RunActivity.Compacting,
                         modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
                             .padding(top = if (rows.isEmpty()) 0.dp else Spacing.l),
                     )
@@ -795,7 +802,11 @@ private fun MessageList(
                     .padding(top = if (index == latestFirst.lastIndex) 0.dp else Spacing.l)
                 val precedingTools = remember(row) { row.dropLast(1).flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } }
                 val modelChange = item.modelChange
-                if (message.parts.isEmpty()) {
+                val notice = message.notice
+                if (notice != null) {
+                    // コンテキストの圧縮などのお知らせは、吹き出しではなく区切りで出す
+                    SystemNoticeDivider(notice, message.text, item.markdown.singleOrNull(), itemModifier)
+                } else if (message.parts.isEmpty()) {
                     // モデルの切り替えの記録だけの行
                     if (modelChange != null) ModelChangeDivider(modelChange, itemModifier)
                 } else if (message.parts.all { it is MessagePart.ToolCall }) {
