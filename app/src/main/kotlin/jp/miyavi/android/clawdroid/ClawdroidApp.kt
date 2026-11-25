@@ -53,7 +53,12 @@ class AppContainer(app: Application) {
 
     /** アプリが前にあるか・開いている会話・通知から開く行き先（spec 006）。 */
     val foreground = jp.miyavi.android.clawdroid.core.notify.ForegroundState()
-    internal val notifier = jp.miyavi.android.clawdroid.core.notify.Notifier(app, gateway, sessions, approvals, settings, foreground, appScope)
+    /** エージェントの顔の画像（通知・ショートカットのアイコン）。 */
+    val avatarBitmaps = jp.miyavi.android.clawdroid.core.data.AgentAvatarBitmaps(app)
+    internal val notifier = jp.miyavi.android.clawdroid.core.notify.Notifier(app, gateway, sessions, approvals, settings, foreground, appScope, avatarBitmaps)
+
+    /** ランチャーのショートカット（spec 007）。 */
+    val shortcuts = jp.miyavi.android.clawdroid.core.shortcut.ShortcutPublisher(app, settings, sessions, gateway, secrets, foreground, avatarBitmaps, appScope)
 
     /** アプリ全体のダウンロード（ファイルビューアを閉じても、画面を消しても続く）。 */
     val downloads = jp.miyavi.android.clawdroid.core.data.DownloadCenter(
@@ -74,6 +79,7 @@ class ClawdroidApp : Application() {
         container = AppContainer(this)
         container.gateway.start()
         container.notifier.start()
+        container.shortcuts.start()
         // 前後の切り替え: 裏では文字ごとの流れを止め（spec 006 FR-004）、前に来たら常駐を始め直す（裏からは始められないため）
         androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStart(owner: androidx.lifecycle.LifecycleOwner) {

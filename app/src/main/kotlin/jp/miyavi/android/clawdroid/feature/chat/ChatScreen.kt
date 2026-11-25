@@ -89,6 +89,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
@@ -309,6 +312,26 @@ fun ChatContent(
     val clipboard = LocalClipboard.current
     val composerFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    // サイドパネルを開き始めたら（ボタン・左端からのスワイプとも）、キーボードを閉じる。
+    // 閉じた位置はパネルの位置の最小値（開く途中は必ずそれより右）なので、そこからタッチの遊び（touch slop）より動いた時点で閉じる
+    val touchSlop = androidx.compose.ui.platform.LocalViewConfiguration.current.touchSlop
+    LaunchedEffect(drawerState, touchSlop) {
+        var closedOffset = Float.POSITIVE_INFINITY
+        snapshotFlow { drawerState.currentOffset }
+            .map { offset ->
+                if (offset.isNaN()) return@map false
+                closedOffset = minOf(closedOffset, offset)
+                drawerState.targetValue == DrawerValue.Open || offset > closedOffset + touchSlop
+            }
+            .distinctUntilChanged()
+            .collect { opening ->
+                if (opening) {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                }
+            }
+    }
     val connected = state.connection as? ConnectionState.Connected
     val canReply = connected != null && state.currentSession?.archived != true
     // 画像は一度に複数選べる（上限は MAX_ATTACH_IMAGES）
@@ -454,7 +477,7 @@ fun ChatContent(
                                 model = model,
                                 contextFraction = state.currentSession?.contextFraction,
                                 onOpenSession = { showSessionSheet = true },
-                                pending = state.chat?.pending.orEmpty(),
+                                pending = state.chat?.queuedInputs.orEmpty(),
                                 onCancelPending = actions.cancelPending,
                                 onRestorePending = actions.restorePending,
                                 onTextChange = actions.textChange,
@@ -815,17 +838,21 @@ private fun MessageList(
             // 末尾のキーを固定し、生成中の行が伸びても同じレイアウトで下端に留める。
             // 履歴へスクロールしていれば LazyColumn がその行のキーと位置を維持する。
             item(key = "chat-tail") {
-                if (chat.running || liveText.isNotBlank()) {
-                    LiveAssistantMessage(
-                        text = liveText,
-                        agent = agent,
-                        running = chat.running,
-                        startedAt = chat.runStartedAt,
-                        reportedOutputTokens = chat.reportedOutputTokens,
-                        compacting = chat.activity == jp.miyavi.android.clawdroid.core.data.RunActivity.Compacting,
-                        modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
-                            .padding(top = if (rows.isEmpty()) 0.dp else Spacing.l),
-                    )
+                Column(Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()) {
+                    if (chat.running || liveText.isNotBlank()) {
+                        LiveAssistantMessage(
+                            text = liveText,
+                            agent = agent,
+                            running = chat.running,
+                            startedAt = chat.runStartedAt,
+                            reportedOutputTokens = chat.reportedOutputTokens,
+                            compacting = chat.activity == jp.miyavi.android.clawdroid.core.data.RunActivity.Compacting,
+                            modifier = Modifier.fillMaxWidth().padding(top = if (rows.isEmpty()) 0.dp else Spacing.l),
+                        )
+                    }
+                    // 送信済みで、まだ読まれていない送信。流れてくる応答より常に下に置き、読まれたらその位置で会話に入る
+                    // （送った時点の位置に入れると、読む前の応答がその下に続いて答えたように見えるため）
+                    SentInputs(chat.sentInputs, onOpenImage, onOpenVideo, onCopy, top = chat.running || liveText.isNotBlank() || rows.isNotEmpty())
                 }
             }
             itemsIndexed(latestFirst, key = { index, _ -> rowKeys[rowKeys.lastIndex - index] }, contentType = { _, row -> row.last().message.role }) { index, row ->
@@ -874,6 +901,43 @@ private fun MessageList(
         }
     }
 }
+
+/** 送信済みで読まれ待ちの送信（未読の吹き出し）。淡く出し、時刻の代わりに「未読」と示す。取り消しの操作は出さない。 */
+@Composable
+private fun SentInputs(
+    inputs: List<jp.miyavi.android.clawdroid.core.data.PendingInput>,
+    onOpenImage: (jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery) -> Unit,
+    onOpenVideo: (String) -> Unit,
+    onCopy: (String) -> Unit,
+    top: Boolean,
+) {
+    val unread = stringResource(R.string.chat_sent_unread)
+    inputs.forEachIndexed { index, input ->
+        key(input.runId) {
+            val message = remember(input) {
+                ChatMessage(
+                    id = "sent-${input.runId}",
+                    role = ChatMessage.Role.USER,
+                    parts = input.parts.ifEmpty { listOf(MessagePart.Text(input.text)) },
+                    timestamp = null,
+                    runId = input.runId,
+                    isError = false,
+                    truncated = false,
+                )
+            }
+            UserMessage(
+                message, unread, onOpenImage, onOpenVideo,
+                onCopy = onCopy,
+                modifier = Modifier
+                    .padding(top = if (index > 0 || top) Spacing.l else 0.dp)
+                    .graphicsLayer { alpha = SENT_UNREAD_ALPHA },
+            )
+        }
+    }
+}
+
+/** 未読の吹き出しの不透明度（AGENTS.md 2.2 の無効・折りたたみと同じ 0.6）。 */
+private const val SENT_UNREAD_ALPHA = 0.6f
 
 /** 上へスクロールしているときだけ出る「最新へ」のボタン。 */
 @Composable

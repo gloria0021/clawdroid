@@ -69,7 +69,7 @@ internal fun AgentLayoutScreen(agents: List<Agent>, layout: AgentLayout, onChang
     val saved = remember(agents, layout) { layout.ordered(agents) }
     var items by remember(saved) { mutableStateOf(saved) }
     val listState = rememberLazyListState()
-    val drag = remember { DragState() }
+    val drag = remember { ReorderDragState() }
     val shownIds = remember(items, layout) { layout.visible(items).map(Agent::id).toSet() }
     val latestItems by rememberUpdatedState(items)
     val latestLayout by rememberUpdatedState(layout)
@@ -156,7 +156,7 @@ internal fun AgentLayoutScreen(agents: List<Agent>, layout: AgentLayout, onChang
                                                 onDrag = { change, amount ->
                                                     change.consume()
                                                     drag.offset += amount.y
-                                                    drag.swapIfCrossed(listState, latestItems, ::move)
+                                                    drag.swapIfCrossed(listState, latestItems.map(Agent::id), ::move)
                                                 },
                                             )
                                         },
@@ -174,8 +174,8 @@ internal fun AgentLayoutScreen(agents: List<Agent>, layout: AgentLayout, onChang
     }
 }
 
-/** ドラッグ中の項目と、元の位置からのずれ（描画の中で読む）。 */
-private class DragState {
+/** ドラッグ中の項目と、元の位置からのずれ（描画の中で読む）。設定の並べ替え（エージェント・ショートカット）で使う。 */
+internal class ReorderDragState {
     var id by mutableStateOf<String?>(null)
         private set
     var offset by mutableFloatStateOf(0f)
@@ -190,13 +190,13 @@ private class DragState {
         offset = 0f
     }
 
-    /** 隣の項目の中ほどを越えたら入れ替え、ずれをその分だけ戻す。 */
-    fun swapIfCrossed(listState: LazyListState, items: List<Agent>, move: (Int, Int) -> Unit) {
+    /** 隣の項目の中ほどを越えたら入れ替え、ずれをその分だけ戻す。[ids] は並びの順の key（`LazyColumn` の key と同じ）。 */
+    fun swapIfCrossed(listState: LazyListState, ids: List<String>, move: (Int, Int) -> Unit) {
         val current = id ?: return
-        val from = items.indexOfFirst { it.id == current }.takeIf { it >= 0 } ?: return
+        val from = ids.indexOf(current).takeIf { it >= 0 } ?: return
         val infos = listState.layoutInfo.visibleItemsInfo
         val target = if (offset > 0) from + 1 else from - 1
-        val neighbor = infos.firstOrNull { it.key == items.getOrNull(target)?.id } ?: return
+        val neighbor = infos.firstOrNull { it.key == ids.getOrNull(target) } ?: return
         val crossed = if (offset > 0) offset > neighbor.size / 2f else -offset > neighbor.size / 2f
         if (!crossed) return
         move(from, target)

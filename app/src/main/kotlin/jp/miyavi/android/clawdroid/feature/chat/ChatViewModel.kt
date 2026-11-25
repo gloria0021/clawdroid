@@ -222,9 +222,17 @@ class ChatViewModel(
         foreground?.let { fg ->
             viewModelScope.launch {
                 fg.openRequests.collect { target ->
-                    if (target is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session) {
-                        fg.consumed()
-                        openByKey(target.agentId, target.sessionKey)
+                    when (target) {
+                        is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session -> {
+                            fg.consumed()
+                            openByKey(target.agentId, target.sessionKey)
+                        }
+                        // ランチャーのショートカット（spec 007 R3）
+                        is jp.miyavi.android.clawdroid.core.notify.OpenTarget.NewChat -> {
+                            fg.consumed()
+                            openNewChat(target.agentId, target.cwd)
+                        }
+                        else -> Unit
                     }
                 }
             }
@@ -405,6 +413,15 @@ class ChatViewModel(
         viewModelScope.launch { settings.selectSession(agentId, null) }
     }
 
+    /** そのエージェントの新しい会話を、作業フォルダを入れて開く（ランチャーのショートカット。spec 007 R3）。 */
+    fun openNewChat(agentId: String, cwd: String?) {
+        openedExplicitly = true
+        selectedAgentId.value = agentId
+        sessions.ensureLoaded(agentId)
+        openSession(null, agentId, newSessionCwd = cwd)
+        viewModelScope.launch { settings.selectSession(agentId, null) }
+    }
+
     /** セッション履歴の並べ方（更新順 / 作業フォルダ別）。 */
     val sessionGrouping: StateFlow<Map<String, jp.miyavi.android.clawdroid.core.settings.SessionGrouping>> = settings.sessionGrouping
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
@@ -477,23 +494,24 @@ class ChatViewModel(
         openSession(sessionKey, agentId)
     }
 
-    private fun openSession(sessionKey: String?, agentId: String) {
+    /** [newSessionCwd] は新しい会話（[sessionKey] が null）で使う作業フォルダ。下書きを読み終えてから入れる（読み込みが入力欄を作り直すため）。 */
+    private fun openSession(sessionKey: String?, agentId: String, newSessionCwd: String? = null) {
         sessionGeneration++
         if (sessionKey == selectedSessionKey.value && currentChat.value?.agentId == agentId && sessionKey != null) return
         currentChat.value?.close()
         selectedSessionKey.value = sessionKey
         currentChat.value = sessionKey?.let { chats.session(it, agentId) }?.also { it.open() }
-        loadDraft()
+        loadDraft(newSessionCwd)
     }
 
     private fun draftKey(): String = selectedSessionKey.value ?: "new:${selectedAgentId.value}"
 
-    private fun loadDraft() {
+    private fun loadDraft(newSessionCwd: String? = null) {
         draftJob?.cancel()
         val key = draftKey()
         draftJob = viewModelScope.launch {
             val text = drafts.get(key)?.text.orEmpty()
-            _composer.value = ComposerState(text = text)
+            _composer.value = ComposerState(text = text, newSessionCwd = newSessionCwd?.trim()?.takeIf(String::isNotEmpty))
         }
     }
 
@@ -564,13 +582,18 @@ class ChatViewModel(
     /** 受け付け待ちの送信を取り消す。 */
     fun cancelPending(runId: String) {
         val chat = currentChat.value ?: return
-        viewModelScope.launch { runCatching { chat.cancelPending(runId) }.onFailure { _events.tryEmit(ChatEvent.Error(it.message)) } }
+        viewModelScope.launch {
+            runCatching { chat.cancelPending(runId) }
+                // 押した直後に送られた（キューから出た）ときは取り消せない。ピルは送信済みの吹き出しに移る
+                .onSuccess { withdrawn -> if (!withdrawn) _events.tryEmit(ChatEvent.PendingAlreadyTaken) }
+                .onFailure { _events.tryEmit(ChatEvent.Error(it.message)) }
+        }
     }
 
     fun restorePending(runId: String) {
         val chat = currentChat.value ?: return
         val input = chat.state.value.pending.firstOrNull { it.runId == runId } ?: return
-        if (input.text.isBlank() || input.hasAttachments || input.local || !restoringPending.add(runId)) return
+        if (input.text.isBlank() || input.hasAttachments || !input.cancellable || !restoringPending.add(runId)) return
         mutate {
             try {
                 if (!chat.cancelPending(runId)) {

@@ -8,9 +8,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** 通知から開く行き先（spec 006 R7）。 */
+/** 通知・ランチャーのショートカットから開く行き先（spec 006 R7・spec 007 R3）。 */
 sealed interface OpenTarget {
     data class Session(val agentId: String, val sessionKey: String) : OpenTarget
+    /** そのエージェントの新しい会話。[cwd] があればその作業フォルダで始める（セッションは最初の送信で作られる）。 */
+    data class NewChat(val agentId: String, val cwd: String?) : OpenTarget
     data class Automation(val jobId: String) : OpenTarget
     /** 承認の表示はアプリ全体のシートに出るので、アプリを開くだけ。 */
     data object Approvals : OpenTarget

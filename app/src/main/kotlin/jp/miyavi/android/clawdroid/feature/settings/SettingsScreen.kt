@@ -82,6 +82,8 @@ data class SettingsState(
     val agentsTotal: Int = 0,
     /** 通知の設定（spec 006。null なら節を出さない）。 */
     val notifications: jp.miyavi.android.clawdroid.core.settings.NotificationSettings? = null,
+    /** ランチャーのショートカットの数（spec 007）。 */
+    val shortcuts: Int = 0,
 )
 
 data class SettingsActions(
@@ -101,6 +103,7 @@ data class SettingsActions(
     val openAgentLayout: () -> Unit = {},
     val setNotifications: (jp.miyavi.android.clawdroid.core.settings.NotificationSettings) -> Unit = {},
     val openNotificationSettings: () -> Unit = {},
+    val openShortcuts: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -215,6 +218,13 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             title = stringResource(R.string.settings_agents_layout),
                             value = stringResource(R.string.settings_agents_layout_value, state.agentsShown, state.agentsTotal),
                             onClick = actions.openAgentLayout,
+                        )
+                        // ランチャーの長押しメニューの項目（spec 007）
+                        ChoiceItem(
+                            icon = R.drawable.ic_huge_flash,
+                            title = stringResource(R.string.settings_shortcuts),
+                            value = stringResource(R.string.settings_shortcuts_value, state.shortcuts, jp.miyavi.android.clawdroid.core.shortcut.MAX_SHORTCUTS),
+                            onClick = actions.openShortcuts,
                         )
                     }
                 }

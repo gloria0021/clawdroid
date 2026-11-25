@@ -147,7 +147,8 @@ fun ComposerPill(
         AnimatedVisibility(visible = hasQuestion, enter = expandEnter(), exit = shrinkExit()) {
             QuestionRow(hazeState, onOpenQuestion, Modifier.padding(bottom = Spacing.xs))
         }
-        // 受け付け待ちの送信（steer）。入力欄の上に積み、会話に取り込まれたら消える。取り消しはゴミ箱
+        // キューにある送信（取り消せるものだけ）。入力欄の上に積み、送られたら消える。取り消しはゴミ箱。
+        // 送信済みで読まれ待ちの送信は、会話の末尾に「未読」の吹き出しで出す（ピル = まだ送っていない、にそろえる）
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.padding(bottom = Spacing.xs)) {
             pending.forEach { input ->
                 key(input.runId) {
@@ -509,8 +510,8 @@ private fun PendingInputRow(hazeState: HazeState, input: PendingInput, enabled: 
                 modifier = Modifier.weight(1f),
             )
             Row {
-                // 取り下げて入力欄に戻せるのは、Gateway が待ちに積んだ送信だけ。差し込みで受け付け済みのあいだはボタンを出さない
-                if (!input.local && !input.hasAttachments && input.text.isNotBlank()) {
+                // ここに出るのは取り消せる送信（OpenClaw のキューにあるもの）だけ。入力欄に戻せるのは文字だけの送信
+                if (!input.hasAttachments && input.text.isNotBlank()) {
                     IconButton(enabled = enabled, onClick = onRestore) {
                         Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = stringResource(R.string.chat_pending_restore_cd))
                     }

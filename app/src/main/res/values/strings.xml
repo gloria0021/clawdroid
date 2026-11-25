@@ -227,6 +227,37 @@
     <string name="settings_agents_show_cd">%1$s をサイドパネルに出す</string>
     <string name="settings_agents_move_up">上へ移動</string>
     <string name="settings_agents_move_down">下へ移動</string>
+    <!-- ランチャーのショートカット（spec 007） -->
+    <string name="settings_shortcuts">ランチャーのショートカット</string>
+    <string name="settings_shortcuts_value">%1$d / %2$d 個</string>
+    <string name="shortcuts_hint">ホーム画面で Clawdroid のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先の会話がアーカイブ・削除されると、自動で外れます。</string>
+    <string name="shortcuts_empty">まだありません。下の「追加」から作れます。</string>
+    <string name="shortcuts_add">追加</string>
+    <string name="shortcuts_full">ショートカットは 4 つまでです</string>
+    <string name="shortcut_dest_home">ホーム</string>
+    <string name="shortcut_dest_folder">新しい会話</string>
+    <string name="shortcut_dest_session">会話</string>
+    <string name="shortcut_desc_home">%1$s · ホーム</string>
+    <string name="shortcut_desc_folder">%1$s · 新しい会話（%2$s）</string>
+    <string name="shortcut_desc_folder_default">%1$s · 新しい会話</string>
+    <string name="shortcut_desc_session">%1$s · 会話</string>
+    <string name="shortcut_archived">アーカイブ済み。会話のアーカイブを戻すと、ランチャーにも戻ります</string>
+    <string name="shortcut_edit_title_new">ショートカットを追加</string>
+    <string name="shortcut_edit_title">ショートカットを編集</string>
+    <string name="shortcut_field_agent">エージェント</string>
+    <string name="shortcut_field_destination">行き先</string>
+    <string name="shortcut_field_folder">作業フォルダ</string>
+    <string name="shortcut_folder_default">エージェントの既定</string>
+    <string name="shortcut_field_session">会話</string>
+    <string name="shortcut_sessions_empty">アクティブな会話がありません</string>
+    <string name="shortcut_field_label">名前</string>
+    <string name="shortcut_label_placeholder">空なら「%1$s」</string>
+    <string name="shortcut_remove">このショートカットを外す</string>
+    <string name="shortcut_edit_cd">%1$s を編集</string>
+    <string name="shortcut_disabled_archived">この会話はアーカイブされました</string>
+    <string name="shortcut_disabled_deleted">この会話は削除されました</string>
+    <string name="shortcut_disabled_agent">このエージェントは見つかりません</string>
+    <string name="shortcut_disabled_gateway">接続先が変わりました</string>
     <string name="settings_title">設定</string>
     <string name="back_cd">戻る</string>
     <string name="settings_section_connection">接続</string>
@@ -420,7 +451,8 @@
     <string name="chat_permission_full_description">通常の承認を省略します。ホストとツールのポリシーは適用されます。</string>
     <string name="chat_permission_button">実行権限（%1$s）</string>
     <string name="chat_model_pill_cd">%1$s、コンテキスト %2$s 使用。押すと設定と使用量を開きます</string>
-    <string name="chat_pending_label">受け付け待ち</string>
+    <string name="chat_pending_label">送信待ち</string>
+    <string name="chat_sent_unread">送信済み・未読</string>
     <string name="chat_pending_cancel_cd">この送信を取り消す</string>
     <string name="usage_remaining_days">あと%1$d日%2$d時間</string>
     <string name="usage_remaining_hours">あと%1$d時間%2$d分</string>
@@ -480,7 +512,7 @@
     <string name="settings_font_size_value" translatable="false">%1$d sp</string>
     <string name="settings_font_line_seed_jp" translatable="false">LINE Seed JP</string>
     <string name="chat_pending_restore_cd">入力欄に戻す</string>
-    <string name="chat_pending_already_taken">このメッセージはもう待機中ではありません</string>
+    <string name="chat_pending_already_taken">もう送信済みのため取り消せません</string>
     <string name="question_submit">答える</string>
     <string name="question_skip">スキップ</string>
     <string name="question_failed">送れませんでした。もう一度お試しください</string>

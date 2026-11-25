@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import jp.miyavi.android.clawdroid.core.shortcut.ShortcutSettings
 
 /** 外観。テーマとは独立（data-model 4）。 */
 enum class Appearance { SYSTEM, LIGHT, DARK }
@@ -160,6 +161,18 @@ class SettingsStore(context: Context) {
 
     suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
 
+    /** ランチャーのショートカットの枠（spec 007 R7）。読めなければ空。 */
+    val shortcuts: Flow<ShortcutSettings> = store.data.map { p ->
+        p[SHORTCUTS]?.let { runCatching { json.decodeFromString<ShortcutSettings>(it) }.getOrNull() } ?: ShortcutSettings()
+    }.distinctUntilChanged()
+
+    /** 枠を書き換える（読んで書くあいだに別の書き込みが割り込まないよう、DataStore の 1 回の編集で行う）。 */
+    suspend fun updateShortcuts(transform: (ShortcutSettings) -> ShortcutSettings) = store.edit { p ->
+        val current = p[SHORTCUTS]?.let { runCatching { json.decodeFromString<ShortcutSettings>(it) }.getOrNull() } ?: ShortcutSettings()
+        val next = transform(current)
+        if (next != current) p[SHORTCUTS] = json.encodeToString(next)
+    }
+
     suspend fun selectSession(agentId: String, sessionKey: String?) = store.edit { p ->
         val current = p[SELECTED_SESSIONS]?.let {
             runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull()
@@ -188,6 +201,7 @@ class SettingsStore(context: Context) {
         val AGENT_LAYOUT = stringPreferencesKey("agent_layout")
         val SESSION_GROUPING_BY_AGENT = stringPreferencesKey("session_grouping_by_agent")
         val CODE_WRAP = booleanPreferencesKey("code_wrap")
+        val SHORTCUTS = stringPreferencesKey("shortcuts")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
     }
 }

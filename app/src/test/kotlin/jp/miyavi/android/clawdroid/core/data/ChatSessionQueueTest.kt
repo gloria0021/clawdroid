@@ -32,6 +32,8 @@ class ChatSessionQueueTest {
     private lateinit var client: GatewayClient
     /** 履歴が返す受け付け待ちの runId。 */
     @Volatile private var queuedRunIds = emptyList<String>()
+    /** 履歴が返す、差し込み済み・差し込みの順番待ちの runId（Gateway が `queued: true` を付けない送信）。 */
+    @Volatile private var steeredRunIds = emptyList<String>()
     /** 履歴に記録済みのエージェントの文（最後の利用者のメッセージの後ろ）。 */
     @Volatile private var committedReply: String? = null
 
@@ -62,6 +64,12 @@ class ChatSessionQueueTest {
                             add(buildJsonObject {
                                 put("id", "in-$id"); put("runId", id); put("acceptedAt", 1); put("state", "queued"); put("queued", true)
                                 put("message", buildJsonObject { put("role", "user"); put("content", "queued $id") })
+                            })
+                        }
+                        steeredRunIds.forEach { id ->
+                            add(buildJsonObject {
+                                put("id", "in-$id"); put("runId", id); put("acceptedAt", 1); put("state", "queued")
+                                put("message", buildJsonObject { put("role", "user"); put("content", "steered $id") })
                             })
                         }
                     })
@@ -162,6 +170,27 @@ class ChatSessionQueueTest {
         assertEquals("idem-2", abort.string("runId"))
         assertEquals(true, abort.bool("discardPendingInput"))
         assertTrue(chat.state.value.pending.isEmpty())
+        chat.close()
+    }
+
+    @Test fun onlyGatewayQueuedInputs_areCancellable_othersAreSentBubbles() {
+        await { client.connect(gateway.url, "t"); client.awaitConnected() }
+        val chat = ChatSession(client, scope, "agent:a:s1", "a")
+        chat.open()
+        await { chat.state.first { !it.loading && it.running } }
+
+        // 受け付けの応答を待っている手元の送信は、取り消せない（送信済みの吹き出し）
+        await { chat.send("local", emptyList(), "idem-local") }
+        assertTrue(chat.state.value.sentInputs.any { it.runId == "idem-local" })
+        assertTrue(chat.state.value.queuedInputs.none { it.runId == "idem-local" })
+
+        // Gateway が queued: true を付けたものだけがピル、付けないもの（差し込み済み・順番待ち）は吹き出し
+        queuedRunIds = listOf("idem-q")
+        steeredRunIds = listOf("idem-s")
+        await { chat.refreshHistory() }
+        assertEquals(listOf("idem-q"), chat.state.value.queuedInputs.map { it.runId })
+        assertTrue(chat.state.value.sentInputs.any { it.runId == "idem-s" && it.text == "steered idem-s" })
+        assertTrue(chat.state.value.sentInputs.none { it.runId == "idem-q" })
         chat.close()
     }
 }

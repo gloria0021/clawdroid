@@ -36,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import jp.miyavi.android.clawdroid.core.settings.AgentLayout
+import jp.miyavi.android.clawdroid.core.shortcut.removed
+import jp.miyavi.android.clawdroid.core.shortcut.reordered
+import jp.miyavi.android.clawdroid.core.shortcut.upsert
 import jp.miyavi.android.clawdroid.core.settings.visible
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.ViewModel
@@ -87,6 +90,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class AutomationDetailRoute(val jobId: String) : NavKey
 @Serializable data object AgentLayoutRoute : NavKey
 @Serializable data object NotificationSettingsRoute : NavKey
+@Serializable data object ShortcutSettingsRoute : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
@@ -165,7 +169,9 @@ private fun MainNavigation(container: AppContainer) {
     LaunchedEffect(Unit) {
         container.foreground.openRequests.collect { target ->
             when (target) {
-                is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session -> while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Session,
+                is jp.miyavi.android.clawdroid.core.notify.OpenTarget.NewChat,
+                -> while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
                 is jp.miyavi.android.clawdroid.core.notify.OpenTarget.Automation -> {
                     container.foreground.consumed()
                     backStack.push(AutomationDetailRoute(target.jobId))
@@ -236,8 +242,9 @@ private fun MainNavigation(container: AppContainer) {
                 val agentLayout by container.settings.agentLayout.collectAsStateWithLifecycle(AgentLayout())
                 val shown = remember(agentsState.agents, agentLayout) { agentLayout.visible(agentsState.agents).size }
                 val notifications by container.settings.notifications.collectAsStateWithLifecycle(null)
+                val shortcuts by container.settings.shortcuts.collectAsStateWithLifecycle(jp.miyavi.android.clawdroid.core.shortcut.ShortcutSettings())
                 SettingsContent(
-                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size, notifications),
+                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size, notifications, shortcuts.slots.size),
                     snackbar = snackbar,
                     actions = SettingsActions(
                         onBack = { gate.run { backStack.pop() } },
@@ -256,7 +263,36 @@ private fun MainNavigation(container: AppContainer) {
                         openAgentLayout = { gate.run { backStack.push(AgentLayoutRoute) } },
                         setNotifications = { next -> scope.launch { container.settings.setNotifications(next) } },
                         openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
+                        openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
                     ),
+                )
+            }
+            entry<ShortcutSettingsRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val shortcuts by container.settings.shortcuts.collectAsStateWithLifecycle(jp.miyavi.android.clawdroid.core.shortcut.ShortcutSettings())
+                val agentsState by container.sessions.agents.collectAsStateWithLifecycle()
+                val lists by container.sessions.sessions.collectAsStateWithLifecycle()
+                // 枠の名前（会話の名前）を出すため、枠のエージェントの一覧を読んでおく
+                LaunchedEffect(shortcuts.slots) { shortcuts.slots.map { it.agentId }.distinct().forEach(container.sessions::ensureLoaded) }
+                val shortcutActions = remember(container) {
+                    jp.miyavi.android.clawdroid.feature.settings.ShortcutSettingsActions(
+                        onBack = { gate.run { backStack.pop() } },
+                        save = { slot ->
+                            scope.launch {
+                                val url = container.secrets.loadConnection()?.url
+                                container.settings.updateShortcuts { it.upsert(slot, url) }
+                            }
+                        },
+                        remove = { id -> scope.launch { container.settings.updateShortcuts { it.removed(id) } } },
+                        reorder = { ids -> scope.launch { container.settings.updateShortcuts { it.reordered(ids) } } },
+                        ensureLoaded = container.sessions::ensureLoaded,
+                        loadFolderCandidates = { agentId -> runCatching { container.sessions.folderCandidates(agentId) }.getOrDefault(emptyList()) },
+                        listDir = container.sessions::listDir,
+                    )
+                }
+                jp.miyavi.android.clawdroid.feature.settings.ShortcutSettingsScreen(
+                    state = jp.miyavi.android.clawdroid.feature.settings.ShortcutSettingsUi(shortcuts.slots, agentsState.agents, lists),
+                    actions = shortcutActions,
                 )
             }
             entry<NotificationSettingsRoute> {

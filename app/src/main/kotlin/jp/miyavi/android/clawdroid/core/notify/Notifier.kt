@@ -3,11 +3,9 @@ package jp.miyavi.android.clawdroid.core.notify
 import android.app.ForegroundServiceStartNotAllowedException
 import android.content.Context
 import android.content.Intent
-import coil3.request.allowHardware
-import coil3.request.transformations
-import coil3.toBitmap
 import androidx.core.content.ContextCompat
 import jp.miyavi.android.clawdroid.R
+import jp.miyavi.android.clawdroid.core.data.AgentAvatarBitmaps
 import jp.miyavi.android.clawdroid.core.data.ApprovalKey
 import jp.miyavi.android.clawdroid.core.data.ApprovalsRepository
 import jp.miyavi.android.clawdroid.core.data.Parse
@@ -45,6 +43,7 @@ internal class Notifier(
     private val settings: SettingsStore,
     val foreground: ForegroundState,
     private val scope: CoroutineScope,
+    private val avatars: AgentAvatarBitmaps,
 ) {
     val center = NotificationCenter(context)
     private val notified = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -175,22 +174,9 @@ internal class Notifier(
         }
     }
 
-    /** エージェントの顔を丸く切った画像（通知の大きなアイコン）。読めなければ null（通知は顔なしで出す）。一度読んだら使い回す。 */
-    private val avatars = ConcurrentHashMap<String, android.graphics.Bitmap>()
-
-    private suspend fun avatar(agentId: String): android.graphics.Bitmap? {
-        val url = sessions.agents.value.agents.firstOrNull { it.id == agentId }?.avatarUrl?.trim()
-            ?.takeIf { it.startsWith("data:image/", ignoreCase = true) || it.startsWith("https://") || it.startsWith("http://") } ?: return null
-        avatars["$agentId|$url"]?.let { return it }
-        val request = coil3.request.ImageRequest.Builder(context)
-            .data(url)
-            .size(AVATAR_PX)
-            .transformations(coil3.transform.CircleCropTransformation())
-            .allowHardware(false)
-            .build()
-        val result = runCatching { coil3.SingletonImageLoader.get(context).execute(request) }.getOrNull() as? coil3.request.SuccessResult ?: return null
-        return runCatching { result.image.toBitmap() }.getOrNull()?.also { avatars["$agentId|$url"] = it }
-    }
+    /** エージェントの顔を丸く切った画像（通知の大きなアイコン）。読めなければ null（通知は顔なしで出す）。 */
+    private suspend fun avatar(agentId: String): android.graphics.Bitmap? =
+        avatars.load(sessions.agents.value.agents.firstOrNull { it.id == agentId }, AVATAR_PX, circle = true)
 
     private fun onAutomationFailure(failure: AutomationFailure) {
         if (!config.enabled || !config.notifyAutomationFailures || foreground.inForeground.value) return

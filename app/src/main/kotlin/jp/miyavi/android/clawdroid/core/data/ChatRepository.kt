@@ -32,7 +32,7 @@ data class ChatState(
     val running: Boolean = false,
     val loading: Boolean = true,
     val error: String? = null,
-    /** まだ会話に取り込まれていない送信（steer で受け付け待ち）。キャンセルできる。 */
+    /** まだ会話に取り込まれていない送信。取り消せるもの（[PendingInput.cancellable]）と、送信済みで読まれ待ちのものがある。 */
     val pending: List<PendingInput> = emptyList(),
     /** 今の実行が始まった時刻（考え中の経過時間に使う）。実行していなければ null。 */
     val runStartedAt: Long? = null,
@@ -43,6 +43,12 @@ data class ChatState(
     internal val completedRunIds: List<String> = emptyList(),
 ) {
     val reportedOutputTokens: Long? get() = usageByRun[activeRunId ?: live?.runId]?.tokens
+
+    /** OpenClaw の手元のキューにあり、取り消せる送信（入力欄の上のピル）。 */
+    val queuedInputs: List<PendingInput> get() = pending.filter { it.cancellable }
+
+    /** 送信済みで、まだ会話に取り込まれていない送信（会話の末尾に「未読」の吹き出しで出す）。 */
+    val sentInputs: List<PendingInput> get() = pending.filterNot { it.cancellable }
 }
 
 /** 考え中の表示に出す、今していること。 */
@@ -54,10 +60,21 @@ sealed interface RunActivity {
 }
 
 /**
- * 受け付け待ちの送信。`local` は応答（ack）を待っている手元の送信、そうでなければ Gateway の pendingInputs（state = queued）。
+ * 会話に取り込まれていない送信。`local` は応答（ack）を待っている手元の送信、そうでなければ Gateway の pendingInputs（state = queued）。
  * `runId` は chat.send の idempotencyKey と同じで、キャンセル（chat.abort + discardPendingInput）に使う。
+ *
+ * [cancellable] は Gateway が「OpenClaw のキューにある」と示した送信（`queued: true`）だけ。実行中の会話へ差し込み済み・差し込みの
+ * 順番待ちの送信は、Gateway からも取り下げられないので送信済みとして扱う（ピルに取り消しを出さない）。
  */
-data class PendingInput(val runId: String, val text: String, val local: Boolean, val hasAttachments: Boolean = false)
+data class PendingInput(
+    val runId: String,
+    val text: String,
+    val local: Boolean,
+    val hasAttachments: Boolean = false,
+    val cancellable: Boolean = false,
+    /** 吹き出しに出す中身（文字と画像）。 */
+    val parts: List<MessagePart> = emptyList(),
+)
 
 /** 送る画像（Base64 にしたもの）。 */
 /** 送る添付（画像かファイル）。画像以外は Gateway が保存して、記録に添付のリンクとして出す。 */
@@ -172,7 +189,15 @@ class ChatSession(
                 val message = item.obj("message")
                 val hasAttachments = message?.let { Parse.contentParts(it["content"]).any { part -> part is MessagePart.Image } ||
                     it.obj("__openclaw")?.array("media").orEmpty().isNotEmpty() } == true
-                PendingInput(runId, text.orEmpty(), local = false, hasAttachments = hasAttachments)
+                val parts = message?.let { m ->
+                    val media = m.obj("__openclaw")?.array("media").orEmpty().mapNotNull { el ->
+                        val obj = el.asObject() ?: return@mapNotNull null
+                        val url = obj.string("url") ?: return@mapNotNull null
+                        if (obj.string("kind") == "image" || obj.string("contentType")?.startsWith("image/") == true) MessagePart.Image(url = url, base64 = null, mimeType = obj.string("contentType")) else null
+                    }
+                    media + Parse.contentParts(m["content"])
+                } ?: listOfNotNull(text?.takeIf(String::isNotBlank)?.let { MessagePart.Text(it) })
+                PendingInput(runId, text.orEmpty(), local = false, hasAttachments = hasAttachments, cancellable = item.bool("queued") == true, parts = parts)
             }
             _state.update { current ->
                 val reportedRunEnded = reportedRunId != null && reportedRunId in current.completedRunIds
@@ -210,9 +235,14 @@ class ChatSession(
                 }
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
-                    messages = messages,
+                    messages = withoutTranscriptEchoes(messages),
                     pending = localPending + queued.map { item ->
-                        item.copy(hasAttachments = item.hasAttachments || current.pending.any { it.runId == item.runId && it.hasAttachments })
+                        val mine = current.pending.firstOrNull { it.runId == item.runId }
+                        item.copy(
+                            hasAttachments = item.hasAttachments || mine?.hasAttachments == true,
+                            // 手元で送った画像は、Gateway の一覧より先に中身があるので、それを使う
+                            parts = if (mine != null && mine.parts.any { it is MessagePart.Image && it.base64 != null }) mine.parts else item.parts,
+                        )
                     }.distinctBy { it.runId },
                     runStartedAt = startedAt,
                     activity = if (running) current.activity else null,
@@ -390,7 +420,7 @@ class ChatSession(
             truncated = false,
         )
         _state.update {
-            if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true, hasAttachments = images.isNotEmpty()), error = null)
+            if (queuedBehindRun) it.copy(pending = it.pending + PendingInput(idempotencyKey, text, local = true, hasAttachments = images.isNotEmpty(), parts = optimistic.parts), error = null)
             else it.copy(
                 messages = it.messages + optimistic, activeRunId = idempotencyKey, running = true, runStartedAt = System.currentTimeMillis(),
                 // CLI の圧縮は進みの通知が来ないので、`/compact` を送った時点で圧縮中にする

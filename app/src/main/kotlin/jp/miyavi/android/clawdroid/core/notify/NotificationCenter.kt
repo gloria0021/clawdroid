@@ -16,7 +16,6 @@ import android.text.style.TypefaceSpan
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import jp.miyavi.android.clawdroid.MainActivity
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.ApprovalDecision
 import jp.miyavi.android.clawdroid.core.data.ApprovalKey
@@ -207,17 +206,12 @@ internal class NotificationCenter(private val context: Context) {
             }
 
     private fun openIntent(target: OpenTarget?, requestCode: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = OpenIntents.intent(context, target).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            when (target) {
-                is OpenTarget.Session -> { putExtra(EXTRA_OPEN, OPEN_SESSION); putExtra(EXTRA_AGENT, target.agentId); putExtra(EXTRA_SESSION, target.sessionKey) }
-                is OpenTarget.Automation -> { putExtra(EXTRA_OPEN, OPEN_AUTOMATION); putExtra(EXTRA_JOB, target.jobId) }
-                OpenTarget.Approvals -> putExtra(EXTRA_OPEN, OPEN_APPROVALS)
-                null -> Unit
-            }
         }
         return PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
+
 
     @android.annotation.SuppressLint("MissingPermission")
     private fun post(id: Int, notification: Notification) {
@@ -241,27 +235,7 @@ internal class NotificationCenter(private val context: Context) {
         private const val APPROVAL_TEXT_LIMIT = 5_000
         private const val RESULT_TIMEOUT_MS = 4_000L
 
-        const val EXTRA_OPEN = "jp.miyavi.android.clawdroid.OPEN"
-        const val EXTRA_AGENT = "jp.miyavi.android.clawdroid.AGENT"
-        const val EXTRA_SESSION = "jp.miyavi.android.clawdroid.SESSION"
-        const val EXTRA_JOB = "jp.miyavi.android.clawdroid.JOB"
-        const val OPEN_SESSION = "session"
-        const val OPEN_AUTOMATION = "automation"
-        const val OPEN_APPROVALS = "approvals"
-
         fun replyId(sessionKey: String): Int = "reply:$sessionKey".hashCode()
         fun approvalId(key: ApprovalKey): Int = "approval:${key.kind}:${key.id}".hashCode()
-
-        /** 通知から開いたときの行き先を読む。 */
-        fun targetOf(intent: Intent?): OpenTarget? = when (intent?.getStringExtra(EXTRA_OPEN)) {
-            OPEN_SESSION -> {
-                val agent = intent.getStringExtra(EXTRA_AGENT)
-                val session = intent.getStringExtra(EXTRA_SESSION)
-                if (agent != null && session != null) OpenTarget.Session(agent, session) else null
-            }
-            OPEN_AUTOMATION -> intent.getStringExtra(EXTRA_JOB)?.let(OpenTarget::Automation)
-            OPEN_APPROVALS -> OpenTarget.Approvals
-            else -> null
-        }
     }
 }
