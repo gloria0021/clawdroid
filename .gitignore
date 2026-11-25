@@ -26,3 +26,6 @@ build/
 
 # Roborazzi の出力
 /app/build/outputs/roborazzi/
+
+# エージェントの作業の記録（公開しない）
+/memory/

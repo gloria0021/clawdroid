@@ -34,6 +34,10 @@ data class FileTreeState(
     /** 読み込み済みの、あるフォルダの中の名前（同じ名前の確認に使う）。 */
     fun namesIn(path: String): List<String> =
         (children[path] as? ListingState.Loaded)?.listing?.entries?.map { it.name }.orEmpty()
+
+    /** 読み込み済みの一覧にある、あるパスの項目。 */
+    fun entry(path: String): FileEntry? =
+        (children[path.substringBeforeLast('/', "")] as? ListingState.Loaded)?.listing?.entries?.firstOrNull { it.path == path }
 }
 
 /** ツリーの 1 行。 */

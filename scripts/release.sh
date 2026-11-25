@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# リリースを1回で行う: 訳を作る → 版を上げる → 確認一式 → コミットとタグ → 署名した App Bundle →
-# 非公開レポジトリへ Push → 公開用レポジトリへ README と docs（プライバシーポリシー）を送る。
+# リリースを1回で行う: 訳を作る → 版を上げる → 確認一式 → コミットとタグ → 署名した App Bundle → Push。
+# レポジトリはそのまま公開（OSS）する。プライバシーポリシーはこのレポジトリの docs/privacy-policy.md を指す。
 # Google Play へのアップロードと公開は、できた AAB を使って Play Console で行う。
 #
 #   scripts/release.sh 1.0.0              # 外に出す前（Push の前）に一度確かめる
 #   scripts/release.sh 1.0.0 --yes        # 確かめずに最後まで進める
-#   scripts/release.sh 1.0.0 --no-public  # 公開用レポジトリは飛ばす
 #
 # 署名の鍵は ~/.gradle/gradle.properties の CLAWDROID_* から読む（レポジトリには置かない）:
 #   CLAWDROID_STORE_FILE=/path/to/upload-key.jks
@@ -15,18 +14,15 @@ cd "$(git rev-parse --show-toplevel)"
 
 VERSION=${1:?版を指定してください（例: scripts/release.sh 1.0.0）}
 shift
-YES=false; PUBLIC=true
+YES=false
 for arg in "$@"; do
   case $arg in
     --yes) YES=true ;;
-    --no-public) PUBLIC=false ;;
     *) echo "知らない指定です: $arg" >&2; exit 1 ;;
   esac
 done
 
 OUT=${CLAWDROID_RELEASE_DIR:-$HOME/Dev/android/clawdroid-release}
-export PUBLIC_NAME=${PUBLIC_NAME:-miyavi}
-export PUBLIC_EMAIL=${PUBLIC_EMAIL:-9840472+gloria0021@users.noreply.github.com}
 GRADLE_FILE=app/build.gradle.kts
 
 step() { printf '\n== %s\n' "$1"; }
@@ -41,9 +37,6 @@ grep -q '^CLAWDROID_STORE_FILE=' "$HOME/.gradle/gradle.properties" 2>/dev/null |
 command -v claude >/dev/null || fail "訳に使う claude（Claude Code）がありません"
 # Release のビルドを重ねると出力を取り合うので、ほかに動いていたら始めない
 pgrep -f '^java .*gradle-wrapper\.jar .*(assemble|bundle)Release' >/dev/null && fail "ほかの Release ビルドが動いています"
-if $PUBLIC; then
-  git remote get-url public >/dev/null 2>&1 || fail "公開用の送り先 public がありません（git remote add public ... / --no-public で飛ばせます）"
-fi
 
 step "訳を作る（変わった文言だけ）"
 # 失敗しても、できた分は残る。もう一度実行すれば残りだけを訳す
@@ -81,18 +74,13 @@ echo "AAB（Google Play 用）: $AAB"
 echo "難読化の対応表: $OUT/mapping-$VERSION.txt"
 
 if ! $YES; then
-  printf '\nここから外に出します（非公開レポジトリへ Push%s）。続けますか？ [y/N] ' "$($PUBLIC && echo '・公開用レポジトリへ README と docs を送信')"
+  printf '\nここから外に出します（レポジトリへ Push）。続けますか？ [y/N] '
   read -r answer
   [ "$answer" = y ] || { echo "ここで止めました。コミットとタグは手元に残っています。"; exit 0; }
 fi
 
-step "非公開レポジトリへ Push"
+step "Push"
 git push origin main "v$VERSION"
-
-if $PUBLIC; then
-  step "公開用レポジトリへ README と docs を送る"
-  scripts/publish-public.sh
-fi
 
 step "完了: Clawdroid $VERSION"
 echo "次: Play Console で $AAB をアップロードし、mapping-$VERSION.txt を登録して、新機能の文を添える"

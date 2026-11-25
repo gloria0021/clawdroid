@@ -63,6 +63,8 @@ data class OpenedFile(
     val workspace: String? = null,
     /** まだ無いエージェントのファイルを開いた（保存は `expectedMissing`。spec 004 FR-022）。 */
     val creating: Boolean = false,
+    /** 更新日時（`updatedAtMs`。開いた画面の上に出す）。 */
+    val updatedAt: Long? = null,
 ) {
     /**
      * 編集できるか。作業フォルダ（002 FR-012）: ハッシュの付いた UTF-8 の文字のファイル。
@@ -200,6 +202,7 @@ internal object FileParse {
             imageBase64 = content.takeIf { kind == PreviewKind.IMAGE && encoding == "base64" },
             hash = file.string("hash"),
             source = result.obj("source"),
+            updatedAt = file.long("updatedAtMs"),
         )
     }
 
@@ -231,6 +234,7 @@ internal object FileParse {
             source = null,
             workspace = result.string("workspace"),
             creating = missing,
+            updatedAt = file.long("updatedAtMs").takeIf { !missing },
         )
     }
 
@@ -265,6 +269,7 @@ internal object FileParse {
             imageBase64 = content.takeIf { kind == PreviewKind.IMAGE },
             hash = null,
             source = null,
+            updatedAt = file.long("updatedAtMs"),
         )
     }
 }

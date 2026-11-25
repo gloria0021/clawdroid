@@ -81,6 +81,16 @@ data class MessageUi(
     val markdown: List<com.mikepenz.markdown.model.State> = emptyList(),
 )
 
+/** セッションのシートの前回の値（プロバイダの使用枠・ホストの数字・セッションごとの内訳）。 */
+class SheetUsageCache {
+    @Volatile var providers: List<ProviderUsage>? = null
+    @Volatile var host: HostStats? = null
+    @Volatile private var breakdown: Pair<String, ContextBreakdown>? = null
+
+    fun breakdown(sessionKey: String?): ContextBreakdown? = breakdown?.takeIf { it.first == sessionKey }?.second
+    fun putBreakdown(sessionKey: String, value: ContextBreakdown) { breakdown = sessionKey to value }
+}
+
 /** 入力欄の状態。 */
 data class ComposerState(
     val text: String = "",
@@ -110,6 +120,12 @@ data class ChatScreenState(
     val sidebarAgents: List<Agent> = agents.agents,
 ) {
     val selectedAgent: Agent? get() = agents.agents.firstOrNull { it.id == selectedAgentId }
+
+    /**
+     * 新しい会話を始められるか。Gateway につながっていて、エージェントが読み込めている（サイドパネルの守りと同じ条件）。
+     * つながった直後のエージェントの読み込み中も、まだ始められない。
+     */
+    val readyForNewChat: Boolean get() = connection is ConnectionState.Connected && agents.agents.isNotEmpty()
 }
 
 /** 一度だけ伝える出来事。 */
@@ -343,7 +359,17 @@ class ChatViewModel(
      * プロバイダの使用枠。Control UI と同じく `models.authStatus` から取る（Claude Code CLI の枠もここに出る）。
      * 使えない Gateway では `usage.status` に戻す。今のセッションのプロバイダを先頭にする。
      */
-    suspend fun loadProviderUsage(): List<ProviderUsage> {
+    /**
+     * セッションのシートが前回取れた値。次に開いたとき 1 フレーム目からこれで組み、届いた値で帯だけを動かす
+     * （開き切ったところで行が増えて高さが変わらないように）。
+     */
+    val sheetCache = SheetUsageCache()
+
+    suspend fun loadProviderUsage(): List<ProviderUsage> =
+        withContext(Dispatchers.Default) { providerUsage() }.also { sheetCache.providers = it }
+
+    // 解析はメインスレッドの外で（シートを開く動きと重ねない）
+    private suspend fun providerUsage(): List<ProviderUsage> {
         val usage = try {
             when {
                 gateway.supports("models.authStatus") -> Parse.authStatusUsage(
@@ -366,6 +392,11 @@ class ChatViewModel(
 
     /** 今のセッションのコンテキストの内訳（Control UI と同じ sessions.usage の contextWeight）。取れなければ null。 */
     suspend fun loadContextBreakdown(): ContextBreakdown? {
+        val key = state.value.currentSession?.key
+        return withContext(Dispatchers.Default) { contextBreakdown() }.also { if (key != null && it != null) sheetCache.putBreakdown(key, it) }
+    }
+
+    private suspend fun contextBreakdown(): ContextBreakdown? {
         val session = state.value.currentSession ?: return null
         val used = session.totalTokens ?: return null
         if (!gateway.supports("sessions.usage")) return null
@@ -384,7 +415,9 @@ class ChatViewModel(
     /** Gateway のホストのメモリとディスク（`system.info`）。使えない Gateway や失敗なら null。 */
     suspend fun loadHostStats(): HostStats? {
         if (!gateway.supports("system.info")) return null
-        return runCatching { Parse.hostStats(gateway.request("system.info", timeoutMs = 5_000).asObject()) }.getOrNull()
+        return withContext(Dispatchers.Default) {
+            runCatching { Parse.hostStats(gateway.request("system.info", timeoutMs = 5_000).asObject()) }.getOrNull()
+        }?.also { sheetCache.host = it }
     }
 
     private suspend fun loadUsageStatus(): List<ProviderUsage> {

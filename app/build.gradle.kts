@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.aboutlibraries.android)
 }
 
 android {
@@ -87,6 +88,18 @@ android {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// オープンソースのライセンスの一覧（spec 003 FR-033・034）。ビルドのたびに依存関係から res/raw/aboutlibraries.json を作る。
+// 許諾文はネットから取らない（GitHub の API を使わない）。フォント・アイコンなど依存関係に出ないものは assets/licenses/ から足す
+aboutLibraries {
+    collect {
+        fetchRemoteLicense = false
+        fetchRemoteFunding = false
+    }
+    export {
+        excludeFields.addAll("developers", "funding", "scm", "organization")
+    }
 }
 
 dependencies {

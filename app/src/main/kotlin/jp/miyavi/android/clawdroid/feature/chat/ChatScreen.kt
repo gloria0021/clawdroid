@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -230,6 +231,7 @@ internal fun ChatScreen(
             loadUsage = viewModel::loadProviderUsage,
             loadContext = viewModel::loadContextBreakdown,
             loadHostStats = viewModel::loadHostStats,
+            sheetCache = viewModel.sheetCache,
             loadModels = viewModel::loadModelCatalog,
             updateSetting = viewModel::updateSessionSetting,
             reconnect = viewModel::reconnect,
@@ -269,6 +271,7 @@ data class ChatActions(
     val loadUsage: suspend () -> List<ProviderUsage>,
     val loadContext: suspend () -> jp.miyavi.android.clawdroid.core.data.ContextBreakdown?,
     val loadHostStats: suspend () -> jp.miyavi.android.clawdroid.core.data.HostStats?,
+    val sheetCache: SheetUsageCache,
     val loadModels: suspend (String, String?) -> ModelCatalog?,
     val updateSetting: (SessionSetting, String?) -> Unit,
     val reconnect: () -> Unit,
@@ -335,7 +338,10 @@ fun ChatContent(
             }
     }
     val connected = state.connection as? ConnectionState.Connected
-    val canReply = connected != null && state.currentSession?.archived != true
+    // 新しい会話の画面で、まだ始められない（つながっていない・エージェントを読み込み中）: 真ん中に状態を出し、
+    // 入力欄も使えなくする。上のお知らせは重ねない（マスター指定 2026-11-25）
+    val offlinePlaceholder = state.currentSessionKey == null && !state.readyForNewChat
+    val canReply = connected != null && state.currentSession?.archived != true && !offlinePlaceholder
     // 画像は一度に複数選べる（上限は MAX_ATTACH_IMAGES）
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_ATTACH_IMAGES)) { uris ->
         uris.forEach(actions.addImage)
@@ -400,6 +406,7 @@ fun ChatContent(
             drawerContent = {
                 // 全画面のサイドパネル（Gemini 型）。開くと画面いっぱいまで広がる
                 SidePanel(
+                    connection = state.connection,
                     agents = state.sidebarAgents,
                     selectedAgentId = state.selectedAgentId,
                     onSelectAgent = actions.selectAgent,
@@ -453,7 +460,7 @@ fun ChatContent(
                             loadDiffSummary = actions.loadDiffSummary,
                         )
                         ConnectionBanner(
-                            state.connection,
+                            if (offlinePlaceholder) connected ?: ConnectionState.NotConfigured else state.connection,
                             actions.reconnect,
                             Modifier.padding(top = Spacing.s).align(Alignment.CenterHorizontally),
                         )
@@ -466,6 +473,12 @@ fun ChatContent(
                             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).imePadding(),
                             contentAlignment = Alignment.Center,
                         ) {
+                            // 使えないあいだは入力欄ごと淡くする（押せそうに見せない）
+                            val composerAlpha by androidx.compose.animation.core.animateFloatAsState(
+                                if (canReply) 1f else jp.miyavi.android.clawdroid.core.designsystem.DisabledAlpha,
+                                MaterialTheme.motionScheme.defaultEffectsSpec(),
+                                label = "composerAlpha",
+                            )
                             ComposerPill(
                                 hazeState = hazeState,
                                 state = composer,
@@ -498,7 +511,8 @@ fun ChatContent(
                                 },
                                 onSend = actions.send,
                                 onStop = actions.stop,
-                                modifier = Modifier.widthIn(max = Dimens.composerMaxWidth).padding(horizontal = Spacing.l, vertical = Spacing.s),
+                                modifier = Modifier.widthIn(max = Dimens.composerMaxWidth).padding(horizontal = Spacing.l, vertical = Spacing.s)
+                                    .graphicsLayer { alpha = composerAlpha },
                             )
                         }
                     }
@@ -526,6 +540,7 @@ fun ChatContent(
                         MessageList(
                             newSessionCwd = composer.newSessionCwd,
                             onPickFolder = { pickingFolder = true },
+                            onReconnect = actions.reconnect,
                             state = state,
                             listState = listState,
                             contentPadding = PaddingValues(
@@ -612,6 +627,7 @@ fun ChatContent(
                 loadUsage = actions.loadUsage,
                 loadContext = actions.loadContext,
                 loadHostStats = actions.loadHostStats,
+                cache = actions.sheetCache,
                 onSelect = { setting, value -> actions.updateSetting(setting, value) },
                 onDismiss = { showSessionSheet = false },
             )
@@ -689,6 +705,61 @@ private fun SessionTitleBar(
 
 
 
+/**
+ * Gateway につながっていないときの新しい会話の画面。淡いマスコットと状態の一言。つなぎ直している間は読み込みの表示、
+ * 止まっていれば「接続し直す」（マスター指定 2026-11-25）。
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun OfflinePlaceholder(
+    connection: ConnectionState,
+    agents: jp.miyavi.android.clawdroid.core.data.AgentsState,
+    onReconnect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val connected = connection is ConnectionState.Connected
+    // つながったがエージェントを読めなかった: つなぎ直して読み直す
+    val agentsFailed = connected && !agents.loading && agents.agents.isEmpty()
+    val trying = !agentsFailed && (
+        connected || connection is ConnectionState.Connecting || connection is ConnectionState.Reconnecting ||
+            connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval
+        )
+    Column(
+        modifier.padding(horizontal = Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.m),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.launcher_mascot_foreground),
+            contentDescription = null,
+            modifier = Modifier.size(Dimens.offlineMascot).graphicsLayer { alpha = jp.miyavi.android.clawdroid.core.designsystem.DisabledAlpha },
+        )
+        Text(
+            stringResource(
+                when {
+                    agentsFailed -> R.string.offline_agents_failed
+                    connected -> R.string.panel_loading_agents
+                    trying -> R.string.offline_connecting
+                    else -> R.string.offline_unreachable
+                },
+            ),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        // つながっていないときだけ、使えない理由を添える（読み込み中は待てば使える）
+        if (!connected) {
+            Text(
+                stringResource(R.string.offline_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (trying) LoadingIndicator() else TextButton(onClick = onReconnect) { Text(stringResource(R.string.connection_reconnect)) }
+    }
+}
+
 /** 再接続中などの控えめな表示（Edge Cases）。接続済みのときは出さない。 */
 @Composable
 private fun ConnectionBanner(connection: ConnectionState, onReconnect: () -> Unit, modifier: Modifier = Modifier) {
@@ -748,6 +819,7 @@ private fun MessageList(
     hazeState: dev.chrisbanes.haze.HazeState,
     newSessionCwd: String? = null,
     onPickFolder: () -> Unit = {},
+    onReconnect: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // 透かす元は会話の中身だけ（高速スクロールの吹き出しは透かす側なので、元に含めない）
@@ -764,6 +836,10 @@ private fun MessageList(
     val live = chat?.live
     val liveText = live?.text.orEmpty()
     when {
+        // 新しい会話で Gateway につながっていない: ローカルで何かできそうに見せない（作業フォルダの選択も出さない）
+        state.currentSessionKey == null && !state.readyForNewChat -> Box(sourceModifier, contentAlignment = Alignment.Center) {
+            OfflinePlaceholder(state.connection, state.agents, onReconnect, Modifier.padding(contentPadding))
+        }
         state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && rows.isEmpty() && live == null) -> {
             Box(sourceModifier, contentAlignment = Alignment.Center) {
                 Column(Modifier.padding(contentPadding), horizontalAlignment = Alignment.CenterHorizontally) {

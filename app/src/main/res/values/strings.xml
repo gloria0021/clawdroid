@@ -77,6 +77,11 @@
     <string name="connection_restarting">Gateway を再起動しています…</string>
     <string name="connection_offline">接続されていません</string>
     <string name="connection_auth_expired">認証が切れました。接続し直してください</string>
+    <string name="offline_connecting">Gateway に接続しています</string>
+    <string name="offline_unreachable">Gateway につながっていません</string>
+    <string name="panel_loading_agents">エージェントを読み込んでいます</string>
+    <string name="offline_agents_failed">エージェントを読み込めませんでした</string>
+    <string name="offline_desc">つながるまで、会話とセッションは使えません</string>
     <string name="connection_reconnect">接続し直す</string>
 
     <!-- サイドバー -->
@@ -296,7 +301,19 @@
     <string name="settings_surface_style">透過効果</string>
     <string name="settings_surface_glass">ガラス</string>
     <string name="settings_surface_blur">ぼかし</string>
-    <string name="settings_section_about">このアプリについて</string>
+    <string name="settings_section_about">情報</string>
+    <string name="about_app_version">%1$s（%2$d）</string>
+    <string name="about_gateway">Gateway</string>
+    <string name="about_gateway_offline">未接続</string>
+    <string name="about_device">端末</string>
+    <string name="about_android_version">Android %1$s（API %2$d）</string>
+    <string name="about_copy">情報をコピー</string>
+    <string name="about_privacy_policy">プライバシーポリシー</string>
+    <string name="about_licenses">オープンソースのライセンス</string>
+    <string name="licenses_title">オープンソースのライセンス</string>
+    <string name="licenses_load_failed">一覧を読み込めませんでした</string>
+    <string name="licenses_no_text">許諾文は同梱されていません</string>
+    <string name="licenses_open_cd">%1$s のライセンスを開く</string>
     <string name="settings_version">バージョン %1$s</string>
 
     <!-- 再起動 -->
@@ -426,8 +443,8 @@
     <string name="host_disk_title">ディスク</string>
     <string name="host_amount">%1$s / %2$s</string>
     <string name="host_value_pending">—</string>
-    <string name="host_bytes_gb">%1$s GB</string>
-    <string name="host_bytes_mb">%1$s MB</string>
+    <string name="host_bytes_gb">%1$s GiB</string>
+    <string name="host_bytes_mb">%1$s MiB</string>
     <string name="chat_usage_window">%1$s · %2$s 使用済み</string>
     <string name="chat_usage_reset">リセット %1$s</string>
     <string name="chat_link_failed">リンクを開けませんでした</string>
@@ -537,6 +554,9 @@
     <string name="files_open_failed">ファイルを開けませんでした</string>
     <string name="files_missing">ファイルが見つかりません</string>
     <string name="files_unsupported">このファイルは表示できません</string>
+    <string name="files_updated_just_now">たった今</string>
+    <string name="files_updated_minutes_ago">%1$d分前</string>
+    <string name="files_updated_hours_ago">%1$d時間前</string>
     <string name="files_show_code_cd">コードを表示</string>
     <string name="files_show_preview_cd">プレビューを表示</string>
     <string name="files_search_cd">ファイル内を検索</string>
@@ -598,7 +618,7 @@
     <string name="download_notify_failed">ダウンロードできませんでした</string>
     <string name="download_waiting">接続を待っています</string>
     <string name="files_downloaded">%1$s を Download に保存しました</string>
-    <string name="files_open_download">開く</string>
+    <string name="files_open_download">Download を開く</string>
     <string name="files_no_app">このファイルを開けるアプリがありません</string>
     <string name="files_download_too_large">大きすぎるため、ダウンロードできません</string>
     <string name="files_download_no_http">Gateway の HTTP に届かないため、ダウンロードできません</string>

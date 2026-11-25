@@ -12,3 +12,11 @@ An Android app for working with your AI agents — conversations, files, termina
 ## プライバシーポリシー / Privacy Policy
 
 [プライバシーポリシー](docs/privacy-policy.md)（日本語 / English）
+
+## ライセンス / License
+
+[MIT License](LICENSE)
+
+同梱しているライブラリ・フォント・アイコンの許諾は、アプリの「設定 → 情報 → オープンソースのライセンス」で読めます。`reference/openclaw/` は [OpenClaw](https://github.com/openclaw/openclaw)（MIT License）のソースと資料の写しで、OpenClaw の許諾（`reference/openclaw/LICENSE`）に従います。
+
+Licenses of the bundled libraries, fonts, and icons are available in the app under Settings → About → Open source licenses. `reference/openclaw/` is a copy of source and documentation from [OpenClaw](https://github.com/openclaw/openclaw), covered by its own MIT License (`reference/openclaw/LICENSE`).

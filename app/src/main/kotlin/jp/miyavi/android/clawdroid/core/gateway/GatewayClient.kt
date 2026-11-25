@@ -91,6 +91,10 @@ class GatewayClient(
     private val secrets: SecretStore,
     private val clientInfo: ClientInfo,
     private val handshakeTimeoutMs: Long = DEFAULT_HANDSHAKE_TIMEOUT_MS,
+    /** 前に戻ったときの応答の確かめの待ち時間（3 秒では遅い回線で生きている接続を捨てていた）。 */
+    private val foregroundProbeTimeoutMs: Long = FOREGROUND_PROBE_TIMEOUT_MS,
+    /** この時間内に何か届いていれば、前に戻ったときの確かめを飛ばす。 */
+    private val probeSkipRecentMs: Long = PROBE_SKIP_RECENT_MS,
 ) {
     private val tlsClient = httpClient.newBuilder().followRedirects(false).build()
     private val lanClient = tlsClient.newBuilder().proxy(java.net.Proxy.NO_PROXY)
@@ -181,11 +185,19 @@ class GatewayClient(
         }
     }
 
-    /** 接続中のソケットに応答があるか確かめ、無ければ閉じて接続し直す。 */
+    /** 最後に Gateway から何か（応答・イベント・tick）が届いた時刻（[monotonicMs]）。 */
+    @Volatile private var lastFrameAt = Long.MIN_VALUE / 2
+
+    /**
+     * 接続中のソケットに応答があるか確かめ、無ければ閉じて接続し直す。
+     * 直前に何か届いていれば生きているので確かめない。遅い回線や Gateway が忙しいときに、生きている接続を
+     * 捨ててつなぎ直しを繰り返さないよう、待ち時間は長めにとる（マスター指摘 2026-11-25）。
+     */
     private fun probeConnection() {
         val connectionSocket = socket ?: return
+        if (monotonicMs() - lastFrameAt < probeSkipRecentMs) return
         scope.launch {
-            val responds = withTimeoutOrNull(FOREGROUND_PROBE_TIMEOUT_MS) {
+            val responds = withTimeoutOrNull(foregroundProbeTimeoutMs) {
                 try {
                     request("health")
                     true
@@ -196,6 +208,7 @@ class GatewayClient(
                 }
             } == true
             if (!responds && socket === connectionSocket && _state.value is ConnectionState.Connected) {
+                logReconnect("reconnect: no health response within ${foregroundProbeTimeoutMs}ms after foreground")
                 reconnectSignal.trySend(Unit)
                 connectionSocket.cancel()
             }
@@ -426,7 +439,10 @@ class GatewayClient(
         val signals = Channel<Signal>(Channel.UNLIMITED)
         val ws = try {
             transport(connection.url.startsWith("wss:", ignoreCase = true)).newWebSocket(Request.Builder().url(connection.url).build(), object : WebSocketListener() {
-                override fun onMessage(webSocket: WebSocket, text: String) { signals.trySend(Signal.Text(text)) }
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    lastFrameAt = monotonicMs()
+                    signals.trySend(Signal.Text(text))
+                }
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                     webSocket.close(code, null)
                     signals.trySend(Signal.Closed(code, reason))
@@ -552,14 +568,21 @@ class GatewayClient(
         val silenceLimit = tickIntervalMs * 2
         while (true) {
             val signal = withTimeoutOrNull(silenceLimit) { signals.receive() }
-                ?: return SessionOutcome.ClosedAfterConnected.also { ws.cancel() }
+                ?: return SessionOutcome.ClosedAfterConnected.also {
+                    logReconnect("reconnect: no frame for ${silenceLimit}ms")
+                    ws.cancel()
+                }
             when (signal) {
                 is Signal.Text -> when (val frame = Frames.parse(signal.text)) {
                     is Frame.Response -> pending[frame.id]?.complete(frame)
                     is Frame.Event -> if (frame.event != "tick") _events.tryEmit(GatewayEvent(frame.event, frame.payload))
                     null -> Unit
                 }
-                is Signal.Closed, is Signal.Failure -> return SessionOutcome.ClosedAfterConnected
+                is Signal.Closed, is Signal.Failure -> {
+                    // つなぎ直しの理由を logcat に残す（遅い・切れる報告の切り分け用）
+                    logReconnect("reconnect: socket ${if (signal is Signal.Closed) "closed" else "failed"}: $signal")
+                    return SessionOutcome.ClosedAfterConnected
+                }
             }
         }
     }
@@ -640,7 +663,8 @@ class GatewayClient(
         const val PAIRING_POLL_MS = 3_000L
         const val MAX_INBOUND_MEDIA_BYTES = 20L * 1024 * 1024
         private val INBOUND_MEDIA = Regex("^media://inbound/[^/?#\\\\]+$", RegexOption.IGNORE_CASE)
-        private const val FOREGROUND_PROBE_TIMEOUT_MS = 3_000L
+        const val FOREGROUND_PROBE_TIMEOUT_MS = 10_000L
+        const val PROBE_SKIP_RECENT_MS = 10_000L
         /** ソケットを開いて connect.challenge が届くまでの上限。 */
         private const val OPEN_TIMEOUT_MS = 15_000L
         private const val NORMAL_CLOSURE = 1000
@@ -651,4 +675,12 @@ class GatewayClient(
         /** 一意の冪等キー。 */
         fun newIdempotencyKey(): String = UUID.randomUUID().toString()
     }
+}
+
+/** 単調に増える時刻（ミリ秒）。端末の時計の変更に影響されず、JVM の単体テストでも動く。 */
+private fun monotonicMs(): Long = System.nanoTime() / 1_000_000
+
+/** つなぎ直しの理由を logcat に残す（JVM の単体テストでは Log が使えないので黙って飛ばす）。 */
+private fun logReconnect(message: String) {
+    runCatching { android.util.Log.i("ClawdroidGateway", message) }
 }

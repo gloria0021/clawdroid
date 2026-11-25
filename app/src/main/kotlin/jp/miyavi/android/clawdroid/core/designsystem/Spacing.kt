@@ -89,4 +89,9 @@ object Dimens {
     val usageMeterEdge = 4.dp
     /** サイドパネルの頭の看板の高さ（ステータスバーの下から）。 */
     val agentHeroHeight = 180.dp
+    /** Gateway につながっていないときに会話の画面の真ん中に出すマスコットの大きさ。 */
+    val offlineMascot = 96.dp
 }
+
+/** 使えない（Gateway につながっていないなど）部品の不透明度（AGENTS.md 2.2 の無効・折りたたみ 0.6）。 */
+const val DisabledAlpha = 0.6f

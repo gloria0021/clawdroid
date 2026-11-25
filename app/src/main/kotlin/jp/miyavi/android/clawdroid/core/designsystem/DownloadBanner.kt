@@ -1,6 +1,6 @@
 package jp.miyavi.android.clawdroid.core.designsystem
 
-import android.content.ActivityNotFoundException
+import jp.miyavi.android.clawdroid.core.data.downloadsFolderIntent
 import android.content.Intent
 import android.text.format.Formatter
 import androidx.compose.animation.AnimatedVisibility
@@ -68,7 +68,8 @@ fun DownloadBanner(center: DownloadCenter, hazeState: HazeState, modifier: Modif
         visible = first != null || result != null,
         enter = slideInVertically(motion.defaultSpatialSpec()) { -it },
         exit = slideOutVertically(motion.fastSpatialSpec()) { -it } + fadeOut(motion.fastEffectsSpec()),
-        modifier = modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars),
+        // 画面の右上に浮くピル（会話の画面の「Clawdroid」など）の 1 段下に出し、ピルを押せるままにする（マスター指定 2026-11-25）
+        modifier = modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(top = Dimens.floatingButtonSize + Spacing.s),
     ) {
         // 消える動きのあいだは、最後の中身を出しておく
         val lastTask = remember { LastValue<DownloadTask>() }
@@ -155,14 +156,16 @@ private fun ResultRow(event: DownloadEvent, onDone: () -> Unit) {
             modifier = Modifier.weight(1f).padding(vertical = Spacing.m))
         if (event is DownloadEvent.Saved && !noApp) {
             TextButton(onClick = {
-                val intent = Intent(Intent.ACTION_VIEW).setDataAndType(event.result.uri, event.result.mimeType)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                try {
-                    context.startActivity(intent)
-                    onDone()
-                } catch (_: ActivityNotFoundException) {
-                    noApp = true
-                }
+                // ファイルを直接開かず、端末の Download フォルダの画面を出す（種類の分からないファイルでテキストエディタなどが
+                // 候補に並ぶのを避ける。マスター指定 2026-11-25）。その画面が無い端末だけ、ファイルを開く
+                val opened = runCatching { context.startActivity(downloadsFolderIntent()) }.isSuccess ||
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW).setDataAndType(event.result.uri, event.result.mimeType)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                        )
+                    }.isSuccess
+                if (opened) onDone() else noApp = true
             }) { Text(stringResource(R.string.files_open_download)) }
         }
     }

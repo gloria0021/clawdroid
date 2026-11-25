@@ -117,8 +117,8 @@ class DownloadService : Service() {
     private fun savedNotification(result: DownloadResult.Saved): Notification {
         val open = PendingIntent.getActivity(
             this, result.uri.hashCode(),
-            Intent(Intent.ACTION_VIEW).setDataAndType(result.uri, result.mimeType)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+            // 押すと端末の Download フォルダの画面（保存したファイルが並ぶ）を開く
+            downloadsFolderIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_RESULT)
@@ -158,3 +158,6 @@ class DownloadService : Service() {
         }
     }
 }
+
+/** 端末の Download フォルダの画面（ファイルアプリのダウンロード）を開く。 */
+fun downloadsFolderIntent(): Intent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS)

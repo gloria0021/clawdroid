@@ -40,6 +40,8 @@ class GatewayClientTest {
             secrets = secrets,
             clientInfo = ClientInfo(version = "0.1.0-test", modelIdentifier = "Test", displayName = "Test"),
             handshakeTimeoutMs = 5_000,
+            foregroundProbeTimeoutMs = 1_000,
+            probeSkipRecentMs = 0,
         )
     }
 
@@ -151,6 +153,30 @@ class GatewayClientTest {
 
         assertEquals("after-resume", secrets.connection?.deviceToken)
         assertEquals(2, gateway.connectParams.size)
+    }
+
+    @Test fun foreground_recentFrame_skipsTheProbe() {
+        // 直前に Gateway から届いていれば生きているので確かめず、つなぎ直さない（遅い回線で生きている接続を捨てない）
+        val recent = GatewayClient(
+            scope = scope,
+            httpClient = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build(),
+            identities = DeviceIdentityRepository(secrets),
+            secrets = secrets,
+            clientInfo = ClientInfo(version = "0.1.0-test", modelIdentifier = "Test", displayName = "Test"),
+            handshakeTimeoutMs = 5_000,
+            foregroundProbeTimeoutMs = 500,
+            probeSkipRecentMs = 60_000,
+        )
+        gateway.ignoredMethods += "health"
+        gateway.enqueue(ConnectBehavior.Accept(deviceToken = "only"))
+        await { recent.connect(gateway.url, "t") }
+        await { recent.awaitConnected() }
+
+        recent.onForeground()
+        Thread.sleep(1_200)
+
+        assertTrue(recent.state.value is ConnectionState.Connected)
+        assertEquals(1, gateway.connectParams.size)
     }
 
     @Test fun reconnectNow_abandonsAStalledAttempt() {

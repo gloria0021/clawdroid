@@ -180,6 +180,13 @@ internal fun FilesContent(
     val twoPane = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo()).maxHorizontalPartitions >= 2
     // ファイルを開いていなければ、パネルを開いた状態で始める
     val drawerState = rememberDrawerState(if (opened == null) DrawerValue.Open else DrawerValue.Closed)
+    // 開いたファイルの更新日時（中身を読めない大きなファイルは、ツリーの一覧の値）。「n 分前」は分ごとに進める
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val metaFormat = remember(context, locale) { FileMetaFormat(context, locale) }
+    val now by rememberMinuteClock()
+    val openedUpdatedAt = ready?.file?.updatedAt ?: opened?.path?.let { state.tree.entry(it)?.updatedAt }
+    val openedUpdated = openedUpdatedAt?.let { metaFormat.updated(it, now) }
     val treeListState = rememberLazyListState()
     // 編集中の入力欄は画面の上で持つ（記号の行と取り消しが同じ欄を触る）
     val editor = if (ready?.editing == true) rememberEditorState(ready, onEdit) else null
@@ -216,13 +223,17 @@ internal fun FilesContent(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            // ツリーの中でのパス（どのフォルダの中か。FR-043）
-                            Text(
-                                listOfNotNull(rootLabel, opened?.path?.substringBeforeLast('/', "")?.ifEmpty { null }).joinToString(" / "),
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            // ツリーの中でのパス（どのフォルダの中か。FR-043）と更新日時。パスは省略し、日時は切らない
+                            Row {
+                                Text(
+                                    listOfNotNull(rootLabel, opened?.path?.substringBeforeLast('/', "")?.ifEmpty { null }).joinToString(" / "),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                openedUpdated?.let { Text(" · $it", style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                            }
                         }
                     },
                     navigationIcon = {

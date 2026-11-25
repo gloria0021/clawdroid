@@ -34,6 +34,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +79,11 @@ internal fun FileTree(
 ) {
     val rows = remember(state.tree) { state.rows }
     val motion = MaterialTheme.motionScheme
+    // 行の 2 行目の大きさと更新日時。書式は一度だけ作り、「n 分前」は分が変わるたびに進める
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val metaFormat = remember(context, locale) { FileMetaFormat(context, locale) }
+    val now by rememberMinuteClock()
     LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
         item(key = "header", contentType = "header") {
             if (state.sessionRoot != null) RootSwitcher(state, onSelectRoot)
@@ -90,6 +97,7 @@ internal fun FileTree(
             when (row) {
                 is TreeRow.Item -> TreeItem(
                     row = row,
+                    meta = remember(row.entry, metaFormat, now) { metaFormat.format(row.entry, now) },
                     selected = !row.entry.isDirectory && row.entry.path == state.opened?.path,
                     busy = state.pendingOp == row.entry.path,
                     canModify = state.canModify,
@@ -145,6 +153,8 @@ private fun androidx.compose.foundation.lazy.LazyItemScope.BlankArea(onAction: (
 @Composable
 private fun TreeItem(
     row: TreeRow.Item,
+    /** 名前の下に出す大きさと更新日時（無ければ 1 行）。 */
+    meta: String?,
     selected: Boolean,
     busy: Boolean,
     canModify: Boolean,
@@ -191,14 +201,15 @@ private fun TreeItem(
                 tint = if (entry.isDirectory) colors.primary else colors.onSurfaceVariant,
                 modifier = Modifier.size(Dimens.smallIcon),
             )
-            Text(
-                entry.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (selected) accent.content else colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            val nameColor = if (selected) accent.content else colors.onSurface
+            val metaColor = if (selected) accent.content else colors.onSurfaceVariant
+            // 1 行目に名前、2 行目に大きさと更新日時（名前を潰さない）
+            Column(Modifier.weight(1f).padding(vertical = Spacing.xs)) {
+                Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = nameColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (meta != null) {
+                    Text(meta, style = MaterialTheme.typography.labelSmall, color = metaColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             if (busy) CircularProgressIndicator(Modifier.size(Dimens.runningIndicator), strokeWidth = Dimens.runningIndicatorStroke, color = colors.tertiary)
         }
         GlassDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -279,3 +290,4 @@ internal fun LoadingOrFailed(failed: Boolean, message: Int, onRetry: () -> Unit,
 private const val EXPANDED_ROTATION = 90f
 /** 一覧の下に残す、長押しできる空白（表示の高さに対する割合）。 */
 private const val BLANK_AREA_FRACTION = 0.5f
+

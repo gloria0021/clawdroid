@@ -94,6 +94,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import jp.miyavi.android.clawdroid.core.designsystem.DisabledAlpha
+import jp.miyavi.android.clawdroid.core.gateway.ConnectionState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -147,6 +150,8 @@ private fun <T> panelFadeSpec(): FiniteAnimationSpec<T> {
 @Composable
 fun SidePanel(
     agents: List<Agent>,
+    /** Gateway につながっていなければ、新しいセッションを押せなくし、エージェントの代わりにマスコットと状態を出す。 */
+    connection: ConnectionState = ConnectionState.Connecting,
     selectedAgentId: String?,
     onSelectAgent: (String) -> Unit,
     sessionsByAgent: Map<String, SessionListState>,
@@ -207,6 +212,16 @@ fun SidePanel(
                     // 下へいくほど背景に溶かす。右上に閉じる（ガラスの面で、どの画像の上でも読める）
                     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                     Box(Modifier.fillMaxWidth().height(statusTop + Dimens.agentHeroHeight)) {
+                        if (currentAgent == null) {
+                            // エージェントがまだ無い（つながっていない）: 淡いマスコットを看板の代わりに置く（マスター指定 2026-11-25）
+                            Image(
+                                painter = painterResource(R.drawable.launcher_mascot_foreground),
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.matchParentSize().windowInsetsPadding(WindowInsets.statusBars)
+                                    .graphicsLayer { alpha = DisabledAlpha },
+                            )
+                        }
                         currentAgent?.let { agent ->
                             jp.miyavi.android.clawdroid.feature.chat.AgentHero(
                                 agent,
@@ -231,6 +246,24 @@ fun SidePanel(
                     ) {
                         // エージェントの名前（画像の下、ホームの上。titleMedium の 1.5 倍 = headlineSmall。
                         // ガラスは付けない。マスター指定 2026-11-23）
+                        if (currentAgent == null) {
+                            val trying = connection is ConnectionState.Connecting || connection is ConnectionState.Reconnecting ||
+                                connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval
+                            Text(
+                                stringResource(
+                                    when {
+                                        connection is ConnectionState.Connected -> R.string.panel_loading_agents
+                                        trying -> R.string.offline_connecting
+                                        else -> R.string.offline_unreachable
+                                    },
+                                ),
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth().padding(start = PanelTextInset, end = Spacing.s, top = Spacing.s),
+                            )
+                        }
                         currentAgent?.let { agent ->
                             // 名前の横に編集のアイコン（エージェントの設定を開く。マスター指定 2026-11-24、spec 004 FR-001）
                             Row(
@@ -284,7 +317,10 @@ fun SidePanel(
                         }
                         // 見出しのすぐ下に「+ 新規セッション」の行（アイコンのボタンではなく行で。マスター指定 2026-11-24）。
                         // 一覧の外に置き、空・読み込み中でも出す
-                        NewSessionItem(onClick = { commitAgent(); onNewSession() })
+                        NewSessionItem(
+                            enabled = connection is ConnectionState.Connected && currentAgent != null,
+                            onClick = { commitAgent(); onNewSession() },
+                        )
                         if (currentAgent != null) {
                             Box(Modifier.weight(1f).fillMaxWidth().hazeSource(hazeState)) {
                                 historyState.SaveableStateProvider(currentAgent.id) {
@@ -452,15 +488,16 @@ private fun PinnedAction(session: SessionSummary, selected: Boolean, onClick: ()
 
 /** 「+ 新規セッション」の行。セッションの行（CompactSessionRow）と同じ高さ・余白・文字（マスター指定 2026-11-24）。 */
 @Composable
-private fun NewSessionItem(onClick: () -> Unit) {
+private fun NewSessionItem(enabled: Boolean, onClick: () -> Unit) {
     val highlight = selectionHighlight(false)
-    Box(Modifier.padding(horizontal = PanelItemInset)) {
+    // 押せないあいだは淡くして、押しても何も起きない（つながっていない・エージェントが無い）
+    Box(Modifier.padding(horizontal = PanelItemInset).graphicsLayer { alpha = if (enabled) 1f else DisabledAlpha }) {
         SelectionPill(highlight)
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = Dimens.minTouchTarget)
-                .clickable(interactionSource = highlight.interactions, indication = null, onClick = onClick)
+                .clickable(enabled = enabled, interactionSource = highlight.interactions, indication = null, onClick = onClick)
                 .padding(horizontal = Spacing.m, vertical = Spacing.s),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),

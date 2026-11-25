@@ -14,10 +14,12 @@ import jp.miyavi.android.clawdroid.core.data.providerBrand
 import jp.miyavi.android.clawdroid.core.data.ProviderBrand
 import jp.miyavi.android.clawdroid.core.data.ContextBreakdown
 import jp.miyavi.android.clawdroid.core.data.HostStats
+import jp.miyavi.android.clawdroid.feature.chat.SheetUsageCache
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
@@ -53,11 +55,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -111,18 +115,39 @@ fun ComposerSessionSheet(
     loadUsage: suspend () -> List<ProviderUsage>,
     loadContext: suspend () -> ContextBreakdown?,
     loadHostStats: suspend () -> HostStats?,
+    /** 前回の値。あれば 1 フレーム目からそれで組む。 */
+    cache: SheetUsageCache,
     onSelect: (SessionSetting, String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val providers by produceState<List<ProviderUsage>?>(null) { value = loadUsage() }
-    val breakdown by produceState<ContextBreakdown?>(null) { value = loadContext() }
+    // 開く動きと重ねない（AGENTS.md 2.8）: 取得と解析はすぐ裏で始め、画面に入れるのはシートが開き切ってから。
+    // 1 フレーム目は前回の値で組み（高さを変えない）、届いた値までの差分だけ帯を動かす（マスター指定 2026-11-25）
+    // 途中の高さで止めず、中身の高さまで出し切る（上限は AppBottomSheet の高さ。超えたら中だけスクロール。マスター指定 2026-11-25）
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var opened by remember { mutableStateOf(false) }
+    LaunchedEffect(sheetState) {
+        snapshotFlow { sheetState.currentValue != SheetValue.Hidden && sheetState.currentValue == sheetState.targetValue }.first { it }
+        opened = true
+    }
+    suspend fun awaitOpened() = snapshotFlow { opened }.first { it }
+    val providers by produceState(cache.providers) {
+        val loaded = loadUsage()
+        awaitOpened()
+        value = loaded
+    }
+    val breakdown by produceState(cache.breakdown(session?.key)) {
+        val loaded = loadContext()
+        awaitOpened()
+        if (loaded != null || value == null) value = loaded
+    }
     // Gateway のホストのメモリとディスク。シートが前に出ているあいだだけ数秒おきに取り直す（モデルのトークンは使わない）。
     // 最初に取れなければ（古い Gateway など）出さない
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val host by produceState<HostLoad>(HostLoad.Loading) {
+    val host by produceState<HostLoad>(cache.host?.let(HostLoad::Ready) ?: HostLoad.Loading) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 val stats = loadHostStats()
+                awaitOpened()
                 value = when {
                     stats != null -> HostLoad.Ready(stats)
                     value is HostLoad.Ready -> value
@@ -141,7 +166,7 @@ fun ComposerSessionSheet(
     var openSetting by remember { mutableStateOf<SessionSetting?>(null) }
 
     // シートを画面の透かす元にも加える（前面に重ねる）。ポップアップはシートより上の窓に出て、シートと後ろの会話の両方を透かす
-    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState, hazeSourceZIndex = SHEET_HAZE_Z_INDEX) {
+    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState, sheetState = sheetState, hazeSourceZIndex = SHEET_HAZE_Z_INDEX) {
         Surface(
             color = sheetFieldColor(),
             shape = MaterialTheme.shapes.large,
@@ -286,16 +311,33 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
         }
         // 内訳の行は細い幅に詰めず、横幅いっぱいで（文字 200% でも切れないように）
         if (fraction != null && limit != null) {
-            breakdown?.let { ContextRows(it) }
+            // 届いてから下に開く（高さが一度に変わらないように）
+            AnimatedVisibility(breakdown != null, enter = expandEnter(), exit = shrinkExit()) {
+                breakdown?.let { ContextRows(it) }
+            }
         } else if (host is HostLoad.Unavailable) {
             MutedText(stringResource(R.string.chat_usage_unavailable))
         }
 
         SectionTitle(R.string.chat_usage_provider)
+        // 取得中も細い読み込みの棒ではなく、帯の形を空のまま先に出す（届いたら同じ形で中身が入る。マスター指定 2026-11-25）
         AnimatedVisibility(providers == null, enter = expandEnter(), exit = shrinkExit()) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                repeat(METERS_PER_ROW) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        Text(
+                            stringResource(R.string.host_value_pending),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        UsageMeter(fraction = 0f, remaining = stringResource(R.string.host_value_pending), warn = false)
+                    }
+                }
+            }
         }
         if (providers != null && providers.isEmpty()) MutedText(stringResource(R.string.chat_usage_unavailable))
+        AnimatedVisibility(!providers.isNullOrEmpty(), enter = expandEnter(), exit = shrinkExit()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         providers?.forEach { provider ->
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
@@ -342,6 +384,8 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
                 }
             }
         }
+        }
+        }
     }
 }
 
@@ -385,8 +429,8 @@ private fun ContextBreakdown.parts(): List<Pair<ContextPart, Long?>> = listOf(
 @Composable
 private fun ContextBar(breakdown: ContextBreakdown?, limit: Long, fraction: Float) {
     val motion = MaterialTheme.motionScheme
-    val grow = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { grow.animateTo(1f, motion.defaultSpatialSpec()) }
+    // 内訳の棒は 0 から伸ばさない（届いた値にそのまま置く。マスター指定 2026-11-25）
+    val grow = remember { Animatable(1f) }
     val colors = MaterialTheme.colorScheme
     val track = colors.surfaceContainerHighest
     // 内訳が無いときは 1 色の帯。くすみ色だと下地と見分けにくいので、はっきりした強調の色（残りが少ないときはエラーの色）
@@ -446,8 +490,8 @@ private fun Meter(title: Int, fraction: Float?, amount: String?, warn: Boolean, 
 }
 
 /**
- * 「9.5 / 15 GB」「512 MB / 15 GB」。使った量と全体を、帯の幅に収まるよう単位を 1 つにまとめて出す
- * （Control UI と同じく 1024 単位、10 未満だけ小数 1 桁）。
+ * 「9.5 / 15 GiB」「512 MiB / 15 GiB」。使った量と全体を、帯の幅に収まるよう単位を 1 つにまとめて出す
+ * （1024 単位なので単位も GiB・MiB。10 未満だけ小数 1 桁。マスター指定 2026-11-25）。
  */
 @Composable
 private fun usedOfTotal(used: Long, total: Long): String {
@@ -455,7 +499,9 @@ private fun usedOfTotal(used: Long, total: Long): String {
     fun parts(bytes: Long): Pair<String, Int> {
         val gib = bytes / BYTES_PER_GIB
         val (number, unit) = if (gib >= 1) gib to R.string.host_bytes_gb else bytes / BYTES_PER_MIB to R.string.host_bytes_mb
-        val format = NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = if (number < 10) 1 else 0 }
+        val digits = if (number < 10) 1 else 0
+        // 10 未満は小数 1 桁を必ず出す（5 と 5.1 で桁が揺れないように。マスター指定 2026-11-25）
+        val format = NumberFormat.getNumberInstance(locale).apply { minimumFractionDigits = digits; maximumFractionDigits = digits }
         return format.format(number) to unit
     }
     val (usedNumber, usedUnit) = parts(used.coerceAtLeast(0))
@@ -509,7 +555,8 @@ private fun UsageMeter(
 ) {
     val motion = MaterialTheme.motionScheme
     val colors = MaterialTheme.colorScheme
-    val progress = remember { Animatable(0f) }
+    // 前回の値（シートを開いた時点の値）から、届いた値までの差分だけ動かす。0 からは伸ばさない（マスター指定 2026-11-25）
+    val progress = remember { Animatable(fraction.coerceIn(0f, 1f)) }
     LaunchedEffect(fraction) { progress.animateTo(fraction.coerceIn(0f, 1f), motion.defaultSpatialSpec()) }
     // 塗りは文字が読める淡い色、使った所の下の縁にはっきりした強調の色の線を引く（下地との差が分かるように）
     val strong = if (warn) colors.error else colors.primary

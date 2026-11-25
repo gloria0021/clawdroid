@@ -91,6 +91,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object AgentLayoutRoute : NavKey
 @Serializable data object NotificationSettingsRoute : NavKey
 @Serializable data object ShortcutSettingsRoute : NavKey
+@Serializable data object LicensesRoute : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
 @Serializable data object UsageRoute : NavKey
@@ -244,7 +245,7 @@ private fun MainNavigation(container: AppContainer) {
                 val notifications by container.settings.notifications.collectAsStateWithLifecycle(null)
                 val shortcuts by container.settings.shortcuts.collectAsStateWithLifecycle(jp.miyavi.android.clawdroid.core.shortcut.ShortcutSettings())
                 SettingsContent(
-                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, shown, agentsState.agents.size, notifications, shortcuts.slots.size),
+                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, shown, agentsState.agents.size, notifications, shortcuts.slots.size),
                     snackbar = snackbar,
                     actions = SettingsActions(
                         onBack = { gate.run { backStack.pop() } },
@@ -264,8 +265,13 @@ private fun MainNavigation(container: AppContainer) {
                         setNotifications = { next -> scope.launch { container.settings.setNotifications(next) } },
                         openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
                         openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
+                        openLicenses = { gate.run { backStack.push(LicensesRoute) } },
                     ),
                 )
+            }
+            entry<LicensesRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                jp.miyavi.android.clawdroid.feature.settings.LicensesScreen(onBack = { gate.run { backStack.pop() } })
             }
             entry<ShortcutSettingsRoute> {
                 val gate = rememberNavGate(onBack = { backStack.pop() })

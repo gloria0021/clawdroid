@@ -77,6 +77,8 @@ data class SettingsState(
     val connection: ConnectionState,
     val url: String?,
     val version: String,
+    /** 版の番号（ストアの表示と突き合わせる）。 */
+    val versionCode: Int = 0,
     /** サイドパネルに出しているエージェントの数 / すべての数。 */
     val agentsShown: Int = 0,
     val agentsTotal: Int = 0,
@@ -104,6 +106,7 @@ data class SettingsActions(
     val setNotifications: (jp.miyavi.android.clawdroid.core.settings.NotificationSettings) -> Unit = {},
     val openNotificationSettings: () -> Unit = {},
     val openShortcuts: () -> Unit = {},
+    val openLicenses: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,55 +139,7 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                 contentPadding = padding,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // 接続: 1 行に接続先と状態。再接続・切断・接続情報の削除は右のアイコン
-                item(key = "connection") {
-                    Section(R.string.settings_section_connection) {
-                        val connected = state.connection as? ConnectionState.Connected
-                        ListItem(
-                            leadingContent = {
-                                Icon(
-                                    painterResource(R.drawable.ic_huge_connection),
-                                    contentDescription = null,
-                                    tint = if (connected != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            headlineContent = {
-                                Text(state.url?.removePrefix("wss://")?.removePrefix("ws://")?.trimEnd('/') ?: "—", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                            supportingContent = {
-                                Text(
-                                    connected?.let { stringResource(R.string.settings_connection_state_connected, it.serverVersion) }
-                                        ?: stringResource(R.string.connection_offline),
-                                )
-                            },
-                            trailingContent = {
-                                Row {
-                                    IconButton(onClick = actions.reconnect) {
-                                        Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = stringResource(R.string.settings_reconnect))
-                                    }
-                                    IconButton(onClick = actions.disconnect) {
-                                        Icon(painterResource(R.drawable.ic_huge_unlink), contentDescription = stringResource(R.string.settings_disconnect))
-                                    }
-                                    IconButton(onClick = { dialog = "forget" }) {
-                                        Icon(
-                                            painterResource(R.drawable.ic_huge_logout),
-                                            contentDescription = stringResource(R.string.settings_forget),
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    }
-                                }
-                            },
-                            colors = transparentItem(),
-                        )
-                        ListItem(
-                            leadingContent = { Icon(painterResource(R.drawable.ic_huge_restart), contentDescription = null) },
-                            headlineContent = { Text(stringResource(R.string.settings_restart)) },
-                            supportingContent = { Text(stringResource(R.string.settings_restart_desc)) },
-                            colors = transparentItem(),
-                            modifier = Modifier.clickable(role = Role.Button, onClick = actions.restart),
-                        )
-                    }
-                }
+                // 並び: 通知・表示・エージェント・接続・情報（マスター指定 2026-11-25）
                 // 通知（spec 006）
                 state.notifications?.let { notifications ->
                     item(key = "notifications") {
@@ -208,24 +163,6 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                 modifier = Modifier.clickable(role = Role.Button, onClick = actions.openNotificationSettings),
                             )
                         }
-                    }
-                }
-                // エージェント: サイドパネルに出すエージェントと並び
-                item(key = "agents") {
-                    Section(R.string.settings_section_agents) {
-                        ChoiceItem(
-                            icon = R.drawable.ic_huge_layers,
-                            title = stringResource(R.string.settings_agents_layout),
-                            value = stringResource(R.string.settings_agents_layout_value, state.agentsShown, state.agentsTotal),
-                            onClick = actions.openAgentLayout,
-                        )
-                        // ランチャーの長押しメニューの項目（spec 007）
-                        ChoiceItem(
-                            icon = R.drawable.ic_huge_flash,
-                            title = stringResource(R.string.settings_shortcuts),
-                            value = stringResource(R.string.settings_shortcuts_value, state.shortcuts, jp.miyavi.android.clawdroid.core.shortcut.MAX_SHORTCUTS),
-                            onClick = actions.openShortcuts,
-                        )
                     }
                 }
                 // 表示
@@ -277,14 +214,77 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                         }
                     }
                 }
-                item(key = "about") {
-                    Section(R.string.settings_section_about) {
+                // エージェント: サイドパネルに出すエージェントと並び
+                item(key = "agents") {
+                    Section(R.string.settings_section_agents) {
+                        ChoiceItem(
+                            icon = R.drawable.ic_huge_layers,
+                            title = stringResource(R.string.settings_agents_layout),
+                            value = stringResource(R.string.settings_agents_layout_value, state.agentsShown, state.agentsTotal),
+                            onClick = actions.openAgentLayout,
+                        )
+                        // ランチャーの長押しメニューの項目（spec 007）
+                        ChoiceItem(
+                            icon = R.drawable.ic_huge_flash,
+                            title = stringResource(R.string.settings_shortcuts),
+                            value = stringResource(R.string.settings_shortcuts_value, state.shortcuts, jp.miyavi.android.clawdroid.core.shortcut.MAX_SHORTCUTS),
+                            onClick = actions.openShortcuts,
+                        )
+                    }
+                }
+                // 接続: 1 行に接続先と状態。再接続・切断・接続情報の削除は右のアイコン
+                item(key = "connection") {
+                    Section(R.string.settings_section_connection) {
+                        val connected = state.connection as? ConnectionState.Connected
                         ListItem(
-                            leadingContent = { Icon(painterResource(R.drawable.ic_huge_info), contentDescription = null) },
-                            headlineContent = { Text(stringResource(R.string.app_name)) },
-                            supportingContent = { Text(stringResource(R.string.settings_version, state.version)) },
+                            leadingContent = {
+                                Icon(
+                                    painterResource(R.drawable.ic_huge_connection),
+                                    contentDescription = null,
+                                    tint = if (connected != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            headlineContent = {
+                                Text(state.url?.removePrefix("wss://")?.removePrefix("ws://")?.trimEnd('/') ?: "—", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            },
+                            supportingContent = {
+                                Text(
+                                    connected?.let { stringResource(R.string.settings_connection_state_connected, it.serverVersion) }
+                                        ?: stringResource(R.string.connection_offline),
+                                )
+                            },
+                            trailingContent = {
+                                Row {
+                                    IconButton(onClick = actions.reconnect) {
+                                        Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = stringResource(R.string.settings_reconnect))
+                                    }
+                                    IconButton(onClick = actions.disconnect) {
+                                        Icon(painterResource(R.drawable.ic_huge_unlink), contentDescription = stringResource(R.string.settings_disconnect))
+                                    }
+                                    IconButton(onClick = { dialog = "forget" }) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_huge_logout),
+                                            contentDescription = stringResource(R.string.settings_forget),
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                }
+                            },
                             colors = transparentItem(),
                         )
+                        ListItem(
+                            leadingContent = { Icon(painterResource(R.drawable.ic_huge_restart), contentDescription = null) },
+                            headlineContent = { Text(stringResource(R.string.settings_restart)) },
+                            supportingContent = { Text(stringResource(R.string.settings_restart_desc)) },
+                            colors = transparentItem(),
+                            modifier = Modifier.clickable(role = Role.Button, onClick = actions.restart),
+                        )
+                    }
+                }
+                // 情報（spec 003 US4）: 版と環境、コピー、プライバシーポリシー、オープンソースのライセンス
+                item(key = "about") {
+                    Section(R.string.settings_section_about) {
+                        AboutSection(state, actions, snackbar)
                     }
                 }
             }

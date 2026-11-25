@@ -32,6 +32,8 @@ tink = "1.24.0"
 termux = "v0.118.3"
 # コードの色分け（research R10。マスター承認 2026-11-22）
 highlights = "1.2.0"
+# オープンソースのライセンスの一覧を依存関係から作る（spec 003 FR-034）。ビルドのときだけ使い、実行時の依存は足さない
+aboutLibraries = "15.3.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -92,3 +94,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+aboutlibraries-android = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutLibraries" }
