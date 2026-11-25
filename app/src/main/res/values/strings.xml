@@ -131,6 +131,9 @@
     <string name="chat_notice_compaction_tokens">コンテキストを圧縮しました（%1$s → %2$s トークン）</string>
     <string name="chat_notice_injected_context">システムが文脈を追加しました</string>
     <string name="chat_notice_task">バックグラウンドのタスクの知らせ</string>
+    <string name="chat_notice_reset">セッションをリセットしました</string>
+    <string name="chat_notice_reset_soft">履歴を残してセッションをリセットしました</string>
+    <string name="chat_notice_new_session">新しいセッションを始めました</string>
     <string name="chat_notice_show">中身を開く</string>
     <string name="chat_notice_hide">中身を閉じる</string>
     <string name="worktree_title">並行開発を開始</string>
@@ -815,7 +818,7 @@
     <string name="settings_notify_permission_ok">許可されています</string>
     <string name="settings_notify_battery">電池の最適化</string>
     <string name="settings_notify_battery_on">最適化の対象です。通知が遅れたり届かなかったりします。押すと外せます</string>
-    <string name="settings_notify_battery_off">対象から外れています</string>
+    <string name="settings_notify_battery_off">対象から外れています。押すとこのアプリの電池の設定を開きます</string>
     <string name="settings_notify_channels">エージェントごとの音とオン・オフ</string>
     <string name="settings_notify_channels_desc">端末の通知の設定を開きます</string>
     <string name="settings_notify_test">テスト通知を送る</string>

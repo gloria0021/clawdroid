@@ -20,3 +20,16 @@ internal fun withoutTranscriptEchoes(messages: List<ChatMessage>): List<ChatMess
     }
     return if (out.size == messages.size) messages else out
 }
+
+/**
+ * 1 回のリセットで、Gateway の区切り（種類が分からない）と、利用者が送った `/reset` などのコマンドの両方が残ることがある。
+ * リセットのお知らせが隣り合ったら、種類の分からない区切りを外し、コマンドの方（送信 ID を持つ）を残す。
+ */
+internal fun withoutDuplicateResets(messages: List<ChatMessage>): List<ChatMessage> {
+    fun ChatMessage?.reset() = this?.notice as? SystemNotice.Reset
+    val out = messages.filterIndexed { i, message ->
+        message.reset()?.kind != ResetKind.UNKNOWN ||
+            listOf(messages.getOrNull(i - 1), messages.getOrNull(i + 1)).none { it.reset()?.let { r -> r.kind != ResetKind.UNKNOWN } == true }
+    }
+    return if (out.size == messages.size) messages else out
+}

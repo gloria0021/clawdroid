@@ -59,6 +59,7 @@ import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.MessagePart
 import jp.miyavi.android.clawdroid.core.data.ModelChange
+import jp.miyavi.android.clawdroid.core.data.ResetKind
 import jp.miyavi.android.clawdroid.core.data.SystemNotice
 import jp.miyavi.android.clawdroid.core.data.shortModelName
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
@@ -270,14 +271,23 @@ fun SystemNoticeDivider(
         }
         SystemNotice.InjectedContext -> stringResource(R.string.chat_notice_injected_context)
         SystemNotice.TaskNotification -> stringResource(R.string.chat_notice_task)
+        is SystemNotice.Reset -> stringResource(
+            when (notice.kind) {
+                ResetKind.SOFT -> R.string.chat_notice_reset_soft
+                ResetKind.NEW -> R.string.chat_notice_new_session
+                ResetKind.RESET, ResetKind.UNKNOWN -> R.string.chat_notice_reset
+            },
+        )
     }
     val icon = when (notice) {
         is SystemNotice.Compaction -> R.drawable.ic_huge_layers
         SystemNotice.InjectedContext -> R.drawable.ic_huge_info
         SystemNotice.TaskNotification -> R.drawable.ic_huge_notification
+        is SystemNotice.Reset -> R.drawable.ic_huge_restart
     }
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val hasBody = body.isNotBlank()
+    // リセットの中身は送ったコマンドか「Reset」だけなので、開けるようにしない
+    val hasBody = body.isNotBlank() && notice !is SystemNotice.Reset
     Column(modifier.fillMaxWidth()) {
         Row(
             Modifier

@@ -170,6 +170,19 @@ sealed interface SystemNotice {
     data object InjectedContext : SystemNotice
     /** バックグラウンドのタスクの知らせ。 */
     data object TaskNotification : SystemNotice
+    /** セッションのリセット。送ったコマンドで分かるときは種類を持つ。 */
+    data class Reset(val kind: ResetKind) : SystemNotice
+}
+
+enum class ResetKind {
+    /** `/reset`（履歴を空にして始め直す）。 */
+    RESET,
+    /** `/reset soft`（履歴を残したまま始め直す）。 */
+    SOFT,
+    /** `/new`。 */
+    NEW,
+    /** Gateway の記録だけで、どのリセットか分からない（自動の切り替えなど）。 */
+    UNKNOWN,
 }
 
 /** 送信時のモデル（`provider/model`）と、その直前のモデル。 */
@@ -363,7 +376,7 @@ internal object Parse {
         } else emptyList()
         if (hidden(obj, meta, role, parts)) return null
         val entryId = meta?.string("id")
-        val notice = notice(obj, meta, parts)
+        val notice = notice(obj, meta, role, parts)
         val selection = if (role == ChatMessage.Role.USER && notice == null) meta?.obj("modelSelection") else null
         val modelChange = obj.takeIf { it.string("customType") == "session-model-change" }?.obj("details")?.let { details ->
             val from = details.string("from")?.takeIf(String::isNotBlank) ?: return@let null
@@ -393,10 +406,15 @@ internal object Parse {
      * システムのお知らせか。`__openclaw.kind = compaction`（OpenClaw の圧縮）と、
      * `provenance.kind = internal_system` の CLI の文脈・タスクの知らせ（Control UI と同じ見分け方）。
      * Claude CLI の圧縮の要約も cli_harness_context で届くので、要約の書き出しで圧縮と分かる。
+     * リセットは、Gateway の区切り（`__openclaw.kind = reset`）と、利用者が送った `/reset`・`/reset soft`・`/new` だけの発言。
      */
-    private fun notice(obj: JsonObject, meta: JsonObject?, parts: List<MessagePart>): SystemNotice? {
-        if (meta?.string("kind") == "compaction") {
-            return SystemNotice.Compaction(meta.long("tokensBefore"), meta.long("tokensAfter"))
+    private fun notice(obj: JsonObject, meta: JsonObject?, role: ChatMessage.Role, parts: List<MessagePart>): SystemNotice? {
+        when (meta?.string("kind")) {
+            "compaction" -> return SystemNotice.Compaction(meta.long("tokensBefore"), meta.long("tokensAfter"))
+            "reset" -> return SystemNotice.Reset(ResetKind.UNKNOWN)
+        }
+        if (role == ChatMessage.Role.USER) {
+            resetCommandKind(parts.filterIsInstance<MessagePart.Text>().singleOrNull()?.markdown)?.let { return SystemNotice.Reset(it) }
         }
         val provenance = obj.obj("provenance") ?: meta?.obj("provenance") ?: return null
         if (provenance.string("kind") != "internal_system") return null
@@ -417,12 +435,30 @@ internal object Parse {
     private fun hidden(obj: JsonObject, meta: JsonObject?, role: ChatMessage.Role, parts: List<MessagePart>): Boolean {
         val text = parts.filterIsInstance<MessagePart.Text>().firstOrNull()?.markdown?.trimStart() ?: return false
         return when (role) {
-            ChatMessage.Role.USER -> meta?.string("importedFrom") == "claude-cli" && CLI_LOCAL_COMMAND_TAGS.any(text::startsWith)
-            ChatMessage.Role.ASSISTANT -> obj.string("model") == "gateway-injected" &&
-                text.trimStart('⚙', '️', ' ').let { rest -> GATEWAY_COMPACTED_LEADS.any(rest::startsWith) }
+            ChatMessage.Role.USER -> (meta?.string("importedFrom") == "claude-cli" && CLI_LOCAL_COMMAND_TAGS.any(text::startsWith)) ||
+                text.startsWith(SESSION_STARTUP_PROMPT_LEAD)
+            ChatMessage.Role.ASSISTANT -> text.trim() in GATEWAY_RESET_ACKS || (obj.string("model") == "gateway-injected" &&
+                text.trimStart('⚙', '️', ' ').let { rest -> GATEWAY_COMPACTED_LEADS.any(rest::startsWith) })
             else -> false
         }
     }
+
+    /** `/reset`・`/reset soft`・`/new` だけの発言なら、その種類。続けて文を書いたもの（`/reset soft 〜`）はふつうの発言のまま。 */
+    fun resetCommandKind(text: String?): ResetKind? {
+        val words = text?.trim()?.lowercase()?.split(Regex("\\s+")) ?: return null
+        return when (words) {
+            listOf("/reset") -> ResetKind.RESET
+            listOf("/reset", "soft") -> ResetKind.SOFT
+            listOf("/new") -> ResetKind.NEW
+            else -> null
+        }
+    }
+
+    /** リセットのあとに OpenClaw がエージェントへ渡す、始め直しの指示の書き出し（session-reset-prompt の文言）。 */
+    private const val SESSION_STARTUP_PROMPT_LEAD = "A new session was started via /new or /reset"
+
+    /** Gateway の `/reset`・`/new` の受け付けの返事（commands-handlers の文言）。区切りが代わりに出る。 */
+    private val GATEWAY_RESET_ACKS = setOf("✅ Session reset.", "✅ New session started.")
 
     private val CLI_LOCAL_COMMAND_TAGS = listOf("<local-command-stdout>", "<local-command-stderr>", "<local-command-caveat>")
 
