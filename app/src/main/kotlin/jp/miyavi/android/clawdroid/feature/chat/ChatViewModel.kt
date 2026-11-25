@@ -16,6 +16,7 @@ import jp.miyavi.android.clawdroid.core.data.ChatMessage
 import jp.miyavi.android.clawdroid.core.data.ChatRepository
 import jp.miyavi.android.clawdroid.core.data.ChatSession
 import jp.miyavi.android.clawdroid.core.data.ChatState
+import jp.miyavi.android.clawdroid.core.data.HostStats
 import jp.miyavi.android.clawdroid.core.data.ModelCatalog
 import jp.miyavi.android.clawdroid.core.data.ModelChange
 import jp.miyavi.android.clawdroid.core.data.OutgoingImage
@@ -378,6 +379,12 @@ class ChatViewModel(
             val row = root?.array("sessions")?.mapNotNull { it.asObject() }?.firstOrNull { it.string("key") == session.key }
             row?.obj("contextWeight")?.let { ContextBreakdownParser.parse(it, used) }
         }.getOrNull()
+    }
+
+    /** Gateway のホストのメモリとディスク（`system.info`）。使えない Gateway や失敗なら null。 */
+    suspend fun loadHostStats(): HostStats? {
+        if (!gateway.supports("system.info")) return null
+        return runCatching { Parse.hostStats(gateway.request("system.info", timeoutMs = 5_000).asObject()) }.getOrNull()
     }
 
     private suspend fun loadUsageStatus(): List<ProviderUsage> {

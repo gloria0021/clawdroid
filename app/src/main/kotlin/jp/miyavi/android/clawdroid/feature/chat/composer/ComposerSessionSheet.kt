@@ -13,6 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import jp.miyavi.android.clawdroid.core.data.providerBrand
 import jp.miyavi.android.clawdroid.core.data.ProviderBrand
 import jp.miyavi.android.clawdroid.core.data.ContextBreakdown
+import jp.miyavi.android.clawdroid.core.data.HostStats
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
@@ -105,11 +110,29 @@ fun ComposerSessionSheet(
     loadModels: suspend (String, String?) -> ModelCatalog?,
     loadUsage: suspend () -> List<ProviderUsage>,
     loadContext: suspend () -> ContextBreakdown?,
+    loadHostStats: suspend () -> HostStats?,
     onSelect: (SessionSetting, String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val providers by produceState<List<ProviderUsage>?>(null) { value = loadUsage() }
     val breakdown by produceState<ContextBreakdown?>(null) { value = loadContext() }
+    // Gateway のホストのメモリとディスク。シートが前に出ているあいだだけ数秒おきに取り直す（モデルのトークンは使わない）。
+    // 最初に取れなければ（古い Gateway など）出さない
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val host by produceState<HostLoad>(HostLoad.Loading) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val stats = loadHostStats()
+                value = when {
+                    stats != null -> HostLoad.Ready(stats)
+                    value is HostLoad.Ready -> value
+                    else -> HostLoad.Unavailable
+                }
+                if (value == HostLoad.Unavailable) break
+                delay(HOST_REFRESH_MS)
+            }
+        }
+    }
     // モデルの一覧は、モデルかエフォートのメニューを初めて開いたときに一度だけ取る
     var wantCatalog by remember { mutableStateOf(false) }
     val catalog by produceState<ModelCatalog?>(null, wantCatalog, agent?.id, session?.key) {
@@ -155,7 +178,7 @@ fun ComposerSessionSheet(
                         }
                     },
                 )
-                Usage(session = session, breakdown = breakdown, providers = providers)
+                Usage(session = session, breakdown = breakdown, providers = providers, host = host)
             }
         }
     }
@@ -205,39 +228,67 @@ private class CenterOnAnchor(private val margin: Int, private val top: Int, priv
 }
 
 @Composable
-private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, providers: List<ProviderUsage>?) {
+private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, providers: List<ProviderUsage>?, host: HostLoad) {
     val locale = LocalConfiguration.current.locales[0]
-    val numbers = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     val percent = remember(locale) { NumberFormat.getPercentInstance(locale) }
     // リセットまでの残りは、シートを開いた時点から数える
     val now = remember(providers) { System.currentTimeMillis() }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-        // コンテキストウィンドウ: 見出しの右に「使った量 / 上限 · 割合」、下に内訳の色で塗り分けた細い棒と内訳の行
         val fraction = session?.contextFraction
         val used = session?.totalTokens
         val limit = session?.contextTokens
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionTitle(R.string.chat_context_title, Modifier.weight(1f))
-            if (fraction != null && used != null && limit != null) {
-                Text(
-                    "${compactTokens(used)} / ${compactTokens(limit)} · ${percent.format(fraction)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (contextLevel(fraction) == ContextLevel.HIGH) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+        val contextHigh = contextLevel(fraction) == ContextLevel.HIGH
+        if (host is HostLoad.Unavailable) {
+            // ホストの数字が取れない Gateway: コンテキストウィンドウを横幅いっぱいで出す（見出しの右に「使った量 / 上限 · 割合」）
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionTitle(R.string.chat_context_title, Modifier.weight(1f))
+                if (fraction != null && used != null && limit != null) {
+                    Text(
+                        "${compactTokens(used)} / ${compactTokens(limit)} · ${percent.format(fraction)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (contextHigh) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            if (fraction != null && limit != null) ContextBar(breakdown, limit, fraction)
+        } else {
+            // コンテキスト・メモリ・ディスクを 3 等分で並べる。形はプロバイダの使用枠と同じ（上に名前と使った割合、
+            // 帯の中に量。割合は出さない）。メモリとディスクの量は帯の塗りと同じ「使った量 / 全体」（マスター指定 2026-11-25）
+            val ready = (host as? HostLoad.Ready)?.stats
+            // 見出しは「リソース」（プロバイダの使用枠と同じ並び。内訳の区分の「システム」と紛れないように。マスター指定 2026-11-25）
+            SectionTitle(R.string.chat_resources_title)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                Meter(
+                    title = R.string.chat_context_short,
+                    fraction = fraction,
+                    amount = if (used != null && limit != null) "${compactTokens(used)} / ${compactTokens(limit)}" else null,
+                    warn = contextHigh,
+                    modifier = Modifier.weight(1f),
+                )
+                Meter(
+                    title = R.string.host_memory_title,
+                    fraction = ready?.memoryUsedFraction,
+                    amount = ready?.let { usedOfTotal(it.memoryTotalBytes - it.memoryFreeBytes, it.memoryTotalBytes) },
+                    warn = ready != null && ready.memoryUsedFraction >= HOST_HIGH,
+                    modifier = Modifier.weight(1f),
+                )
+                Meter(
+                    title = R.string.host_disk_title,
+                    fraction = ready?.diskUsedFraction,
+                    amount = ready?.let { usedOfTotal(it.diskTotalBytes - it.diskAvailableBytes, it.diskTotalBytes) },
+                    warn = ready != null && ready.diskUsedFraction >= HOST_HIGH,
+                    modifier = Modifier.weight(1f),
                 )
             }
+            // 内訳は区分ごとに塗り分けた棒と行で、横幅いっぱいに
+            if (fraction != null && limit != null && breakdown != null) ContextBar(breakdown, limit, fraction)
         }
+        // 内訳の行は細い幅に詰めず、横幅いっぱいで（文字 200% でも切れないように）
         if (fraction != null && limit != null) {
-            ContextBar(breakdown, limit, fraction)
             breakdown?.let { ContextRows(it) }
-        } else {
+        } else if (host is HostLoad.Unavailable) {
             MutedText(stringResource(R.string.chat_usage_unavailable))
-        }
-        val input = session?.inputTokens
-        val output = session?.outputTokens
-        if (input != null || output != null) {
-            val unknown = stringResource(R.string.chat_usage_unknown)
-            MutedText(stringResource(R.string.chat_usage_tokens, input?.let(numbers::format) ?: unknown, output?.let(numbers::format) ?: unknown))
         }
 
         SectionTitle(R.string.chat_usage_provider)
@@ -372,6 +423,51 @@ private fun ContextRows(breakdown: ContextBreakdown) {
     }
 }
 
+/** ホストの数字の取り込みの状態。 */
+private sealed interface HostLoad {
+    data object Loading : HostLoad
+    data object Unavailable : HostLoad
+    data class Ready(val stats: HostStats) : HostLoad
+}
+
+/** シートを開いているあいだにホストの数字を取り直す間隔（マスター指定 2026-11-25）。 */
+private const val HOST_REFRESH_MS = 5_000L
+/** メモリ・ディスクの使用の割合がこれ以上なら警告の色にする。 */
+private const val HOST_HIGH = 0.9f
+
+/** 3 等分の 1 つ。プロバイダの使用枠と同じ帯（上に名前、帯の中に量）。取得中は量を「—」。 */
+@Composable
+private fun Meter(title: Int, fraction: Float?, amount: String?, warn: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        // 割合は出さない（帯の長さで分かる。マスター指定 2026-11-25）
+        Text(stringResource(title), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        UsageMeter(fraction = fraction ?: 0f, remaining = amount ?: stringResource(R.string.host_value_pending), warn = warn)
+    }
+}
+
+/**
+ * 「9.5 / 15 GB」「512 MB / 15 GB」。使った量と全体を、帯の幅に収まるよう単位を 1 つにまとめて出す
+ * （Control UI と同じく 1024 単位、10 未満だけ小数 1 桁）。
+ */
+@Composable
+private fun usedOfTotal(used: Long, total: Long): String {
+    val locale = LocalConfiguration.current.locales[0]
+    fun parts(bytes: Long): Pair<String, Int> {
+        val gib = bytes / BYTES_PER_GIB
+        val (number, unit) = if (gib >= 1) gib to R.string.host_bytes_gb else bytes / BYTES_PER_MIB to R.string.host_bytes_mb
+        val format = NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = if (number < 10) 1 else 0 }
+        return format.format(number) to unit
+    }
+    val (usedNumber, usedUnit) = parts(used.coerceAtLeast(0))
+    val (totalNumber, totalUnit) = parts(total)
+    val totalText = stringResource(totalUnit, totalNumber)
+    return if (usedUnit == totalUnit) stringResource(R.string.host_amount, usedNumber, totalText)
+    else stringResource(R.string.host_amount, stringResource(usedUnit, usedNumber), totalText)
+}
+
+private const val BYTES_PER_GIB = 1024.0 * 1024 * 1024
+private const val BYTES_PER_MIB = 1024.0 * 1024
+
 /** 「46.6k」「1.2M」「797」。 */
 private fun compactTokens(n: Long): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
@@ -405,14 +501,18 @@ private fun MutedText(text: String) {
  * 塗りはテーマの強い色、上限に近い（80% 以上）ときは error のくすみ色。伸びはばねで動く。
  */
 @Composable
-private fun UsageMeter(fraction: Float, remaining: String? = null, modifier: Modifier = Modifier) {
+private fun UsageMeter(
+    fraction: Float,
+    remaining: String? = null,
+    warn: Boolean = contextLevel(fraction) == ContextLevel.HIGH,
+    modifier: Modifier = Modifier,
+) {
     val motion = MaterialTheme.motionScheme
     val colors = MaterialTheme.colorScheme
     val progress = remember { Animatable(0f) }
     LaunchedEffect(fraction) { progress.animateTo(fraction.coerceIn(0f, 1f), motion.defaultSpatialSpec()) }
-    val high = contextLevel(fraction) == ContextLevel.HIGH
     // 塗りは文字が読める淡い色、使った所の下の縁にはっきりした強調の色の線を引く（下地との差が分かるように）
-    val strong = if (high) colors.error else colors.primary
+    val strong = if (warn) colors.error else colors.primary
     val fill = lerp(strong, colors.surface, METER_FILL_MIX)
     val density = LocalDensity.current
     val edge = with(density) { Dimens.usageMeterEdge.toPx() }

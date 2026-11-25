@@ -185,6 +185,17 @@ enum class ResetKind {
     UNKNOWN,
 }
 
+/**
+ * Gateway のホストのメモリとディスク（`system.info`）。空きは Gateway が数えた「すぐ使える量」（Linux では MemAvailable）で、
+ * 使用は全体から空きを引いたもの（Control UI と同じ数え方）。ディスクは OpenClaw の状態を置いている所の 1 つ。
+ */
+data class HostStats(val memoryTotalBytes: Long, val memoryFreeBytes: Long, val diskTotalBytes: Long, val diskAvailableBytes: Long) {
+    val memoryUsedFraction: Float get() = usedFraction(memoryTotalBytes, memoryFreeBytes)
+    val diskUsedFraction: Float get() = usedFraction(diskTotalBytes, diskAvailableBytes)
+
+    private fun usedFraction(total: Long, free: Long) = ((total - free).toFloat() / total).coerceIn(0f, 1f)
+}
+
 /** 送信時のモデル（`provider/model`）と、その直前のモデル。 */
 data class ModelSelection(val current: String, val previous: String?)
 
@@ -467,6 +478,16 @@ internal object Parse {
 
     /** Claude CLI が圧縮のあとに入れる要約の書き出し。 */
     private const val CLI_COMPACT_SUMMARY_LEAD = "This session is being continued from a previous conversation"
+
+    /** `system.info` のメモリとディスク。どちらかが欠けていれば null。 */
+    fun hostStats(obj: JsonObject?): HostStats? {
+        obj ?: return null
+        val memoryTotal = obj.long("memoryTotalBytes")?.takeIf { it > 0 } ?: return null
+        val memoryFree = obj.long("memoryFreeBytes")?.takeIf { it >= 0 } ?: return null
+        val diskTotal = obj.long("diskTotalBytes")?.takeIf { it > 0 } ?: return null
+        val diskAvailable = obj.long("diskAvailableBytes")?.takeIf { it >= 0 } ?: return null
+        return HostStats(memoryTotal, memoryFree.coerceAtMost(memoryTotal), diskTotal, diskAvailable.coerceAtMost(diskTotal))
+    }
 
     /** `{ provider, model }` を `provider/model` にする（Control UI と同じく両方そろったときだけ）。 */
     private fun selectedModel(obj: JsonObject?): String? {

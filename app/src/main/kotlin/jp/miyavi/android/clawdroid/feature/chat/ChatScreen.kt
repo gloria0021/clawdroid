@@ -229,6 +229,7 @@ internal fun ChatScreen(
             restorePending = viewModel::restorePending,
             loadUsage = viewModel::loadProviderUsage,
             loadContext = viewModel::loadContextBreakdown,
+            loadHostStats = viewModel::loadHostStats,
             loadModels = viewModel::loadModelCatalog,
             updateSetting = viewModel::updateSessionSetting,
             reconnect = viewModel::reconnect,
@@ -267,6 +268,7 @@ data class ChatActions(
     val restorePending: (String) -> Unit,
     val loadUsage: suspend () -> List<ProviderUsage>,
     val loadContext: suspend () -> jp.miyavi.android.clawdroid.core.data.ContextBreakdown?,
+    val loadHostStats: suspend () -> jp.miyavi.android.clawdroid.core.data.HostStats?,
     val loadModels: suspend (String, String?) -> ModelCatalog?,
     val updateSetting: (SessionSetting, String?) -> Unit,
     val reconnect: () -> Unit,
@@ -609,6 +611,7 @@ fun ChatContent(
                 loadModels = actions.loadModels,
                 loadUsage = actions.loadUsage,
                 loadContext = actions.loadContext,
+                loadHostStats = actions.loadHostStats,
                 onSelect = { setting, value -> actions.updateSetting(setting, value) },
                 onDismiss = { showSessionSheet = false },
             )
