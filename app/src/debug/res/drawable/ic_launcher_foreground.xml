@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug 版のアイコン。Release 版と同じ絵の上部に「DEV」の帯を重ねて見分けられるようにする -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <bitmap android:src="@drawable/launcher_mascot_foreground" android:filter="true" />
+    </item>
+    <item android:drawable="@drawable/ic_launcher_dev_band" />
+</layer-list>

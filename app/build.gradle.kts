@@ -33,7 +33,8 @@ android {
     }
 
     buildTypes {
-        // Debug 版は別のアプリとして入れる（Release 版と並べて入れられる）
+        // Debug 版は別のアプリとして入れる（Release 版と並べて入れられる）。
+        // アプリ名とアイコン（上に「DEV」の帯）は src/debug/res で差し替える。最適化が無く遅いので、動きの重さは Release 版で見る
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"

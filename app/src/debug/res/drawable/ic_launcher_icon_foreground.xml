@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug 版のランチャーのアイコン。小さくするのはマスコットだけで、「DEV」の帯は上端から覆ったまま -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <inset android:inset="3%">
+            <bitmap android:src="@drawable/launcher_mascot_foreground" android:filter="true" />
+        </inset>
+    </item>
+    <item android:drawable="@drawable/ic_launcher_dev_band" />
+</layer-list>

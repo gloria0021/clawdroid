@@ -124,10 +124,15 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
     StatusItem(
         R.drawable.ic_huge_alert_circle, R.string.settings_notify_battery,
         if (optimized) R.string.settings_notify_battery_on else R.string.settings_notify_battery_off, warn = optimized,
-        onClick = if (!optimized) null else ({
+        onClick = if (optimized) ({
             @android.annotation.SuppressLint("BatteryLife")
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
             runCatching { context.startActivity(intent) }.onFailure { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+        }) else ({
+            // 外したあとは、このアプリの電池の画面（最適化／制限なし）を開く。公開の入口が無いため、開けなければアプリ情報を開く
+            val pkg = Uri.parse("package:${context.packageName}")
+            runCatching { context.startActivity(Intent(ACTION_APP_BATTERY_DETAIL, pkg)) }
+                .onFailure { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)) }
         }),
     )
     StatusItem(R.drawable.ic_huge_settings, R.string.settings_notify_channels, R.string.settings_notify_channels_desc, warn = false, onClick = appNotificationSettings)
@@ -158,3 +163,6 @@ private fun StatusItem(icon: Int, title: Int, value: Int?, warn: Boolean, onClic
         modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier,
     )
 }
+
+/** アプリごとの電池の画面（AOSP の設定アプリの AdvancedPowerUsageDetail。`Settings` には公開されていない）。 */
+private const val ACTION_APP_BATTERY_DETAIL = "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL"

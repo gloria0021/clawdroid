@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ランチャーのアイコンの前景。マスコットを丸の中で少しだけ小さく（約 94%）する（マスター指定 2026-11-25）。
+     起動画面（ic_launcher_foreground）の大きさは変えない -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="3%">
+    <bitmap android:src="@drawable/launcher_mascot_foreground" android:filter="true" />
+</inset>
