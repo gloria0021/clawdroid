@@ -8,7 +8,9 @@ import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.bool
 import jp.miyavi.android.clawdroid.core.gateway.obj
 import jp.miyavi.android.clawdroid.core.gateway.string
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +18,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -97,6 +102,10 @@ class ChatSession(
 
     private var jobs = mutableListOf<Job>()
     private var refreshJob: Job? = null
+    /** 履歴の取り直しを 1 本ずつ流し、待っているあいだに重なった頼みは 1 回にまとめる。 */
+    private val refreshLock = Mutex()
+    private val refreshRequests = AtomicLong()
+    @Volatile private var refreshCovered = 0L
     private var subscribed = false
     /** アプリが裏にあるあいだ（文字ごとの流れを止めている。spec 006 FR-004）。 */
     @Volatile private var paused = false
@@ -163,7 +172,22 @@ class ChatSession(
         }
     }
 
+    /**
+     * 履歴を取り直す。取り直しの最中に頼まれた分は、終わってから 1 回だけ取り直す（通知・実行の終わり・再接続が重なっても
+     * 同じ履歴を何度も解析して一覧を差し替えない）。解析は呼び元によらずメインスレッドの外で行う。
+     */
     suspend fun refreshHistory() {
+        val request = refreshRequests.incrementAndGet()
+        refreshLock.withLock {
+            // 頼んだあとに始まった取り直しが済んでいれば、その結果に含まれている
+            if (refreshCovered >= request) return
+            val covers = refreshRequests.get()
+            withContext(Dispatchers.Default) { fetchHistory() }
+            refreshCovered = covers
+        }
+    }
+
+    private suspend fun fetchHistory() {
         val requestedState = _state.value
         runCatching {
             gateway.request("chat.history", buildJsonObject {
@@ -235,7 +259,7 @@ class ChatSession(
                 }
                 current.copy(
                     sessionId = root?.string("sessionId") ?: current.sessionId,
-                    messages = withoutTranscriptEchoes(messages),
+                    messages = withoutTranscriptEchoes(withoutDuplicateResets(messages)),
                     pending = localPending + queued.map { item ->
                         val mine = current.pending.firstOrNull { it.runId == item.runId }
                         item.copy(

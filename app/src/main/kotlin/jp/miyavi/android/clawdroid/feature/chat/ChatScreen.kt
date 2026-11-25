@@ -44,7 +44,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenuItem
@@ -752,37 +752,16 @@ private fun MessageList(
     val chat = state.chat
     val agent = state.currentSession?.agentId?.let { id -> state.agents.agents.firstOrNull { it.id == id } }
         ?: state.selectedAgent
-    val messages = state.messages
-    // 続いたツールの実行は 1 行にまとめ、次にエージェントの応答が来たらその応答の見出しに入れる
-    val rows = remember(messages) {
-        buildList {
-            var tools = mutableListOf<MessageUi>()
-            for (item in messages) {
-                val toolOnly = item.message.parts.isNotEmpty() && item.message.parts.all { it is MessagePart.ToolCall }
-                when {
-                    toolOnly -> tools += item
-                    item.message.role == ChatMessage.Role.ASSISTANT && tools.isNotEmpty() -> {
-                        add(tools + item)
-                        tools = mutableListOf()
-                    }
-                    else -> {
-                        if (tools.isNotEmpty()) {
-                            add(tools)
-                            tools = mutableListOf()
-                        }
-                        add(listOf(item))
-                    }
-                }
-            }
-            if (tools.isNotEmpty()) add(tools)
-        }
-    }
-    val rowKeys = remember(rows) { chatRowKeys(rows.map { it.first().message.id }) }
+    // 行のまとめは ViewModel でメインスレッドの外で作る（変わっていない行は前と同じインスタンス）
+    val rows = state.rows
+    // 新しい順に並べる。作り直すと項目の中身の関数が毎回変わり、表示済みの行まで組み直すので覚えておく
+    val latestFirst = remember(rows) { rows.asReversed() }
+    // 一番古い行だけ上の余白を付けない。位置（index）で比べると、1 件増えるたびに全部の行の index がずれて組み直しになる
+    val oldestKey = rows.firstOrNull()?.key
     val live = chat?.live
     val liveText = live?.text.orEmpty()
-    val latestFirst = rows.asReversed()
     when {
-        state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && messages.isEmpty() && live == null) -> {
+        state.currentSessionKey == null || (chat != null && !chat.loading && !chat.running && rows.isEmpty() && live == null) -> {
             Box(sourceModifier, contentAlignment = Alignment.Center) {
                 Column(Modifier.padding(contentPadding), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -809,8 +788,8 @@ private fun MessageList(
                 }
             }
         }
-        chat == null || (chat.loading && messages.isEmpty()) -> Box(sourceModifier, contentAlignment = Alignment.Center) { LoadingIndicator() }
-        chat.error != null && messages.isEmpty() -> Box(sourceModifier, contentAlignment = Alignment.Center) {
+        chat == null || (chat.loading && rows.isEmpty()) -> Box(sourceModifier, contentAlignment = Alignment.Center) { LoadingIndicator() }
+        chat.error != null && rows.isEmpty() -> Box(sourceModifier, contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.chat_load_failed), style = MaterialTheme.typography.bodyLarge)
                 TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
@@ -820,7 +799,7 @@ private fun MessageList(
         else -> FastScroller(
             listState = listState,
             itemCount = latestFirst.size + 1,
-            label = { index -> if (index == 0) null else latestFirst.getOrNull(index - 1)?.last()?.timeLabel },
+            label = { index -> if (index == 0) null else latestFirst.getOrNull(index - 1)?.last?.timeLabel },
             hazeState = hazeState,
             reverseLayout = true,
             topInset = contentPadding.calculateTopPadding(),
@@ -855,12 +834,11 @@ private fun MessageList(
                     SentInputs(chat.sentInputs, onOpenImage, onOpenVideo, onCopy, top = chat.running || liveText.isNotBlank() || rows.isNotEmpty())
                 }
             }
-            itemsIndexed(latestFirst, key = { index, _ -> rowKeys[rowKeys.lastIndex - index] }, contentType = { _, row -> row.last().message.role }) { index, row ->
-                val item = row.last()
+            items(latestFirst, key = { it.key }, contentType = { it.contentType }) { row ->
+                val item = row.last
                 val message = item.message
                 val itemModifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
-                    .padding(top = if (index == latestFirst.lastIndex) 0.dp else Spacing.l)
-                val precedingTools = remember(row) { row.dropLast(1).flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } }
+                    .padding(top = if (row.key == oldestKey) 0.dp else Spacing.l)
                 val modelChange = item.modelChange
                 val notice = message.notice
                 if (notice != null) {
@@ -871,7 +849,7 @@ private fun MessageList(
                     if (modelChange != null) ModelChangeDivider(modelChange, itemModifier)
                 } else if (message.parts.all { it is MessagePart.ToolCall }) {
                     ToolGroup(
-                        parts = remember(row) { row.flatMap { it.message.parts.filterIsInstance<MessagePart.ToolCall>() } },
+                        parts = row.tools,
                         modifier = itemModifier,
                     )
                 } else when (message.role) {
@@ -884,7 +862,7 @@ private fun MessageList(
                         message = message,
                         markdown = item.markdown,
                         agent = agent,
-                        precedingTools = precedingTools,
+                        precedingTools = row.tools,
                         timeLabel = item.timeLabel,
                         elapsedMs = item.elapsedMs,
                         onCopy = onCopy,

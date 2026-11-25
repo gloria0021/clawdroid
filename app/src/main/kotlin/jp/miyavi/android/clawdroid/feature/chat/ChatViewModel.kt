@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -68,6 +69,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** 会話の画面に出す 1 行（表示の準備を済ませたもの。AGENTS.md 1: 項目の中で整形しない）。 */
+@androidx.compose.runtime.Immutable
 data class MessageUi(
     val message: ChatMessage,
     val timeLabel: String?,
@@ -101,7 +103,8 @@ data class ChatScreenState(
     val currentSession: SessionSummary? = null,
     val currentSessionKey: String? = null,
     val chat: ChatState? = null,
-    val messages: List<MessageUi> = emptyList(),
+    /** 会話の一覧の行（古い順）。 */
+    val rows: List<ChatRow> = emptyList(),
     /** サイドパネルに出すエージェント（設定の並びと表示。1 体ならタブを出さない）。 */
     val sidebarAgents: List<Agent> = agents.agents,
 ) {
@@ -166,11 +169,12 @@ class ChatViewModel(
     /** 解析済みの本文（同じ文はもう一度解析しない）。 */
     private val markdownCache = MarkdownCache()
 
-    // 整形と Markdown の解析はメインスレッドの外で行い、スクロール中の項目の組み立てを軽くする（AGENTS.md 1）
-    private val formattedMessages = chatState
+    // 整形・Markdown の解析・行のまとめはメインスレッドの外で行う（AGENTS.md 1）。履歴を取り直しても、
+    // 変わっていない行は前のインスタンスを使い回し、表示済みの行を組み立て直さない
+    private val chatRows = chatState
         .map { it?.messages.orEmpty() }
         .distinctUntilChanged()
-        .map { messages -> formatMessages(messages, timeFormatter).map { it.copy(markdown = markdownCache.parse(it.message)) } }
+        .runningFold(emptyList<ChatRow>()) { previous, messages -> buildChatRows(messages, previous, timeFormatter, markdownCache::parse) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -179,8 +183,8 @@ class ChatViewModel(
         selectedAgentId,
         selectedSessionKey,
         chatState,
-        formattedMessages,
-    ) { (connection, agents, lists, layout), agentId, sessionKey, chat, messages ->
+        chatRows,
+    ) { (connection, agents, lists, layout), agentId, sessionKey, chat, rows ->
         ChatScreenState(
             connection = connection,
             agents = agents,
@@ -189,7 +193,7 @@ class ChatViewModel(
             currentSession = sessionKey?.let { key -> lists[agentId]?.sessions?.firstOrNull { it.key == key } ?: sessions.find(key) },
             currentSessionKey = sessionKey,
             chat = chat,
-            messages = messages,
+            rows = rows,
             sidebarAgents = layout.visible(agents.agents),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatScreenState())
