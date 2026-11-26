@@ -47,6 +47,8 @@ fun <T> PillTabs(
     fillWidth: Boolean = false,
     indicatorPadding: PaddingValues = PaddingValues(0.dp),
     tabHorizontalPadding: Dp = if (fillWidth) Spacing.xs else Spacing.xxl,
+    /** 選んだタブの下にガラスの選択面を敷くか（中身で選択を見せるタブは false）。 */
+    showIndicator: Boolean = true,
     content: @Composable (T) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
@@ -57,7 +59,7 @@ fun <T> PillTabs(
     val target = bounds[selected]
     // 位置が分かった最初の回はその場に出し、以後の変更だけを動かす
     Box {
-        if (target != null) {
+        if (target != null && showIndicator) {
             val x by animateFloatAsState(target.first, motion.defaultSpatialSpec(), label = "tabIndicatorX")
             val width by animateFloatAsState(target.second, motion.defaultSpatialSpec(), label = "tabIndicatorWidth")
             val surface = if (hazeState != null) {

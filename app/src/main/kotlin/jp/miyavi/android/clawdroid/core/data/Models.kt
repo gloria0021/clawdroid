@@ -159,6 +159,8 @@ sealed interface MessagePart {
      * [name] は表示名（無ければパスの最後）、[size] は分かればバイト数。
      */
     data class File(val url: String, val name: String, val mimeType: String?, val size: Long?) : MessagePart
+    /** Gateway が添付を受け付けなかった（`attachment_error`。対応していない形式・大きすぎる・見つからない）。 */
+    data class AttachmentError(val name: String, val code: String?) : MessagePart
     data class ToolCall(
         val callId: String?,
         val name: String,
@@ -578,6 +580,16 @@ internal object Parse {
             )
         }
         "video", "video_url", "input_video", "output_video" -> mediaUrl(obj, "video_url")?.let(MessagePart::Video)
+        // Gateway が管理する添付（エージェントの MEDIA: を Gateway が受け付けたもの。Web 版のファイルのカードと同じ）
+        "attachment" -> obj.obj("attachment")?.let { a ->
+            val url = a.string("url") ?: a.string("openUrl") ?: return@let null
+            val type = a.string("mimeType")
+            if (a.string("kind") == "image" || type?.startsWith("image/") == true) MessagePart.Image(url = url, base64 = null, mimeType = type)
+            else MessagePart.File(url, a.string("label")?.takeIf(String::isNotBlank) ?: fileNameOf(url), type, a.long("sizeBytes"))
+        }
+        "attachment_error" -> obj.obj("attachment")?.let { a ->
+            MessagePart.AttachmentError(a.string("label")?.takeIf(String::isNotBlank) ?: "", a.string("code"))
+        }
         "toolCall" -> toolPart(obj, isResult = false, topLevel = false)
         "toolResult" -> toolPart(obj, isResult = true, topLevel = false)
         else -> null

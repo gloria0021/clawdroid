@@ -173,6 +173,10 @@
     <string name="chat_attach_files">檔案</string>
     <string name="chat_attach_photos">相片</string>
     <string name="chat_attach_too_large">附件過大或無法讀取（圖片上限 6 MB，檔案上限 15 MB）</string>
+    <string name="chat_attachment_failed">無法附加檔案</string>
+    <string name="chat_attachment_missing">找不到檔案，無法附加</string>
+    <string name="chat_attachment_too_large">檔案過大，無法附加</string>
+    <string name="chat_attachment_unsupported">不支援的檔案格式</string>
     <string name="chat_compacting">正在壓縮上下文…</string>
     <string name="chat_context_amount">%1$s / %2$s 個 token · %3$s</string>
     <string name="chat_context_title">上下文視窗</string>

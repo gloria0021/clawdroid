@@ -43,6 +43,8 @@ object Dimens {
     val avatarLarge = 48.dp
     /** 細い線（作業中の顔を囲むアメーバの外周の枠）。 */
     val hairline = 1.dp
+    /** 作業中の顔のアメーバを、デザイン資料の寸法より外へ広げる幅（マスター指定 2026-11-26）。 */
+    val amoebaReach = 1.dp
     /** M3 の一覧の先頭の丸（40dp）。 */
     val listLeading = 40.dp
     /** 応答の下の操作（返信・コピー）の小さめのアイコン。 */

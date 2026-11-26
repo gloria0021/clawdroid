@@ -173,6 +173,10 @@
     <string name="chat_attach_files">Fichiers</string>
     <string name="chat_attach_photos">Photos</string>
     <string name="chat_attach_too_large">La pièce jointe est trop volumineuse ou illisible (images jusqu\'à 6 Mo, fichiers jusqu\'à 15 Mo)</string>
+    <string name="chat_attachment_failed">Impossible de joindre le fichier</string>
+    <string name="chat_attachment_missing">Fichier introuvable, impossible de le joindre</string>
+    <string name="chat_attachment_too_large">Fichier trop volumineux pour être joint</string>
+    <string name="chat_attachment_unsupported">Type de fichier non pris en charge</string>
     <string name="chat_compacting">Compactage du contexte…</string>
     <string name="chat_context_amount">%1$s / %2$s jetons · %3$s</string>
     <string name="chat_context_title">Fenêtre de contexte</string>

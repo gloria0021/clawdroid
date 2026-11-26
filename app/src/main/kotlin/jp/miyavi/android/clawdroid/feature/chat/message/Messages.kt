@@ -186,6 +186,7 @@ fun AssistantMessage(
                     is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
                     is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
                     is MessagePart.File -> FileAttachment(part)
+                    is MessagePart.AttachmentError -> AttachmentErrorRow(part)
                     is MessagePart.Image, is MessagePart.ToolCall -> Unit
                 }
             }

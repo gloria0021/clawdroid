@@ -173,6 +173,10 @@
     <string name="chat_attach_files">Dateien</string>
     <string name="chat_attach_photos">Fotos</string>
     <string name="chat_attach_too_large">Der Anhang ist zu groß oder konnte nicht gelesen werden (Bilder bis 6 MB, Dateien bis 15 MB)</string>
+    <string name="chat_attachment_failed">Anhängen nicht möglich</string>
+    <string name="chat_attachment_missing">Datei nicht gefunden, Anhängen nicht möglich</string>
+    <string name="chat_attachment_too_large">Zu groß zum Anhängen</string>
+    <string name="chat_attachment_unsupported">Dateityp wird nicht unterstützt</string>
     <string name="chat_compacting">Kontext wird komprimiert…</string>
     <string name="chat_context_amount">%1$s / %2$s Tokens · %3$s</string>
     <string name="chat_context_title">Kontextfenster</string>

@@ -373,9 +373,17 @@ fun SidePanel(
                                 onSelect = selectAgent,
                                 label = { id -> agentsById.getValue(id).name },
                                 tabHorizontalPadding = Spacing.m,
+                                // 選択はガラスの面ではなく顔の濃さで見せる（面の縁の線がアメーバと重なって見えるため。マスター指定 2026-11-26）
+                                showIndicator = false,
                             ) { id ->
                                 // サイドパネルのタブのアイコンは大きめ（ふつうのアイコンの 2 倍）
-                                AgentAvatar(agentsById.getValue(id), size = Dimens.avatarLarge, busy = id in busyAgents, ringOutside = true)
+                                AgentAvatar(
+                                    agentsById.getValue(id),
+                                    size = Dimens.avatarLarge,
+                                    busy = id in busyAgents,
+                                    ringOutside = true,
+                                    dimmed = id != (currentAgent?.id ?: agents.first().id),
+                                )
                             }
                         }
                     }

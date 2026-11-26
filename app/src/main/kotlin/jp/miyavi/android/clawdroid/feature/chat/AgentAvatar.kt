@@ -9,11 +9,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.height
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.ClipOp
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
@@ -53,16 +53,14 @@ private const val AmoebaFaceRadius = 72f
 private const val AmoebaThickness = 11f
 private const val AmoebaAmplitude = 8f
 private const val AmoebaSpeed = 0.9f
-/** 外周の枠の半径（72 + 11 + 8 × 1.1 + 1）。この円が [AgentAvatar] の箱に収まるように縮尺する。 */
+/** アメーバが届く外周の半径（72 + 11 + 8 × 1.1 + 1）。この円が [AgentAvatar] の箱に収まるように縮尺する。枠の線は描かない（マスター指定 2026-11-26）。 */
 private const val AmoebaFrameRadius = AmoebaFaceRadius + AmoebaThickness + AmoebaAmplitude * 1.1f + 1f
 /** 輪郭の点の数（三次ベジェでつなぐ）。 */
 private const val AmoebaSamples = 72
-private const val AmoebaFrameStrokeAlpha = 0.18f
-private const val AmoebaFrameFillAlpha = 0.045f
 private const val NanosPerSecond = 1_000_000_000f
 
 /**
- * エージェントの顔。[busy] のあいだは、顔と外周の枠のすきまをテーマの強い色（送信ボタンと同じ primary）の
+ * エージェントの顔。[busy] のあいだは、顔と外周の枠のすきまを利用者のメッセージの面と同じ色の
  * アメーバが囲み、輪郭がゆっくりうねる（デザインの引き継ぎ資料「Amoeba Avatar Progress」の 100% の状態。マスター指定 2026-11-26）。
  * 枠は動かさない。端末の「アニメーションを削除」では止めた形で出す。
  */
@@ -77,26 +75,36 @@ internal fun AgentAvatar(
      * false なら箱の中に収め、そのぶん顔を縮める。
      */
     ringOutside: Boolean = false,
+    /** 選ばれていない（タブ）。顔だけを薄くし、アメーバは薄くしない（稼働中は見えたままにする）。 */
+    dimmed: Boolean = false,
 ) {
+    val faceAlpha by animateFloatAsState(
+        if (dimmed) DimmedFaceAlpha else 1f,
+        if (dimmed) MaterialTheme.motionScheme.fastEffectsSpec() else MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "avatarFaceAlpha",
+    )
     val faceSize by animateDpAsState(
-        if (busy && !ringOutside) size * (AmoebaFaceRadius / AmoebaFrameRadius) else size,
+        if (busy && !ringOutside) (size - Dimens.amoebaReach * 2) * (AmoebaFaceRadius / AmoebaFrameRadius) else size,
         MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "avatarFaceSize",
     )
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (busy) {
             // 外に描くときは、顔の大きさから枠の大きさを決めて箱からはみ出させる（重なり順は顔の後ろ）
-            val ringSize = if (ringOutside) size * (AmoebaFrameRadius / AmoebaFaceRadius) else size
-            // タブでは外周の薄い枠を描かない（アメーバだけ。マスター指定 2026-11-26）
-            AmoebaRing(MaterialTheme.colorScheme.primary, Modifier.requiredSize(ringSize), frame = !ringOutside)
+            val ringSize = if (ringOutside) size * (AmoebaFrameRadius / AmoebaFaceRadius) + Dimens.amoebaReach * 2 else size
+            // 色は利用者のメッセージの面と同じ（マスター指定 2026-11-26。以前は送信ボタンの primary）
+            AmoebaRing(jp.miyavi.android.clawdroid.core.designsystem.accentContainer().container, Modifier.requiredSize(ringSize))
         }
-        AgentAvatarImage(agent, label, faceSize)
+        Box(Modifier.graphicsLayer { alpha = faceAlpha }) { AgentAvatarImage(agent, label, faceSize) }
     }
 }
 
+/** 選ばれていないタブの顔の不透明度（AGENTS.md 2.2: 無効・折りたたみは 0.6 まで）。 */
+private const val DimmedFaceAlpha = 0.6f
+
 /** 顔を囲むアメーバと枠。時間は描画の段階で読み、再構成を起こさない（AGENTS.md 2.8）。 */
 @Composable
-private fun AmoebaRing(color: Color, modifier: Modifier, frame: Boolean = true) {
+private fun AmoebaRing(color: Color, modifier: Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val still = remember(context) {
         android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
@@ -109,7 +117,9 @@ private fun AmoebaRing(color: Color, modifier: Modifier, frame: Boolean = true) 
         }
     }
     Box(modifier.drawWithCache {
-        val unit = this.size.minDimension / 2f / AmoebaFrameRadius
+        // アメーバは資料の寸法より [Dimens.amoebaReach] だけ外へ広げる（マスター指定 2026-11-26）
+        val reach = Dimens.amoebaReach.toPx()
+        val unit = (this.size.minDimension / 2f - reach) / AmoebaFrameRadius
         val middle = androidx.compose.ui.geometry.Offset(this.size.width / 2f, this.size.height / 2f)
         val face = Path().apply {
             addOval(androidx.compose.ui.geometry.Rect(middle, AmoebaFaceRadius * unit))
@@ -118,17 +128,12 @@ private fun AmoebaRing(color: Color, modifier: Modifier, frame: Boolean = true) 
         val xs = FloatArray(AmoebaSamples)
         val ys = FloatArray(AmoebaSamples)
         onDrawBehind {
-            // 外周の枠（動かない）
-            if (frame) {
-                drawCircle(color.copy(alpha = AmoebaFrameFillAlpha), AmoebaFrameRadius * unit)
-                drawCircle(color.copy(alpha = AmoebaFrameStrokeAlpha), AmoebaFrameRadius * unit, style = Stroke(Dimens.hairline.toPx()))
-            }
             val t = time.floatValue
             for (i in 0 until AmoebaSamples) {
                 // 12 時を 0 とする時計回りの角度
                 val a = (2 * PI * i / AmoebaSamples).toFloat()
                 val wave = 0.52f * sin(4 * a - 2 * t) + 0.32f * sin(7 * a - 1.5f * t) + 0.24f * cos(3 * a - 0.9f * t)
-                val r = maxOf(AmoebaFaceRadius + 0.5f, AmoebaFaceRadius + AmoebaThickness + AmoebaAmplitude * wave) * unit
+                val r = maxOf(AmoebaFaceRadius + 0.5f, AmoebaFaceRadius + AmoebaThickness + AmoebaAmplitude * wave) * unit + reach
                 xs[i] = center.x + r * sin(a)
                 ys[i] = center.y - r * cos(a)
             }

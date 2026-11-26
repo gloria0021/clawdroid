@@ -181,3 +181,32 @@ private fun fileMeta(file: MessagePart.File, state: FileState): String {
 
 private const val MAX_EXTENSION = 8
 private const val APK_MIME = "application/vnd.android.package-archive"
+
+/** Gateway が受け付けなかった添付。理由とファイル名だけを出す（保存はできない）。 */
+@Composable
+internal fun AttachmentErrorRow(error: MessagePart.AttachmentError, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val reason = stringResource(
+        when (error.code) {
+            "unsupported-format" -> R.string.chat_attachment_unsupported
+            "file-too-large" -> R.string.chat_attachment_too_large
+            "file-not-found" -> R.string.chat_attachment_missing
+            else -> R.string.chat_attachment_failed
+        },
+    )
+    Row(
+        modifier
+            .widthIn(max = Dimens.messageImageMax)
+            .clip(MaterialTheme.shapes.large)
+            .background(bodyContainerColor())
+            .padding(horizontal = Spacing.m, vertical = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+    ) {
+        Icon(painterResource(R.drawable.ic_huge_alert_circle), contentDescription = null, tint = colors.error)
+        Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            if (error.name.isNotEmpty()) Text(error.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+            Text(reason, style = MaterialTheme.typography.labelMedium, color = colors.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}

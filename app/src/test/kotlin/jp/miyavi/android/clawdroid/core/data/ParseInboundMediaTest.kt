@@ -53,4 +53,20 @@ class ParseInboundMediaTest {
         assertTrue(!isInboundMediaUrl("https://example.com/a.png"))
         assertTrue(!isInboundMediaUrl("//example.com/a.png"))
     }
+
+    @Test fun gatewayAttachmentParts() {
+        val m = Parse.message(
+            Frames.json.parseToJsonElement(
+                """{"role":"assistant","content":[{"type":"text","text":"まとめたよ"},
+                  {"type":"attachment","attachment":{"url":"/api/chat/media/outgoing/a/1/full","kind":"document","label":"jcb.xlsx","mimeType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","sizeBytes":3756}},
+                  {"type":"attachment_error","attachment":{"code":"unsupported-format","kind":"document","label":"app.apk"}}]}""",
+            ).jsonObject,
+            0,
+        )!!
+        val file = m.parts.filterIsInstance<MessagePart.File>().single()
+        assertEquals("jcb.xlsx", file.name)
+        assertEquals(3756L, file.size)
+        assertTrue(isInboundMediaUrl(file.url))
+        assertEquals(MessagePart.AttachmentError("app.apk", "unsupported-format"), m.parts.filterIsInstance<MessagePart.AttachmentError>().single())
+    }
 }
