@@ -29,3 +29,6 @@ build/
 
 # エージェントの作業の記録（公開しない）
 /memory/
+
+# OpenClaw の作業用の一時フォルダ
+.openclaw/
