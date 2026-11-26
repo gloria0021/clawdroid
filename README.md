@@ -15,45 +15,30 @@ Note: This app does not aim to cover all OpenClaw features.
 
 ## Features
 
-- Native app with Material 3 Expressive design
-- Theme support
-- Connect to your Gateway (Tailscale recommended)
-- Quick access to each agent from the side panel
-- Agent settings
-- Session view
-- Switch models and reasoning effort; check usage and host resources
-- Create session shortcuts on your home screen
-- File tree (date / size / upload / create files and folders)
-- File viewer (view / edit / delete)
-- Terminal
-- Parallel development button (quickly create a worktree)
-- View, configure, and run automations
-- Notifications
+A native app with Material 3 Expressive design.
 
-## Screenshots
+### Themes
 
-Screenshots show the English interface. The app also supports Japanese.
-
-### Settings and themes
-
-<p>
-  <img src="docs/media/settings.png" width="220" alt="Appearance, theme, and transparency settings">
-</p>
-
-<details>
-<summary>Compare light and dark themes</summary>
-
-
-| Theme | Light | Dark |
+| Theme name | Light | Dark |
 | --- | --- | --- |
 | OpenClaw | <img src="docs/media/theme-openclaw-light.png" width="220" alt="OpenClaw — light"> | <img src="docs/media/theme-openclaw-dark.png" width="220" alt="OpenClaw — dark"> |
 | Monochrome | <img src="docs/media/theme-monochrome-light.png" width="220" alt="Monochrome — light"> | <img src="docs/media/theme-monochrome-dark.png" width="220" alt="Monochrome — dark"> |
-| Dynamic Color | <img src="docs/media/theme-dynamic-light.png" width="220" alt="Dynamic Color — light"> | <img src="docs/media/theme-dynamic-dark.png" width="220" alt="Dynamic Color — dark"> |
+| Dynamic (Wallpaper) | <img src="docs/media/theme-dynamic-light.png" width="220" alt="Dynamic Color — light"> | <img src="docs/media/theme-dynamic-dark.png" width="220" alt="Dynamic Color — dark"> |
 | Custom | <img src="docs/media/theme-custom-light.png" width="220" alt="Custom — light"> | <img src="docs/media/theme-custom-dark.png" width="220" alt="Custom — dark"> |
 
-</details>
+### Connection
+
+Enter your Gateway URL and token, then approve the connection. Tailscale is recommended.
+
+<p>
+  <img src="docs/media/gateway-connection.png" width="220" alt="Gateway connection screen">
+</p>
 
 ### Side panel
+
+- Switch between Chat and Dev modes.
+- Check Git diffs, branches, and worktrees in Dev mode.
+- Quickly switch between up to four agents using tabs.
 
 <p>
   <img src="docs/media/side-panel-chat.png" width="220" alt="Chat list">
@@ -61,7 +46,10 @@ Screenshots show the English interface. The app also supports Japanese.
   <img src="docs/media/side-panel-agent-settings.png" width="220" alt="Settings for agents shown in the side panel">
 </p>
 
-### Conversations, models, and usage
+### Session view
+
+- View session conversations and access features from the session menu.
+- Switch models and reasoning effort, and check usage, host memory, and disk space.
 
 <p>
   <img src="docs/media/session-menu.png" width="220" alt="Session menu">
@@ -70,17 +58,21 @@ Screenshots show the English interface. The app also supports Japanese.
 
 ### Files, terminal, and parallel development
 
+- Browse file dates and sizes in the file tree, upload files, and create files and folders.
+- View, edit, and delete files in the file viewer.
+- Use the terminal.
+- Quickly create a worktree with the parallel development button.
+
 <p>
   <img src="docs/media/file-tree-menu.png" width="220" alt="File tree and actions">
   <img src="docs/media/file-editor.png" width="220" alt="File viewer and editor">
   <img src="docs/media/terminal.png" width="220" alt="Terminal">
-</p>
-
-<p>
   <img src="docs/media/parallel-work-create.png" width="220" alt="Create a worktree for parallel development">
 </p>
 
 ### Agent settings
+
+View agent details, personality, and skills.
 
 <p>
   <img src="docs/media/agent-overview.png" width="220" alt="Agent overview">
@@ -90,12 +82,16 @@ Screenshots show the English interface. The app also supports Japanese.
 
 ### Automations
 
+View, edit, and run automations.
+
 <p>
   <img src="docs/media/automation-list.png" width="220" alt="Automation list">
   <img src="docs/media/automation-details.png" width="220" alt="Automation details and execution settings">
 </p>
 
 ### Home screen shortcuts
+
+Create and edit shortcuts to agents and sessions for quick access from your home screen.
 
 <p>
   <img src="docs/media/launcher-shortcuts.png" width="220" alt="Launcher shortcuts">

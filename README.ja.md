@@ -14,48 +14,32 @@
 - Android 13 以上
 
 ## 特徴
-- Material3 Expressiveデザインのネイティブアプリ
-- テーマ機能
-- Gateway接続機能（Tailscale推奨）
-- サイドパネルで各エージェントにクイックアクセス
-- エージェント設定
-- セッション表示
-- モデル・エフォートの切り替え、使用量・ホストのリソース確認
-- セッションのショートカット作成
-- ファイルツリー（日付/サイズ/アップロード/ファイル・フォルダ作成）
-- ファイルビューアー（表示/編集/削除）
-- ターミナル
-- 並行開発ボタン(Worktreeをクイック作成)
-- 自動化の一覧・設定・実行
-- 通知
 
-## スクリーンショット
+Material3 Expressiveデザインのネイティブアプリです。
 
-画像は英語表示です。アプリは日本語にも対応しています。
+### テーマ
 
-### 設定とテーマ
-
-<p>
-  <img src="docs/media/settings.png" width="220" alt="外観・テーマ・透過効果などの設定">
-</p>
-
-<details>
-<summary>テーマのライト・ダーク比較</summary>
-
-
-| テーマ | ライト | ダーク |
+| テーマ名 | ライト | ダーク |
 | --- | --- | --- |
 | OpenClaw | <img src="docs/media/theme-openclaw-light.png" width="220" alt="OpenClaw — light"> | <img src="docs/media/theme-openclaw-dark.png" width="220" alt="OpenClaw — dark"> |
 | Monochrome | <img src="docs/media/theme-monochrome-light.png" width="220" alt="Monochrome — light"> | <img src="docs/media/theme-monochrome-dark.png" width="220" alt="Monochrome — dark"> |
 | Dynamic(Wallpaper) | <img src="docs/media/theme-dynamic-light.png" width="220" alt="Dynamic Color — light"> | <img src="docs/media/theme-dynamic-dark.png" width="220" alt="Dynamic Color — dark"> |
 | カスタム | <img src="docs/media/theme-custom-light.png" width="220" alt="カスタム — light"> | <img src="docs/media/theme-custom-dark.png" width="220" alt="カスタム — dark"> |
 
-</details>
+### 接続
+
+Gateway接続はURLとトークンをいれてApprove。
+Tailscale推奨です。
+
+<p>
+  <img src="docs/media/gateway-connection.png" width="220" alt="Gateway 接続画面">
+</p>
 
 ### サイドパネル
-- チャットモードと開発モードが切替可能
-- 開発モードはGitDiff、ブランチ、ワークツリー表示
-- エージェントはのクイック切り替えタブ有り（最大4体）
+
+- チャットモードと開発モードを切り替えられます。
+- 開発モードでは Git の差分・ブランチ・ワークツリーを確認できます。
+- 最大4体のエージェントをタブですばやく切り替えられます。
 
 <p>
   <img src="docs/media/side-panel-chat.png" width="220" alt="チャット一覧">
@@ -65,12 +49,20 @@
 
 ### セッション画面
 
+- セッションの会話を表示しメニューから各機能へアクセスできます。
+- モデル・エフォートを切り替え、使用量やホストのメモリ・ディスクも確認できます。
+
 <p>
   <img src="docs/media/session-menu.png" width="220" alt="会話のメニュー">
   <img src="docs/media/session-model-usage.png" width="220" alt="モデル・使用量・ホストのリソース">
 </p>
 
 ### ファイル・ターミナル・並行開発
+
+- ファイルツリーで日付・サイズを確認し、アップロードやファイル・フォルダの作成ができます。
+- ファイルビューアーでファイルを表示・編集・削除できます。
+- ターミナルを利用できます。
+- 並行開発ボタンからワークツリーをすばやく作成できます。
 
 <p>
   <img src="docs/media/file-tree-menu.png" width="220" alt="ファイルツリーと操作メニュー">
@@ -81,6 +73,8 @@
 
 ### エージェント設定
 
+エージェントの概要、正確スキルを確認できます。
+
 <p>
   <img src="docs/media/agent-overview.png" width="220" alt="エージェントの概要">
   <img src="docs/media/agent-persona.png" width="220" alt="性格を定義するファイル">
@@ -89,12 +83,16 @@
 
 ### 自動化
 
+自動化の確認・変更・実行ができます。
+
 <p>
   <img src="docs/media/automation-list.png" width="220" alt="自動化の一覧">
   <img src="docs/media/automation-details.png" width="220" alt="自動化の詳細と実行設定">
 </p>
 
 ### ホーム画面のショートカット
+
+エージェントやセッションを開くショートカットを作成・編集しホーム画面からすばやくアクセスできます。
 
 <p>
   <img src="docs/media/launcher-shortcuts.png" width="220" alt="ホーム画面から開くショートカット">
