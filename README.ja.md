@@ -3,10 +3,9 @@
 [English](README.md) | 日本語
 
 [OpenClaw](https://github.com/openclaw/openclaw)の非公式Androidクライアントです。OpenClawでのスマホAIコーディングを快適にするために作りました。ファイルツリー、ファイルビューワー、ターミナル、並行開発(WorkTree)のしやすさを意識しています。
+> OpenClawの全機能を網羅することは目指していません
 
-※ OpenClawの全機能を網羅することは目指していません
-
-[デモ動画を見る](docs/media/demo-movie.mp4)
+https://github.com/user-attachments/assets/460b1cbb-cf53-4374-a51c-96633a2e692d
 
 ## 対応バージョン
 
