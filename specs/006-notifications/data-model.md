@@ -38,10 +38,13 @@
 
 | 項目 | 既定 |
 |---|---|
-| `backgroundConnection` | true |
+| `backgroundConnection`（常時接続） | false（2026-11-26 改訂。以前は true） |
 | `notifyReplies` / `notifyApprovals` / `notifyAutomationFailures` | true |
-| `lockScreenContent` | 端末の設定に従う |
 
 ## ConnectionServiceState
 
 `Stopped(reason)`（オフ・許可が無い・接続情報が無い）/ `Connected` / `Reconnecting`。常駐の通知と設定画面に出す。
+
+## ConnectionState.Paused（2026-11-26）
+
+常時接続がオフで裏にいるあいだ、Gateway との接続を休んでいる状態。`GatewayClient.startPaused()`（アプリの起動）と `pause()`（裏に回って 60 秒）で入り、`resumeFromPause()`（前に来た・常時接続がオン・承認待ち・ダウンロード中）で出る。画面では「つなぎ直している」と同じに見せる。

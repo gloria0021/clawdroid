@@ -417,22 +417,15 @@ private fun PermissionButton(control: PermissionControl, onOpen: () -> Unit, mod
  */
 @Composable
 private fun TextAttachmentTile(item: jp.miyavi.android.clawdroid.feature.chat.PendingText, onOpen: () -> Unit, onRemove: () -> Unit) {
-    val shape = MaterialTheme.shapes.medium
     val quote = item.kind == jp.miyavi.android.clawdroid.feature.chat.PendingText.Kind.QUOTE
     val label = stringResource(if (quote) R.string.chat_text_quote else R.string.chat_text_paste)
-    val count = stringResource(R.string.chat_text_chars, item.text.length)
-    val cd = stringResource(R.string.chat_text_tile_cd, label, item.text.length)
-    Box(Modifier.padding(top = Spacing.s, end = Spacing.s)) {
-        Column(
-            Modifier
-                .size(Dimens.attachmentThumbnail)
-                .shadow(Dimens.imageElevation, shape)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                .clickable(onClickLabel = stringResource(R.string.chat_text_preview_cd), onClick = onOpen)
-                .semantics(mergeDescendants = true) { contentDescription = cd }
-                .padding(Spacing.xs),
-        ) {
+    AttachmentTileFrame(
+        onOpen = onOpen,
+        openLabel = stringResource(R.string.chat_text_preview_cd),
+        onRemove = onRemove,
+        contentDescription = stringResource(R.string.chat_text_tile_cd, label, item.text.length),
+    ) {
+        Column(Modifier.matchParentSize().padding(Spacing.xs)) {
             // 先頭の数行（中身の手がかり。読ませるものではないので小さく薄く）
             Text(
                 item.text,
@@ -449,32 +442,7 @@ private fun TextAttachmentTile(item: jp.miyavi.android.clawdroid.feature.chat.Pe
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(Dimens.attachmentRemoveIcon),
                 )
-                Text(count, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = Spacing.s, y = -Spacing.s)
-                .size(Dimens.compactTouchTarget)
-                .clip(CircleShape)
-                .clickable(onClickLabel = stringResource(R.string.chat_remove_attachment_cd), onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) {
-            androidx.compose.material3.Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.inverseSurface,
-                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                shadowElevation = Dimens.imageElevation,
-                modifier = Modifier.size(Dimens.attachmentRemove),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painterResource(R.drawable.ic_huge_close),
-                        contentDescription = stringResource(R.string.chat_remove_attachment_cd),
-                        modifier = Modifier.size(Dimens.attachmentRemoveIcon),
-                    )
-                }
+                Text(stringResource(R.string.chat_text_chars, item.text.length), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }
@@ -778,37 +746,61 @@ private fun AttachmentThumbnail(
     onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val isImage = pending.image.isImage
+    val bitmap = if (isImage) rememberBase64Bitmap(pending.image.base64) else null
+    AttachmentTileFrame(
+        onOpen = if (isImage) onOpen else null,
+        openLabel = stringResource(R.string.chat_image_cd),
+        onRemove = onRemove,
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!isImage) {
+            // ファイルはアイコンと名前（中身は開かない）
+            Column(Modifier.padding(Spacing.xs), horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(painterResource(R.drawable.ic_huge_file), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    pending.image.fileName.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (bitmap != null) {
+            Image(bitmap, contentDescription = stringResource(R.string.chat_image_cd), contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        }
+    }
+}
+
+/**
+ * 添付のタイルの共通の枠（画像・ファイル・引用・コピーしたテキスト）。大きさ・角丸・影・下地・右上の × と、その押せる範囲・
+ * 読み上げをここにまとめる（CJ レビュー 2026-11-26: 枠を別々に作っていて、× の直しが片方だけに残る恐れがあった）。
+ * 中身と押したときの動きだけを差し替える。[onOpen] が null なら押せない。
+ */
+@Composable
+private fun AttachmentTileFrame(
+    onOpen: (() -> Unit)?,
+    openLabel: String,
+    onRemove: () -> Unit,
+    contentDescription: String? = null,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
+) {
     val shape = MaterialTheme.shapes.medium
     // × を角に重ねるので、その分だけ右上をあける
     Box(Modifier.padding(top = Spacing.s, end = Spacing.s)) {
-        val isImage = pending.image.isImage
-        val bitmap = if (isImage) rememberBase64Bitmap(pending.image.base64) else null
         Box(
             Modifier
                 .size(Dimens.attachmentThumbnail)
                 .shadow(Dimens.imageElevation, shape)
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                .then(if (isImage) Modifier.clickable(onClickLabel = stringResource(R.string.chat_image_cd), onClick = onOpen) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!isImage) {
-                // ファイルはアイコンと名前（中身は開かない）
-                Column(Modifier.padding(Spacing.xs), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(painterResource(R.drawable.ic_huge_file), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        pending.image.fileName.orEmpty(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (bitmap != null) {
-                Image(bitmap, contentDescription = stringResource(R.string.chat_image_cd), contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-            }
-        }
+                .then(if (onOpen != null) Modifier.clickable(onClickLabel = openLabel, onClick = onOpen) else Modifier)
+                .then(if (contentDescription != null) Modifier.semantics(mergeDescendants = true) { this.contentDescription = contentDescription } else Modifier),
+            contentAlignment = contentAlignment,
+            content = content,
+        )
         Box(
             Modifier
                 .align(Alignment.TopEnd)

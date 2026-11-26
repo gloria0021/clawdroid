@@ -97,17 +97,24 @@ internal class Notifier(
                 settings.notifications.map { it.enabled && it.backgroundConnection },
                 approvals.requests.map { it.isNotEmpty() },
                 busy,
-            ) { fg, always, approving, working -> fg || always || approving || working }
-            combine(keep, gateway.state.map { it == ConnectionState.Paused }) { k, paused -> k to paused }
+            ) { fg, always, approving, working -> (fg || always || approving || working) to fg }
+            // 待つのは前から裏へ移ったときだけ。承認やダウンロードが裏で片付いたときは、すぐ休む（CJ レビュー 2026-11-26）
+            // 最後に前から裏へ移った時刻（単調な時計）。途中で別の条件が変わっても、猶予はそこから数える
+            var wasForeground = false
+            var leftForegroundAt = Long.MIN_VALUE / 2
+            combine(keep, gateway.state.map { it == ConnectionState.Paused }) { (k, fg), paused -> Triple(k, fg, paused) }
                 .distinctUntilChanged()
-                .collectLatest { (k, paused) ->
+                .collectLatest { (k, fg, paused) ->
+                    if (wasForeground && !fg) leftForegroundAt = android.os.SystemClock.elapsedRealtime()
+                    wasForeground = fg
                     when {
                         k && paused -> {
                             quietCatchUp = true
                             gateway.resumeFromPause()
                         }
                         !k && !paused -> {
-                            delay(BACKGROUND_GRACE_MS)
+                            val remaining = BACKGROUND_GRACE_MS - (android.os.SystemClock.elapsedRealtime() - leftForegroundAt)
+                            if (remaining > 0) delay(remaining)
                             gateway.pause()
                         }
                     }

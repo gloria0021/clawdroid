@@ -136,6 +136,17 @@ class GatewayClient(
         }
     }
 
+    /**
+     * 保存済みの接続情報があっても、つながずに休んだ状態で始める（アプリの起動時）。つなぐかは呼ぶ側（前にある・常時接続・
+     * 承認待ちやダウンロード中）が [resumeFromPause] で決める。端末の起動などで裏からプロセスだけが起きたときに、
+     * 常時接続がオフでもつないでしまわないため（CJ レビュー 2026-11-26）。
+     */
+    fun startPaused() {
+        scope.launch {
+            _state.value = if (secrets.loadConnection() == null) ConnectionState.NotConfigured else ConnectionState.Paused
+        }
+    }
+
     /** 接続画面から。接続情報を保存して接続を始める（以前の端末のトークンは、接続先が同じなら残す）。 */
     suspend fun connect(url: String, gatewayToken: String) {
         val previous = secrets.loadConnection()

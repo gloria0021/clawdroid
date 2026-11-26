@@ -78,7 +78,8 @@ class ClawdroidApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        container.gateway.start()
+        // つなぐかは Notifier が決める（前にある・常時接続・承認待ちやダウンロード中のときだけ）
+        container.gateway.startPaused()
         container.notifier.start(busy = container.downloads.tasks.map { it.isNotEmpty() })
         container.shortcuts.start()
         // 前後の切り替え: 裏では文字ごとの流れを止め（spec 006 FR-004）、前に来たら常駐を始め直す（裏からは始められないため）

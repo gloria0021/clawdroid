@@ -93,6 +93,17 @@ class GatewayClientTest {
         assertEquals(false, client.resumeFromPause())
     }
 
+    @Test fun startPaused_doesNotConnect_untilResumed() {
+        gateway.enqueue(ConnectBehavior.Accept())
+        secrets.connection = GatewayConnection(url = gateway.url, gatewayToken = "t")
+        client.startPaused()
+        await { client.state.first { it == ConnectionState.Paused } }
+        runBlocking { kotlinx.coroutines.delay(500) }
+        assertEquals(0, gateway.connectParams.size)
+        assertTrue(client.resumeFromPause())
+        await { client.awaitConnected() }
+    }
+
     @Test fun pause_isIgnoredAfterUserDisconnect() {
         gateway.enqueue(ConnectBehavior.Accept())
         await { client.connect(gateway.url, "t") }

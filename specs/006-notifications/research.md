@@ -63,7 +63,7 @@
   - 自動化の失敗（重要度 DEFAULT）
   - 応答の通知は会話ごとに id を固定して書き換える（FR-012）。エージェントごとに `setGroup` でまとめ、要約の通知を 1 つ置く
   - 本文は Markdown の記号を除いた文の冒頭（目安 300 文字）。画像だけの応答は「画像」と示す
-  - ロック画面の表示は設定（`lockScreenContent`）に従い、`VISIBILITY_PRIVATE` と公開用の伏せた版を付ける（FR-032）
+  - ~~ロック画面の表示は設定（`lockScreenContent`）に従い、`VISIBILITY_PRIVATE` と公開用の伏せた版を付ける（FR-032）~~ → 2026-11-26: 設定は削除。端末の設定に任せ、公開用の伏せた版だけ常に付ける
 - **通知のアイコン**: Hugeicons から単色の VectorDrawable を 1 つ（`ic_huge_*`）。
 
 ## R7. 通知から開く行き先
@@ -75,7 +75,7 @@
 ## R8. 設定と状態の表示
 
 - **Decision**: 設定画面に「通知」のセクションを足す（`ListItem` ＋ `Switch`）。
-  - 常駐（`backgroundConnection`）、応答・承認待ち・自動化の失敗（`notify*`）、ロック画面に内容を出す（`lockScreenContent`）
+  - 常時接続（`backgroundConnection`。2026-11-26 から既定オフ）、応答・承認待ち・自動化の失敗（`notify*`）。ロック画面の項目（`lockScreenContent`）は 2026-11-26 に削除
   - 状態の行: 通知の許可（無ければ「許可する」で要求。拒否済みなら端末の設定を開く）、電池の最適化（対象なら「最適化から外す」で `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`。権限はマニフェストに既にある）、常駐の状態
   - 「テスト通知」の行
   - エージェントごとの音は「端末の通知の設定を開く」の行から（`Settings.ACTION_APP_NOTIFICATION_SETTINGS`）

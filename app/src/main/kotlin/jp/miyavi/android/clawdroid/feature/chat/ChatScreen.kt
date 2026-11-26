@@ -84,6 +84,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import jp.miyavi.android.clawdroid.core.designsystem.hazeSurface
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -474,35 +477,53 @@ fun ChatContent(
             hintJob = scope.launch {
                 val closed = -windowWidthPx
                 val peek = closed * (1f - PANEL_HINT_FRACTION)
-                // 1/3 まで減速しながら出し、そこで止めておく（止まっているので、打ち切っても動きは途切れない）。
-                // shortcut: 位置を途中で止める動きはトークンのばねでは作れないため、キーフレームの時間を使う
-                // 1/3 で止めたまま保つため、止める区間を長く取る（「了解」で打ち切る。止まっているので途切れない）
+                // 1/3 まで減速しながら出して止める。M3 の引き出しは「開く・閉じる」の 2 か所にしか止まれず、動きは必ず
+                // 目標（開き切り）で終わるので、1/3 に着いたところで動きを打ち切る。打ち切った引き出しはその位置に留まり、
+                // フレームを要求しない（CJ レビュー 2026-11-26: 終わりの値を 1/3 にしても開き切りに飛んでいた。以前は 1 時間動かしていた）。
+                // shortcut: 途中の位置で止める動きはトークンのばねでは作れないため、キーフレームの時間を使う
                 val peekSpec = androidx.compose.animation.core.keyframes {
-                    durationMillis = PANEL_HINT_OPEN_MS + PANEL_HINT_HOLD_MAX_MS
-                    closed at 0
-                    peek at PANEL_HINT_OPEN_MS using androidx.compose.animation.core.EaseOutCubic
-                    peek at PANEL_HINT_OPEN_MS + PANEL_HINT_HOLD_MAX_MS - 1
+                    durationMillis = PANEL_HINT_OPEN_MS + PANEL_HINT_GUARD_MS
+                    closed at 0 using androidx.compose.animation.core.EaseOutCubic
+                    peek at PANEL_HINT_OPEN_MS
+                    peek at PANEL_HINT_OPEN_MS + PANEL_HINT_GUARD_MS - 1
                 }
                 hintRunning = true
                 try {
-                    val opening = launch { drawerState.animateTo(DrawerValue.Open, peekSpec) }
-                    // 自分でパネルを引き出し・閉じたら（案内の動きが打ち切られたら）、了解とみなして説明を下げる
                     val ack = kotlinx.coroutines.CompletableDeferred<Unit>()
                     hintAckSignal = ack
-                    launch {
-                        opening.join()
+                    val opening = launch { drawerState.animateTo(DrawerValue.Open, peekSpec) }
+                    val reaching = async { snapshotFlow { kotlin.math.abs(drawerState.currentOffset - peek) < 1f }.first { it } }
+                    // 1/3 に着いた（true）・先に動きが終わった（false）・時間切れ（null）を分ける（CJ レビュー 2026-11-26）
+                    val outcome = withTimeoutOrNull((PANEL_HINT_OPEN_MS + PANEL_HINT_GUARD_MS / 2).toLong()) {
+                        kotlinx.coroutines.selects.select<Boolean> {
+                            reaching.onAwait { true }
+                            opening.onJoin { false }
+                        }
+                    }
+                    // 先に終わったのが自分の引き出しで打ち切られたからなら、そのまま引き出しに任せる
+                    val userTook = outcome == false && opening.isCancelled
+                    reaching.cancel()
+                    opening.cancel()
+                    opening.join()
+                    if (outcome != true) {
+                        // 1/3 で止められなかった（アニメーションがオフで開き切った・時間切れ）なら、説明は出さずに閉じて終える。
+                        // 自分で引き出し始めていたら、閉じずに任せる
+                        if (!userTook) drawerState.snapTo(DrawerValue.Closed)
+                        return@launch
+                    }
+                    val stopped = drawerState.currentOffset
+                    hintOverlay = true
+                    // 自分でパネルを動かしたら（止めた位置から離れたら）、了解とみなして説明を下げ、あとは引き出しに任せる
+                    val dragged = launch {
+                        snapshotFlow { kotlin.math.abs(drawerState.currentOffset - stopped) > 1f }.first { it }
                         ack.complete(Unit)
                     }
-                    delay(PANEL_HINT_OPEN_MS.toLong())
-                    if (opening.isActive) hintOverlay = true
                     // 「了解」を押すまで消えない。押すまでパネルも引き出したまま
                     ack.await()
+                    val userMoved = dragged.isCompleted
+                    dragged.cancel()
                     hintOverlay = false
-                    if (opening.isActive) {
-                        opening.cancel()
-                        opening.join()
-                        drawerState.animateTo(DrawerValue.Closed, closeSpec)
-                    }
+                    if (!userMoved) drawerState.animateTo(DrawerValue.Closed, closeSpec)
                 } finally {
                     hintOverlay = false
                     hintAckSignal = null
@@ -1279,14 +1300,15 @@ private data class RevealedWidthShape(val width: Float) : androidx.compose.ui.gr
 /** 初回の案内で会話を右へずらす割合（画面の幅に対して。パネルの 1/3 が見える。マスター指定 2026-11-26）。 */
 private const val PANEL_HINT_FRACTION = 1f / 3f
 
+/** 1/3 に着いてから打ち切るまでの保険の時間（この間はキーフレームが 1/3 に留まる）。 */
+private const val PANEL_HINT_GUARD_MS = 2_000
+
 /** 初回の案内で、パネルを 1/3 まで出すのにかける時間（shortcut: 途中で止めるためキーフレームの時間で動かす）。 */
 private const val PANEL_HINT_OPEN_MS = 450
 
 /** 案内で会話側に重ねる scrim の不透明度（M3 のモーダルの後ろと同じくらい）。 */
 private const val PANEL_HINT_SCRIM = 0.32f
 
-/** 案内でパネルを止めておける上限（「了解」を押すまで保つ。押されなければこの時間のあと開き切る）。 */
-private const val PANEL_HINT_HOLD_MAX_MS = 60 * 60 * 1_000
 
 /** 会話を開いてから案内を始めるまでの間（画面が落ち着くのを待つ。shortcut: トークンに無い待ち時間）。 */
 private const val PANEL_HINT_DELAY_MS = 800L

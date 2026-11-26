@@ -22,7 +22,7 @@
 **Primary Dependencies**: 既存のみ（Compose・M3・Navigation 3・OkHttp・DataStore・`androidx.core` の `NotificationCompat`・
 導入済みの `lifecycle-process`（`ProcessLifecycleOwner`）と `lifecycle-service`（`LifecycleService`））。新しい依存なし
 
-**Storage**: 既存の設定（`SettingsStore` の `backgroundConnection`・`notifyReplies`・`notifyApprovals`・`notifyAutomationFailures`・`lockScreenContent`）。
+**Storage**: 既存の設定（`SettingsStore` の `backgroundConnection`・`notifyReplies`・`notifyApprovals`・`notifyAutomationFailures`）。`lockScreenContent` は 2026-11-26 に削除（端末の設定に任せる）。
 通知済みの応答の識別子は、つなぎ直しの重複を防ぐためにメモリと SharedPreferences（会話ごとに最後に通知した応答の時刻）に持つ
 
 **Testing**: JUnit 4 ＋ 既存の偽の Gateway。完了の見つけ方（行の移り変わり）、通知の文の作り方（Markdown の記号を除く・冒頭）、
@@ -46,7 +46,7 @@ Gateway の生存確認（25 秒ごとの ping）はアプリ側で変えられ�
 | I. 動きの心地よさ | 適合 | 画面に動きを足さない。裏の処理は画面の動きと重ならない |
 | II. AGENTS.md | 適合 | 設定は `ListItem` ＋ `Switch`（2.7）。通知のアイコンは Hugeicons を VectorDrawable にしたもの |
 | III. Gateway が唯一の正 | 適合 | 通知の内容は Gateway の出来事と `chat.history` から作る。承認の決定は Gateway に送るだけ |
-| IV. 安全 | 適合 | 承認のボタンはロックの解除を求める（`setAuthenticationRequired`）。ロック画面の表示は設定に従い、既定は端末の設定。接続情報はこれまでどおり Keystore |
+| IV. 安全 | 適合 | 承認のボタンはロックの解除を求める（`setAuthenticationRequired`）。ロック画面の表示は端末の設定に従う（2026-11-26 にアプリの項目を削除）。接続情報はこれまでどおり Keystore |
 | V. 状態を失わない | 適合 | つなぎ直したあとに、切れていたあいだの完了をまとめて通知する |
 | VI. 簡潔さ | 適合 | 新しい接続を作らない。既存の `GatewayClient`・`ApprovalsRepository`・`sessions.subscribe` を使い回す |
 | VII. 持ち歩く道具 | 適合 | 通知と承認は持ち歩きの中心の用途。返信・おやすみ時間などは範囲外 |

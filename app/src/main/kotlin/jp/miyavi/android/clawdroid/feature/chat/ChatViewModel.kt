@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -660,9 +661,6 @@ class ChatViewModel(
         val text = if (currentChat.value == null && pastes.isNotEmpty()) {
             (listOf(quoted) + pastes.map { it.text }).filter(String::isNotBlank).joinToString("\n\n")
         } else quoted
-        val textFiles = pastes.mapIndexed { i, p ->
-            OutgoingImage("text/plain", Base64.encodeToString(p.text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP), "pasted-text-${i + 1}.txt")
-        }
         val agentId = selectedAgentId.value ?: return
         val idempotencyKey = GatewayClient.newIdempotencyKey()
         val draft = draftKey()
@@ -686,7 +684,18 @@ class ChatViewModel(
                         settings.selectSession(agentId, key)
                     }
                 } else {
-                    chat.send(text, composer.images.map { it.image } + textFiles, idempotencyKey)
+                    // 長い貼り付けの変換（UTF-8・Base64）は、入力欄を空にしてから裏のスレッドで（CJ レビュー 2026-11-26）。
+                    // 新しいチャットの最初の 1 通は本文に入れるので変換しない
+                    // 押した順に Gateway へ渡す（長いログの変換を待つあいだに、あとの短い補足が先に届かないように。CJ レビュー
+                    // 2026-11-26）。Mutex は待った順に渡し、launch は押した時点で lock まで進むので、押した順がそのまま守られる
+                    sendOrder.withLock {
+                        val textFiles = withContext(Dispatchers.Default) {
+                            pastes.mapIndexed { i, p ->
+                                OutgoingImage("text/plain", Base64.encodeToString(p.text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP), "pasted-text-${i + 1}.txt")
+                            }
+                        }
+                        chat.send(text, composer.images.map { it.image } + textFiles, idempotencyKey)
+                    }
                 }
                 drafts.delete(draft)
                 _composer.update { it.copy(sending = false) }
@@ -732,6 +741,9 @@ class ChatViewModel(
     }
 
     private val restoringPending = mutableSetOf<String>()
+
+    /** 既存の会話への送信を、押した順に 1 つずつ渡す。 */
+    private val sendOrder = kotlinx.coroutines.sync.Mutex()
 
     fun abort() {
         val chat = currentChat.value ?: return
