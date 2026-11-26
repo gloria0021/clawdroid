@@ -658,7 +658,8 @@ private fun rememberBase64ImageSize(base64: String?): androidx.compose.ui.unit.I
 
 /** 頭の寸法を読む（一度読んだものは覚えておき、スクロールで入り直しても読み直さない）。 */
 private fun base64ImageSize(base64: String): androidx.compose.ui.unit.IntSize? {
-    Base64SizeCache.get(base64)?.let { return it }
+    val key = sizeKey(base64)
+    Base64SizeCache.get(key)?.let { return it }
     val size = runCatching {
         // data URI の前置きは短い頭の中だけで探す（全文を探したり切り出したりしない。CJ レビュー 2026-11-27）
         val marker = base64.substring(0, minOf(base64.length, DATA_URI_PREFIX_MAX)).indexOf("base64,").takeIf { it >= 0 }
@@ -671,10 +672,18 @@ private fun base64ImageSize(base64: String): androidx.compose.ui.unit.IntSize? {
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
         else jp.miyavi.android.clawdroid.core.data.scaledImageSize(bounds.outWidth, bounds.outHeight).let { (w, h) -> androidx.compose.ui.unit.IntSize(w, h) }
     }.getOrNull()
-    if (size != null) Base64SizeCache.put(base64, size)
+    if (size != null) Base64SizeCache.put(key, size)
     return size
 }
 
+/**
+ * 寸法の覚えの鍵。base64 の全文を鍵にすると、会話を離れても数 MB の文字列を何百も持ち続けるので、
+ * 長さと頭・尻の短い範囲だけで作る（CJ レビュー 2026-11-27）。取り違えても仮の枠の大きさが違うだけで、絵は取り違えない。
+ */
+private fun sizeKey(base64: String): String =
+    "${base64.length}:${base64.take(SIZE_KEY_CHARS)}:${base64.takeLast(SIZE_KEY_CHARS)}"
+
+private const val SIZE_KEY_CHARS = 96
 private val Base64SizeCache = android.util.LruCache<String, androidx.compose.ui.unit.IntSize>(256)
 
 /** data URI の前置き（data:image/png;base64,）を探す範囲。 */
