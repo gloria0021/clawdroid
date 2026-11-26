@@ -569,7 +569,7 @@ private fun MessageThumbnail(image: MessagePart.Image, onOpen: () -> Unit) {
     val shape = MaterialTheme.shapes.large
     val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
     // 縦横比は復号を待たずに頭の寸法から決める（並びの幅が後から変わらないように）
-    val known = rememberBase64ImageSize(image.base64)
+    val known = if (bitmap == null) rememberBase64ImageSize(image.base64) else null
     val ratio = (bitmap?.let { it.width.toFloat() / it.height.coerceAtLeast(1) } ?: known?.let { it.width.toFloat() / it.height.coerceAtLeast(1) })
         ?.coerceIn(MIN_THUMB_RATIO, MAX_THUMB_RATIO) ?: 1f
     val thumbModifier = Modifier
@@ -653,18 +653,32 @@ fun rememberBase64Bitmap(base64: String?): ImageBitmap? {
  */
 @Composable
 private fun rememberBase64ImageSize(base64: String?): androidx.compose.ui.unit.IntSize? = remember(base64) {
-    base64 ?: return@remember null
-    runCatching {
-        val data = base64.substringAfter("base64,")
-        // 寸法はファイルの頭にある（JPEG は EXIF の後ろのこともあるので広めに読む）
-        val head = data.take(HEADER_BASE64_CHARS - HEADER_BASE64_CHARS % 4)
-        val bytes = Base64.decode(head, Base64.DEFAULT)
+    base64?.let(::base64ImageSize)
+}
+
+/** 頭の寸法を読む（一度読んだものは覚えておき、スクロールで入り直しても読み直さない）。 */
+private fun base64ImageSize(base64: String): androidx.compose.ui.unit.IntSize? {
+    Base64SizeCache.get(base64)?.let { return it }
+    val size = runCatching {
+        // data URI の前置きは短い頭の中だけで探す（全文を探したり切り出したりしない。CJ レビュー 2026-11-27）
+        val marker = base64.substring(0, minOf(base64.length, DATA_URI_PREFIX_MAX)).indexOf("base64,").takeIf { it >= 0 }
+        val start = marker?.plus("base64,".length) ?: 0
+        // 寸法はファイルの頭にある（JPEG は EXIF の後ろのこともあるので広めに読む）。4 文字単位で切る
+        val length = minOf(HEADER_BASE64_CHARS, base64.length - start).let { it - it % 4 }
+        val bytes = Base64.decode(base64.substring(start, start + length), Base64.DEFAULT)
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
         else jp.miyavi.android.clawdroid.core.data.scaledImageSize(bounds.outWidth, bounds.outHeight).let { (w, h) -> androidx.compose.ui.unit.IntSize(w, h) }
     }.getOrNull()
+    if (size != null) Base64SizeCache.put(base64, size)
+    return size
 }
+
+private val Base64SizeCache = android.util.LruCache<String, androidx.compose.ui.unit.IntSize>(256)
+
+/** data URI の前置き（data:image/png;base64,）を探す範囲。 */
+private const val DATA_URI_PREFIX_MAX = 128
 
 /** 寸法を読むために復号する頭の長さ（base64 の文字数。約 96 KB）。 */
 private const val HEADER_BASE64_CHARS = 128 * 1024
