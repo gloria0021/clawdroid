@@ -95,13 +95,14 @@ internal fun LinkText(text: String, style: TextStyle, modifier: Modifier = Modif
 
 @Composable
 private fun Favicon(preview: LinkPreview?) {
-    var failed by remember(preview?.icon) { mutableStateOf(false) }
+    val icon = preview?.icon
+    var failed by remember(icon) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().clip(androidx.compose.material3.MaterialTheme.shapes.extraSmall)) {
-        if (preview == null || failed) {
+        if (icon == null || failed) {
             Icon(painterResource(R.drawable.ic_huge_globe), contentDescription = null, modifier = Modifier.fillMaxSize())
         } else {
             AsyncImage(
-                model = preview.icon,
+                model = icon,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 onError = { failed = true },

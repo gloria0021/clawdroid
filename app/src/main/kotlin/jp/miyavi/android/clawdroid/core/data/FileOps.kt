@@ -129,9 +129,17 @@ case "${"$"}op" in
     if [ -e "${"$"}target" ] || [ -L "${"$"}target" ]; then
       [ "${"$"}mode" = overwrite ] && [ -f "${"$"}target" ] && [ ! -L "${"$"}target" ] || exit 2
     fi
-    tmp="${"$"}dir/.clawdroid-upload.${"$"}${"$"}"
-    cp -- "${"$"}staged" "${"$"}tmp" || { rm -f -- "${"$"}tmp"; exit 1; }
-    mv -f -- "${"$"}tmp" "${"$"}target" || { rm -f -- "${"$"}tmp"; exit 1; }
+    # 一時ファイルは作業フォルダの中に、まだ無い名前で新しく作る（mktemp。既にあるリンクの先に書かない）
+    tmp=${"$"}(mktemp "${"$"}dir/.clawdroid-upload.XXXXXXXX") || exit 1
+    cat -- "${"$"}staged" > "${"$"}tmp" || { rm -f -- "${"$"}tmp"; exit 1; }
+    chmod "${"$"}(printf '%o' ${"$"}((0666 & ~0${"$"}(umask))))" "${"$"}tmp" 2>/dev/null
+    if [ "${"$"}mode" = overwrite ]; then
+      mv -f -- "${"$"}tmp" "${"$"}target" || { rm -f -- "${"$"}tmp"; exit 1; }
+    else
+      # 上書きしないときは、置く瞬間にも既にある名前を置き換えない（ln は同じ名前があると失敗する）
+      if ln -- "${"$"}tmp" "${"$"}target" 2>/dev/null; then rm -f -- "${"$"}tmp"
+      else rm -f -- "${"$"}tmp"; { [ -e "${"$"}target" ] || [ -L "${"$"}target" ]; } && exit 2; exit 1; fi
+    fi
     rm -f -- "${"$"}staged" ;;
   *) exit 64 ;;
 esac

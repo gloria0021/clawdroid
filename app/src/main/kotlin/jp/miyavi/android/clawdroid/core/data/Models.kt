@@ -153,7 +153,8 @@ data class ChatMessage(
 sealed interface MessagePart {
     data class Text(val markdown: String) : MessagePart
     data class Video(val url: String) : MessagePart
-    data class Image(val url: String?, val base64: String?, val mimeType: String?) : MessagePart
+    /** [preloaded] は手元ですでに縮めて復号した画像（ファイルビューアから全画面で開くとき）。 */
+    data class Image(val url: String?, val base64: String?, val mimeType: String?, val preloaded: androidx.compose.ui.graphics.ImageBitmap? = null) : MessagePart
     /**
      * 画像でない添付ファイル。利用者の添付（`media://inbound/...`）と、エージェントが `MEDIA:` で示したホストのパス。
      * [name] は表示名（無ければパスの最後）、[size] は分かればバイト数。

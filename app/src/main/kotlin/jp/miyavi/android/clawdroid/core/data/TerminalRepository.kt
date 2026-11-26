@@ -186,11 +186,12 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
          * 一時置き場は Gateway がしばらくして消す。
          */
         suspend fun upload(name: String, contentBase64: String): String? = guarded {
-            gateway.request("terminal.upload", buildJsonObject {
+            // 大きな要求の組み立て（JSON にする）を画面のスレッドの外で行う
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { gateway.request("terminal.upload", buildJsonObject {
                 put("sessionId", sessionId)
                 put("name", name)
                 put("contentBase64", contentBase64)
-            }, timeoutMs = UPLOAD_TIMEOUT_MS).asObject()?.string("path")
+            }, timeoutMs = UPLOAD_TIMEOUT_MS) }.asObject()?.string("path")
         }
 
         /** [input] を送り、[done] が結果を返すまで出力を集める。切れたら null。 */

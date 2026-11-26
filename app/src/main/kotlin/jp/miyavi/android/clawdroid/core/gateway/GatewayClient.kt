@@ -279,6 +279,9 @@ class GatewayClient(
         }
     }
 
+    /** 保存してある接続先の住所（無ければ null）。 */
+    suspend fun endpoint(): String? = secrets.loadConnection()?.url
+
     /**
      * 会話の画像を、Gateway の HTTP の経路から取る（公式 Android アプリ・Control UI と同じ）。
      * 利用者の添付（`media://inbound/<id>`）と、エージェントが `MEDIA:` で示したホストのパス（`/…`・`~/…`・`file:`）。

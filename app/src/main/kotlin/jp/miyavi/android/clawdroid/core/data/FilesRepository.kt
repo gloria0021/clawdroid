@@ -107,7 +107,7 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
                 put("name", path)
             }).asObject())
         }
-        (file?.let { if (root is FileRoot.Session) withLargeImage(root, it) else it })?.let(OpenResult::Opened) ?: OpenResult.Missing
+        (file?.let { if (root is FileRoot.Session) withLargeImage(root, it) else it }?.let { withDecodedImage(it) })?.let(OpenResult::Opened) ?: OpenResult.Missing
     } catch (e: GatewayRpcException) {
         when (e.detailType) {
             "session_file_not_found" -> OpenResult.Missing
@@ -178,7 +178,18 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
             }
         }.getOrNull()
         val data = bytes?.takeIf { attempt == GatewayClient.LinkAttempt.COMPLETE } ?: return file
-        return file.copy(kind = PreviewKind.IMAGE, imageBase64 = java.util.Base64.getEncoder().encodeToString(data))
+        // 文字（base64）に戻さず、表示する大きさまで縮めて復号する
+        val image = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { decodeImageScaled(data) } ?: return file
+        return file.copy(kind = PreviewKind.IMAGE, image = image)
+    }
+
+    /** Gateway が中身を添えた画像も、画面のスレッドの外で縮めて復号しておく（画面の組み立ての途中で原寸のまま展開しない）。 */
+    private suspend fun withDecodedImage(file: OpenedFile): OpenedFile {
+        val data = file.imageBase64?.takeIf { file.kind == PreviewKind.IMAGE && file.image == null } ?: return file
+        val image = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching { decodeImageScaled(android.util.Base64.decode(data.substringAfter("base64,"), android.util.Base64.DEFAULT)) }.getOrNull()
+        }
+        return if (image != null) file.copy(image = image) else file
     }
 
     /** ダウンロードのもと。作業フォルダは短命リンク、ワークスペースは中身。 */

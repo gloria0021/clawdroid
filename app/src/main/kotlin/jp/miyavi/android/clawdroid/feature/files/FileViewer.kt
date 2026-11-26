@@ -87,7 +87,7 @@ internal fun FileViewer(
             else -> CodeReader(file.text, state.spans, state.search, wrap, contentPadding, modifier)
         }
         file.kind == PreviewKind.IMAGE -> {
-            val bitmap = rememberBase64Bitmap(file.imageBase64)
+            val bitmap = file.image ?: rememberBase64Bitmap(file.imageBase64)
             Box(modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
                 if (bitmap != null) {
                     Image(

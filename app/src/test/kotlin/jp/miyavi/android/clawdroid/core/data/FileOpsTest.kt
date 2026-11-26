@@ -91,6 +91,10 @@ class FileOpsTest {
             Files.createSymbolicLink(File(root, "link2").toPath(), File(base, "outside").toPath())
             assertEquals(FileOpResult.OutsideRoot, run(FileOp.Place("link2", "x", staged("x"), overwrite = false)))
             assertEquals(FileOpResult.NotFound, run(FileOp.Place("", "y", File(base, "missing").path, overwrite = false)))
+            // 同じ名前のリンクがあれば、上書きを選んでもリンクの先に書かない
+            Files.createSymbolicLink(File(root, "trap.txt").toPath(), File(base, "outside/victim.txt").toPath())
+            assertEquals(FileOpResult.AlreadyExists, run(FileOp.Place("", "trap.txt", staged("x"), overwrite = true)))
+            assertTrue(!File(base, "outside/victim.txt").exists())
             assertTrue(root.listFiles()!!.none { it.name.startsWith(".clawdroid-upload") })
         } finally {
             base.deleteRecursively()

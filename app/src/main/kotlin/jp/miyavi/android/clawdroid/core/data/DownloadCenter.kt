@@ -24,6 +24,8 @@ data class DownloadTask(
     val total: Long? = null,
     /** 接続が切れて、戻るのを待っている。 */
     val waiting: Boolean = false,
+    /** 会話の添付の保存なら、その添付の鍵（カードが自分の進みを見分ける）。 */
+    val key: String? = null,
 ) {
     val fraction: Float? get() = total?.takeIf { it > 0 }?.let { (received.toFloat() / it).coerceIn(0f, 1f) }
 }
@@ -31,9 +33,11 @@ data class DownloadTask(
 /** 終わったダウンロード（アプリ全体の表示と通知で使う）。 */
 sealed interface DownloadEvent {
     val id: Long
-    data class Saved(override val id: Long, val result: DownloadResult.Saved) : DownloadEvent
-    data class Failed(override val id: Long, val name: String, val reason: DownloadSource.Reason) : DownloadEvent
-    data class Cancelled(override val id: Long, val name: String) : DownloadEvent
+    /** 会話の添付の保存なら、その添付の鍵。 */
+    val key: String?
+    data class Saved(override val id: Long, val result: DownloadResult.Saved, override val key: String? = null) : DownloadEvent
+    data class Failed(override val id: Long, val name: String, val reason: DownloadSource.Reason, override val key: String? = null) : DownloadEvent
+    data class Cancelled(override val id: Long, val name: String, override val key: String? = null) : DownloadEvent
 }
 
 /** ファイルビューアからダウンロードを頼む窓口（ViewModel のテストで偽物に差し替える）。 */
@@ -58,31 +62,47 @@ class DownloadCenter(
     val events: SharedFlow<DownloadEvent> = _events.asSharedFlow()
 
     override fun start(root: FileRoot, path: String) {
+        run(path.substringAfterLast('/'), key = null) { progress, waiting ->
+            downloader.download(root, path, onProgress = progress, onWaiting = waiting)
+        }
+    }
+
+    /**
+     * 会話の添付を「ダウンロード」に保存する（一覧の行より長く生きる。スクロールで行が消えても、画面を移っても続く。
+     * CJ レビュー 2026-11-26）。[key] は添付の鍵で、カードが自分の進みと結果を見分けるのに使う。
+     */
+    fun startAttachment(name: String, key: String, save: suspend (onProgress: (Long, Long?) -> Unit) -> DownloadResult): Long =
+        run(name, key) { progress, _ -> save(progress) }
+
+    private fun run(
+        name: String,
+        key: String?,
+        block: suspend (onProgress: (Long, Long?) -> Unit, onWaiting: (Boolean) -> Unit) -> DownloadResult,
+    ): Long {
         val id = ids.incrementAndGet()
-        val name = path.substringAfterLast('/')
-        _tasks.update { it + DownloadTask(id, name) }
+        _tasks.update { it + DownloadTask(id, name, key = key) }
         startService()
         jobs[id] = scope.launch {
             val event = try {
-                val result = downloader.download(
-                    root, path,
-                    onProgress = { received, total -> update(id) { it.copy(received = received, total = total, waiting = false) } },
-                    onWaiting = { waiting -> update(id) { it.copy(waiting = waiting) } },
+                val result = block(
+                    { received, total -> update(id) { it.copy(received = received, total = total, waiting = false) } },
+                    { waiting -> update(id) { it.copy(waiting = waiting) } },
                 )
                 when (result) {
-                    is DownloadResult.Saved -> DownloadEvent.Saved(id, result)
-                    is DownloadResult.Failed -> DownloadEvent.Failed(id, name, result.reason)
+                    is DownloadResult.Saved -> DownloadEvent.Saved(id, result, key)
+                    is DownloadResult.Failed -> DownloadEvent.Failed(id, name, result.reason, key)
                 }
             } catch (e: CancellationException) {
-                DownloadEvent.Cancelled(id, name)
+                DownloadEvent.Cancelled(id, name, key)
             } catch (e: Exception) {
-                DownloadEvent.Failed(id, name, DownloadSource.Reason.FAILED)
+                DownloadEvent.Failed(id, name, DownloadSource.Reason.FAILED, key)
             } finally {
                 jobs.remove(id)
                 _tasks.update { list -> list.filterNot { it.id == id } }
             }
             _events.tryEmit(event)
         }
+        return id
     }
 
     fun cancel(id: Long) {

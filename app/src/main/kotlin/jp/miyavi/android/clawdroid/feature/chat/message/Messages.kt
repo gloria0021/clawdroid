@@ -92,7 +92,7 @@ fun UserMessage(
         if (images.isNotEmpty()) MessageImages(images, onOpenImage, alignEnd = true, modifier = Modifier.padding(bottom = Spacing.m))
         // 画像でない添付ファイルも、本文の上に出す（Web 版と同じ。マスター指定 2026-11-26）
         val files = remember(message.parts) { message.parts.filterIsInstance<MessagePart.File>() }
-        files.forEach { FileAttachment(it, Modifier.padding(bottom = Spacing.s)) }
+        files.forEach { FileAttachment(it, message.id, Modifier.padding(bottom = Spacing.s)) }
         message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
         if (text.isNotBlank()) {
@@ -185,7 +185,7 @@ fun AssistantMessage(
                 is PartBlock.Single -> when (val part = block.part) {
                     is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
                     is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
-                    is MessagePart.File -> FileAttachment(part)
+                    is MessagePart.File -> FileAttachment(part, message.id)
                     is MessagePart.AttachmentError -> AttachmentErrorRow(part)
                     is MessagePart.Image, is MessagePart.ToolCall -> Unit
                 }
@@ -613,21 +613,24 @@ fun rememberBase64Bitmap(base64: String?): ImageBitmap? = remember(base64) {
     base64?.let { data ->
         Base64BitmapCache.get(data) ?: runCatching {
             val bytes = Base64.decode(data.substringAfter("base64,"), Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            // 原寸のまま持たず、表示に足りる大きさまで縮める（CJ レビュー 2026-11-26）
+            jp.miyavi.android.clawdroid.core.data.decodeImageScaled(bytes)
         }.getOrNull()?.also { Base64BitmapCache.put(data, it) }
     }
 }
 
-/** 展開した base64 の画像（数を限って覚えておく）。 */
+/** 展開した base64 の画像（容量を限って覚えておく。枚数で数えると大きな画像でメモリが膨らむ）。 */
 private object Base64BitmapCache {
-    private val cache = android.util.LruCache<String, ImageBitmap>(BASE64_BITMAP_CACHE_SIZE)
+    private val cache = object : android.util.LruCache<String, ImageBitmap>(BASE64_BITMAP_CACHE_BYTES) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
+    }
     fun get(key: String): ImageBitmap? = cache.get(key)
     fun put(key: String, bitmap: ImageBitmap) {
         cache.put(key, bitmap)
     }
 }
 
-private const val BASE64_BITMAP_CACHE_SIZE = 32
+private const val BASE64_BITMAP_CACHE_BYTES = 32 * 1024 * 1024
 
 /** 利用者の面の最大幅（本文の最大幅に対する割合）。 */
 private const val USER_BUBBLE_MAX_FRACTION = 0.8f

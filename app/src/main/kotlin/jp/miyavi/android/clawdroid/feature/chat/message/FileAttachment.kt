@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.LocalInboundImages
 import jp.miyavi.android.clawdroid.core.data.MessagePart
@@ -57,37 +58,57 @@ private sealed interface FileState {
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun FileAttachment(file: MessagePart.File, modifier: Modifier = Modifier) {
+internal fun FileAttachment(
+    file: MessagePart.File,
+    /** 添付の載ったメッセージの ID（保存先の記録の鍵。同じパスに作り直されたファイルを取り違えない）。 */
+    messageId: String,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val source = LocalInboundImages.current
-    val scope = rememberCoroutineScope()
-    val store = remember(context) { (context.applicationContext as jp.miyavi.android.clawdroid.ClawdroidApp).container.savedFiles }
-    // 前に保存したことがあれば、最初から「開く」を出す（アプリを閉じても・会話を切り替えても残す）
-    var state by remember(file.url) { mutableStateOf<FileState>(store.get(file.url)?.let { FileState.Saved(it) } ?: FileState.Idle) }
-    var job by remember(file.url) { mutableStateOf<Job?>(null) }
-    // 保存した先が端末から消されていたら、保存前の状態に戻す
-    androidx.compose.runtime.LaunchedEffect(file.url) {
-        if (state is FileState.Saved && store.existing(context.contentResolver, file.url) == null) state = FileState.Idle
+    val container = remember(context) { (context.applicationContext as jp.miyavi.android.clawdroid.ClawdroidApp).container }
+    val store = container.savedFiles
+    val center = container.downloads
+    // 保存先の記録の鍵: 接続先＋会話＋メッセージ＋添付の場所（CJ レビュー 2026-11-26）
+    var storageKey by remember(file.url, messageId) { mutableStateOf<String?>(null) }
+    var savedUri by remember(file.url, messageId) { mutableStateOf<Uri?>(null) }
+    var failed by remember(file.url, messageId) { mutableStateOf(false) }
+    // 保存したら開く（カードを押したとき）。保存はカードより長く生きるので、カードが残っているときだけ開く
+    var openWhenSaved by remember(file.url, messageId) { mutableStateOf(false) }
+    // 前に保存したことがあり、保存した先がまだあれば「開く」を出す（アプリを閉じても・会話を切り替えても残す）
+    androidx.compose.runtime.LaunchedEffect(file.url, messageId, source) {
+        val key = source?.storageKey(file.url, messageId) ?: return@LaunchedEffect
+        storageKey = key
+        store.existing(context.contentResolver, key)?.let { if (savedUri == null) savedUri = it }
+    }
+    // 保存は画面の外（ダウンロードの帯と同じ仕組み）で進む。カードはその進みと結果を見るだけ
+    val tasks by center.tasks.collectAsStateWithLifecycle()
+    val task = storageKey?.let { key -> tasks.firstOrNull { it.key == key } }
+    androidx.compose.runtime.LaunchedEffect(storageKey) {
+        val key = storageKey ?: return@LaunchedEffect
+        center.events.collect { event ->
+            if (event.key != key) return@collect
+            when (event) {
+                is jp.miyavi.android.clawdroid.core.data.DownloadEvent.Saved -> {
+                    savedUri = event.result.uri
+                    failed = false
+                    if (openWhenSaved) open(context, file, event.result.uri)
+                }
+                is jp.miyavi.android.clawdroid.core.data.DownloadEvent.Failed -> failed = true
+                is jp.miyavi.android.clawdroid.core.data.DownloadEvent.Cancelled -> Unit
+            }
+            openWhenSaved = false
+        }
+    }
+    val state: FileState = when {
+        task != null -> FileState.Saving(task.received, task.total ?: file.size ?: -1, openWhenSaved)
+        savedUri != null -> FileState.Saved(savedUri!!)
+        failed -> FileState.Failed
+        else -> FileState.Idle
     }
     val colors = MaterialTheme.colorScheme
 
-    fun open(uri: Uri) {
-        // APK は端末の「ダウンロード」の画面から入れる（このアプリから直接インストーラーを呼ぶには
-        // REQUEST_INSTALL_PACKAGES が要り、Google Play の制限の対象になるため）
-        val apk = file.mimeType == APK_MIME || file.name.endsWith(".apk", ignoreCase = true)
-        if (apk) {
-            context.startActivity(jp.miyavi.android.clawdroid.core.data.downloadsFolderIntent())
-            return
-        }
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, context.contentResolver.getType(uri) ?: file.mimeType ?: "*/*")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        try {
-            context.startActivity(Intent.createChooser(intent, file.name))
-        } catch (_: ActivityNotFoundException) {
-            context.startActivity(jp.miyavi.android.clawdroid.core.data.downloadsFolderIntent())
-        }
-    }
+    fun open(uri: Uri) = open(context, file, uri)
 
     fun save(openAfter: Boolean) {
         val current = state
@@ -95,23 +116,18 @@ internal fun FileAttachment(file: MessagePart.File, modifier: Modifier = Modifie
             if (openAfter) open(current.uri)
             return
         }
-        if (current is FileState.Saving) {
-            // 受け取り中にもう一度押したら中止
-            job?.cancel()
-            state = FileState.Idle
-            return
-        }
-        if (source == null) return
-        state = FileState.Saving(0, file.size ?: -1, openAfter)
-        job = scope.launch {
-            val running = coroutineContext[Job]
-            val uri = source.saveFile(context.contentResolver, file) { read, total ->
-                // 中止したあとに届いた進みで、表示を受け取り中に戻さない
-                if (running?.isActive == true) state = FileState.Saving(read, if (total > 0) total else file.size ?: -1, openAfter)
+        // 受け取り中にもう一度押したら中止
+        task?.let { center.cancel(it.id); return }
+        val key = storageKey ?: return
+        val src = source ?: return
+        val resolver = context.applicationContext.contentResolver
+        failed = false
+        openWhenSaved = openAfter
+        center.startAttachment(file.name, key) { onProgress ->
+            src.saveFile(resolver, file) { read, total -> onProgress(read, total.takeIf { it > 0 } ?: file.size) }.also { result ->
+                // 記録はここで残す（カードが消えていても）
+                if (result is jp.miyavi.android.clawdroid.core.data.DownloadResult.Saved) store.put(key, result.uri)
             }
-            if (uri != null) store.put(file.url, uri)
-            state = if (uri != null) FileState.Saved(uri) else FileState.Failed
-            if (uri != null && openAfter) open(uri)
         }
     }
 
@@ -159,6 +175,24 @@ internal fun FileAttachment(file: MessagePart.File, modifier: Modifier = Modifie
                 }
             }
         }
+    }
+}
+
+/** 保存したファイルを開く。APK は端末の「ダウンロード」の画面から入れる（直接インストーラーを呼ぶには
+ * REQUEST_INSTALL_PACKAGES が要り、Google Play の制限の対象になるため）。開けるアプリが無ければ同じ画面を開く。 */
+private fun open(context: android.content.Context, file: MessagePart.File, uri: Uri) {
+    val apk = file.mimeType == APK_MIME || file.name.endsWith(".apk", ignoreCase = true)
+    if (apk) {
+        runCatching { context.startActivity(jp.miyavi.android.clawdroid.core.data.downloadsFolderIntent()) }
+        return
+    }
+    val intent = Intent(Intent.ACTION_VIEW)
+        .setDataAndType(uri, context.contentResolver.getType(uri) ?: file.mimeType ?: "*/*")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    try {
+        context.startActivity(Intent.createChooser(intent, file.name))
+    } catch (_: ActivityNotFoundException) {
+        runCatching { context.startActivity(jp.miyavi.android.clawdroid.core.data.downloadsFolderIntent()) }
     }
 }
 

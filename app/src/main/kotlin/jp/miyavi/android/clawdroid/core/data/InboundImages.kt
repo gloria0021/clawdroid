@@ -45,20 +45,25 @@ class InboundImageLoader(private val gateway: GatewayClient) {
     val progress: StateFlow<Map<String, MediaProgress>> = _progress.asStateFlow()
 
     suspend fun load(source: String, sessionKey: String, agentId: String?): ImageBitmap? {
-        cache.get(source)?.let { return it }
-        return locks.getOrPut(source) { Mutex() }.withLock {
-            cache.get(source)?.let { return@withLock it }
+        // 同じパスでも会話が違えば別のもの（ホストのパスは作り直されることがある）
+        val key = "$sessionKey|$source"
+        cache.get(key)?.let { return it }
+        return locks.getOrPut(key) { Mutex() }.withLock {
+            cache.get(key)?.let { return@withLock it }
             val bytes = gateway.loadInboundMedia(source, sessionKey, agentId) { read, total -> report(source, read, total) }
             val bitmap = bytes?.let { withContext(Dispatchers.Default) { decodeScaled(it) } }
             if (bitmap == null) {
                 _progress.update { it + (source to (it[source] ?: MediaProgress(0, 0)).copy(failed = true)) }
                 return@withLock null
             }
-            cache.put(source, bitmap)
+            cache.put(key, bitmap)
             _progress.update { it - source }
             bitmap
         }
     }
+
+    /** 今つないでいる Gateway の住所（保存先の記録の鍵に使う）。 */
+    suspend fun endpoint(): String? = gateway.endpoint()
 
     /** 元のままのバイト列（保存用。縮めない）。 */
     suspend fun loadBytes(source: String, sessionKey: String, agentId: String?): ByteArray? =
@@ -74,19 +79,12 @@ class InboundImageLoader(private val gateway: GatewayClient) {
         sessionKey: String,
         agentId: String?,
         onProgress: (read: Long, total: Long) -> Unit,
-    ): android.net.Uri? {
+    ): DownloadResult {
         val mime = file.mimeType?.takeIf(String::isNotBlank)
             ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.name.substringAfterLast('.', "").lowercase())
             ?: "application/octet-stream"
-        val uri = withContext(Dispatchers.IO) {
-            resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, file.name)
-                put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
-                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
-                put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
-            })
-        } ?: return null
-        // 受け取りの繰り返しは中断できない読み出しなので、中止されたら块ごとに確かめて抜ける
+        val uri = DownloadsStore.create(resolver, file.name, mime) ?: return DownloadResult.Failed(DownloadSource.Reason.FAILED)
+        // 受け取りの繰り返しは中断できない読み出しなので、中止されたら塊ごとに確かめて抜ける
         val caller = kotlin.coroutines.coroutineContext
         val ok = try {
             gateway.streamAssistantMedia(file.url, sessionKey, agentId) { input, total ->
@@ -111,18 +109,15 @@ class InboundImageLoader(private val gateway: GatewayClient) {
                 } ?: false
             } == true
         } catch (e: kotlinx.coroutines.CancellationException) {
-            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { resolver.delete(uri, null, null) }
+            DownloadsStore.discard(resolver, uri)
             throw e
         }
-        return withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
-            if (ok) {
-                resolver.update(uri, android.content.ContentValues().apply { put(android.provider.MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-                uri
-            } else {
-                resolver.delete(uri, null, null)
-                null
-            }
+        // 途中で止められたときは、書きかけを消して中止として返す
+        if (caller[kotlinx.coroutines.Job]?.isActive == false) {
+            DownloadsStore.discard(resolver, uri)
+            throw kotlinx.coroutines.CancellationException("cancelled")
         }
+        return DownloadsStore.finish(resolver, uri, ok, file.name, mime) ?: DownloadResult.Failed(DownloadSource.Reason.FAILED)
     }
 
     /** 表示が変わる単位（1%、全体が分からなければ 64 KB）ごとにだけ知らせる。 */
@@ -137,21 +132,25 @@ class InboundImageLoader(private val gateway: GatewayClient) {
         }
     }
 
-    private fun decodeScaled(bytes: ByteArray): ImageBitmap? = runCatching {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_SIDE_PX) sample *= 2
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
-    }.getOrNull()
+    private fun decodeScaled(bytes: ByteArray): ImageBitmap? = decodeImageScaled(bytes)
 
     private companion object {
         const val CACHE_BYTES = 48 * 1024 * 1024
-        /** 一覧と全画面で使う最大の辺。これより大きい画像は 2 の累乗で縮める。 */
-        const val MAX_SIDE_PX = 2048
         const val UNKNOWN_SIZE_STEP = 64 * 1024L
     }
 }
+
+/** 表示に使う最大の辺。これより大きい画像は 2 の累乗で縮めて復号する（原寸のまま持たない。CJ レビュー 2026-11-26）。 */
+const val MAX_IMAGE_SIDE_PX = 2048
+
+/** 画像のバイト列を、表示に足りる大きさまで縮めて復号する（画面のスレッドの外で呼ぶ）。 */
+fun decodeImageScaled(bytes: ByteArray, maxSide: Int = MAX_IMAGE_SIDE_PX): ImageBitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
+}.getOrNull()
 
 /** 今開いている会話で、会話の画像を取る口。 */
 interface InboundImageSource {
@@ -163,8 +162,12 @@ interface InboundImageSource {
     /** 画像ごとの受け取りの進み。 */
     val progress: StateFlow<Map<String, MediaProgress>> get() = EMPTY_PROGRESS
 
-    /** 添付ファイルを「ダウンロード」に保存する。保存できたらその Uri。 */
-    suspend fun saveFile(resolver: android.content.ContentResolver, file: MessagePart.File, onProgress: (Long, Long) -> Unit): android.net.Uri? = null
+    /** 添付ファイルの保存先の記録の鍵（接続先・会話・メッセージ・場所で区別する）。 */
+    suspend fun storageKey(source: String, messageId: String): String = "$messageId|$source"
+
+    /** 添付ファイルを「ダウンロード」に保存する。 */
+    suspend fun saveFile(resolver: android.content.ContentResolver, file: MessagePart.File, onProgress: (Long, Long) -> Unit): DownloadResult =
+        DownloadResult.Failed(DownloadSource.Reason.FAILED)
 }
 
 private val EMPTY_PROGRESS: StateFlow<Map<String, MediaProgress>> = MutableStateFlow(emptyMap())

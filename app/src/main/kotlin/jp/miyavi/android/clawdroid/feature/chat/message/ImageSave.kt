@@ -6,6 +6,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
 import android.webkit.MimeTypeMap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import jp.miyavi.android.clawdroid.ClawdroidApp
 import jp.miyavi.android.clawdroid.core.data.InboundImageSource
 import jp.miyavi.android.clawdroid.core.data.MessagePart
@@ -85,8 +86,17 @@ private suspend fun imageBytes(image: MessagePart.Image, inbound: InboundImageSo
         if (data.length > MAX_SAVE_BYTES * 4 / 3 + 256) return null
         return withContext(Dispatchers.Default) { runCatching { Base64.decode(data.substringAfter("base64,"), Base64.DEFAULT) }.getOrNull() }
     }
-    val url = image.url ?: return null
-    if (isInboundMediaUrl(url)) return inbound?.bytes(url)
+    image.url?.let { url -> if (isInboundMediaUrl(url)) return inbound?.bytes(url) }
+    // 手元で縮めて復号した画像だけがあるとき（ファイルビューアの大きな画像）は、PNG にして保存する
+    // （元のファイルはファイルビューアのダウンロードから保存できる）
+    image.preloaded?.let { bitmap ->
+        return withContext(Dispatchers.Default) {
+            java.io.ByteArrayOutputStream().use { out ->
+                bitmap.asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                out.toByteArray()
+            }
+        }
+    }
     return null
 }
 

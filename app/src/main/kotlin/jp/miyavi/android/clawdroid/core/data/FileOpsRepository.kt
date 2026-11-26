@@ -59,7 +59,10 @@ class FileOpsRepository(private val terminal: TerminalRepository) {
                     (file.size ?: 0) > MAX_UPLOAD_BYTES || (bytes != null && bytes.size > MAX_UPLOAD_BYTES) -> FileOpResult.Failed(UPLOAD_TOO_LARGE)
                     bytes == null -> FileOpResult.Failed(null)
                     else -> {
-                        val encoded = java.util.Base64.getEncoder().encodeToString(bytes)
+                        // 最大 12 MB を文字にするので、画面のスレッドの外で行う（CJ レビュー 2026-11-26）
+                        val encoded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            java.util.Base64.getEncoder().encodeToString(bytes)
+                        }
                         val staged = upload(file.name, encoded)
                         if (staged == null) FileOpResult.Unknown
                         else {

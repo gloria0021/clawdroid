@@ -250,7 +250,7 @@ private fun ZoomableImagePage(image: MessagePart.Image, isCurrentPage: Boolean, 
             translationX = offset.x
             translationY = offset.y
         }
-        val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
+        val bitmap = image.preloaded ?: rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
         when {
             bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
             image.url != null && !isInboundMediaUrl(image.url) ->

@@ -56,7 +56,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -265,15 +264,8 @@ class ChatViewModel(
     val sheetCache = SheetUsageCache()
 
     init {
-        // プロバイダの使用枠をつながったら先に取っておく（Claude Code CLI は取るのに時間がかかるため）。
-        // 全エージェントのプロバイダを 1 つにまとめて出すので、セッションやモデルを切り替えても取り直さない
-        viewModelScope.launch {
-            visible.flatMapLatest { shown ->
-                if (!shown) flowOf(false) else state.map { it.connection is ConnectionState.Connected && it.agents.agents.isNotEmpty() }
-            }.distinctUntilChanged().collectLatest { ready ->
-                if (ready) runCatching { loadProviderUsage() }
-            }
-        }
+        // プロバイダの使用枠は、セッションのシートを開いたときだけ取る（アプリを開いただけでホストの claude を動かさない。
+        // マスター指定 2026-11-26。CJ レビュー）。Claude Code CLI の行は、取れたところで加わる
         // 前回の選択を戻す（SC-008）。無ければ Gateway の既定のエージェント
         viewModelScope.launch {
             val saved = settings.selection.first()

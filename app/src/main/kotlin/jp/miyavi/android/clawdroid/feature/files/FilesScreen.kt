@@ -521,7 +521,7 @@ internal fun FilePage(
                 contentPadding = contentPadding,
                 htmlFind = htmlFind,
                 onEdit = onEdit,
-                onOpenImage = { onOpenImage(MessagePart.Image(url = null, base64 = ready.file.imageBase64, mimeType = ready.file.mimeType)) },
+                onOpenImage = { onOpenImage(MessagePart.Image(url = null, base64 = ready.file.imageBase64, mimeType = ready.file.mimeType, preloaded = ready.file.image)) },
                 onDownload = onDownload,
                 editor = editor,
                 wrap = wrap,

@@ -65,6 +65,8 @@ data class OpenedFile(
     val creating: Boolean = false,
     /** 更新日時（`updatedAtMs`。開いた画面の上に出す）。 */
     val updatedAt: Long? = null,
+    /** 画像を表示する大きさまで縮めて復号したもの（開くときに画面のスレッドの外で作る。CJ レビュー 2026-11-26）。 */
+    val image: androidx.compose.ui.graphics.ImageBitmap? = null,
 ) {
     /**
      * 編集できるか。作業フォルダ（002 FR-012）: ハッシュの付いた UTF-8 の文字のファイル。

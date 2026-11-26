@@ -47,14 +47,7 @@ class FileDownloader(
             is DownloadSource.Inline -> first.filename to first.mimeType
             is DownloadSource.Unavailable -> return DownloadResult.Failed(first.reason)
         }
-        val uri = withContext(Dispatchers.IO) {
-            resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, name)
-                put(MediaStore.Downloads.MIME_TYPE, mime)
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            })
-        } ?: return DownloadResult.Failed(DownloadSource.Reason.FAILED)
+        val uri = DownloadsStore.create(resolver, name, mime) ?: return DownloadResult.Failed(DownloadSource.Reason.FAILED)
         val ok = try {
             when (val s = source) {
                 is DownloadSource.Inline -> withContext(Dispatchers.IO) {
@@ -110,26 +103,15 @@ class FileDownloader(
             }
         } catch (e: CancellationException) {
             // 中止したら、書きかけのファイルを消す
-            withContext(NonCancellable + Dispatchers.IO) { resolver.delete(uri, null, null) }
+            DownloadsStore.discard(resolver, uri)
             throw e
         } catch (e: Exception) {
             android.util.Log.w(TAG, "download failed", e)
             false
         }
-        return withContext(NonCancellable + Dispatchers.IO) {
-            if (!ok) {
-                resolver.delete(uri, null, null)
-                android.util.Log.w(TAG, "download failed: $path")
-                DownloadResult.Failed(if (source is DownloadSource.Link) DownloadSource.Reason.NO_HTTP else DownloadSource.Reason.FAILED)
-            } else {
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-                // 別名になったときは、実際の名前を示す
-                val actual = resolver.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                } ?: name
-                DownloadResult.Saved(uri, actual, mime)
-            }
-        }
+        val saved = DownloadsStore.finish(resolver, uri, ok, name, mime)
+        if (saved == null) android.util.Log.w(TAG, "download failed: $path")
+        return saved ?: DownloadResult.Failed(if (source is DownloadSource.Link) DownloadSource.Reason.NO_HTTP else DownloadSource.Reason.FAILED)
     }
 }
 

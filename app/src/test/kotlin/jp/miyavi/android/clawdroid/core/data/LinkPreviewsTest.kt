@@ -2,7 +2,9 @@ package jp.miyavi.android.clawdroid.core.data
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LinkPreviewsTest {
@@ -24,5 +26,13 @@ class LinkPreviewsTest {
         val text = "見て https://example.com/x?a=1。あと(https://b.example/)"
         val links = findWebLinks(text).map { text.substring(it) }
         assertEquals(listOf("https://example.com/x?a=1", "https://b.example/"), links)
+    }
+
+    @Test fun internalHosts_areNotFetched() {
+        listOf("localhost", "printer.local", "nas.lan", "server.tail1234.ts.net", "127.0.0.1", "192.168.68.1", "10.0.0.2",
+            "172.16.5.5", "169.254.1.1", "100.101.102.103", "[::1]".trim('[', ']'), "fd12::1", "0.0.0.0").forEach {
+            assertFalse(it, isPublicHost(it))
+        }
+        listOf("example.com", "news.example.co.jp", "8.8.8.8", "2001:4860:4860::8888").forEach { assertTrue(it, isPublicHost(it)) }
     }
 }

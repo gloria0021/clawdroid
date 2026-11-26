@@ -14,18 +14,34 @@ import java.nio.charset.Charset
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-/** リンクの見出し（ページのタイトルとファビコン）。[title] は取れなければ null（ドメインを出す）。 */
-data class LinkPreview(val title: String?, val icon: String)
+/**
+ * リンクの見出し（ページのタイトルとファビコン）。[title] は取れなければ null（ドメインを出す）。
+ * [icon] はファビコンの中身（取れなければ null。画面は地球のアイコンを出す）。
+ */
+class LinkPreview(val title: String?, val icon: ByteArray?)
 
 /**
  * 会話のリンクのタイトルとファビコンを、端末からリンク先のページを読んで取る（送ったあとに、アプリ側で。マスター指定 2026-11-26）。
  * 読むのは先頭の一部（[MAX_HTML_BYTES]）だけ。結果は手元に覚え、同じリンクを何度も読まない。
+ *
+ * 家の中や端末の中にしかない宛先（プライベート・ループバック・リンクローカル・CGNAT・ULA など）には接続しない。
+ * ページ・転送先・ファビコンのどれも同じ決まりで、名前を引いた結果と実際につないだ先の両方で確かめる（CJ レビュー 2026-11-26）。
  */
 class LinkPreviewLoader(client: OkHttpClient) {
     private val client = client.newBuilder()
         .callTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .followRedirects(true)
+        // 名前を引いた結果に内側の宛先が混じっていたら、つなぐ前に断る
+        .dns(PublicOnlyDns)
+        // 転送は 1 回ずつ自分で確かめて追う
+        .followRedirects(false)
+        .followSslRedirects(false)
+        // 実際につないだ先も確かめる（数字で書いた宛先や、名前の引き直しで変わったときのため）
+        .addNetworkInterceptor { chain ->
+            val address = chain.connection()?.route()?.socketAddress?.address
+            if (address == null || !isPublicAddress(address)) throw java.io.IOException("blocked non-public address")
+            chain.proceed(chain.request())
+        }
         .build()
     private val cache = LruCache<String, LinkPreview>(CACHE_ENTRIES)
     private val locks = ConcurrentHashMap<String, Mutex>()
@@ -35,7 +51,7 @@ class LinkPreviewLoader(client: OkHttpClient) {
 
     suspend fun load(url: String): LinkPreview? {
         cache.get(url)?.let { return it }
-        val http = url.toHttpUrlOrNull()?.takeIf { it.scheme == "http" || it.scheme == "https" } ?: return null
+        val http = url.toHttpUrlOrNull()?.takeIf { it.isWeb() && isPublicHost(it.host) } ?: return null
         return locks.getOrPut(url) { Mutex() }.withLock {
             cache.get(url)?.let { return@withLock it }
             val preview = fetch(http)
@@ -45,36 +61,109 @@ class LinkPreviewLoader(client: OkHttpClient) {
     }
 
     private suspend fun fetch(url: HttpUrl): LinkPreview = withContext(Dispatchers.IO) {
-        val fallbackIcon = url.newBuilder().encodedPath("/favicon.ico").query(null).fragment(null).build().toString()
+        var title: String? = null
+        var iconUrl: HttpUrl = url.faviconUrl()
         try {
-            val request = Request.Builder().url(url).header("Accept", "text/html,application/xhtml+xml").header("User-Agent", USER_AGENT).build()
-            client.newCall(request).execute().use { response ->
+            get(url, "text/html,application/xhtml+xml") { response ->
                 val body = response.body
                 val type = body.contentType()
-                if (!response.isSuccessful || (type != null && type.subtype !in HTML_TYPES)) return@use LinkPreview(null, fallbackIcon)
+                val base = response.request.url
+                iconUrl = base.faviconUrl()
+                if (!response.isSuccessful || (type != null && type.subtype !in HTML_TYPES)) return@get
                 val bytes = body.byteStream().readNBytes(MAX_HTML_BYTES)
                 val head = String(bytes, Charsets.ISO_8859_1)
                 val charset = type?.charset() ?: META_CHARSET.find(head)?.groupValues?.get(1)?.let { runCatching { Charset.forName(it) }.getOrNull() } ?: Charsets.UTF_8
                 val html = String(bytes, charset)
-                val base = response.request.url
-                LinkPreview(pageTitle(html), pageIcon(html, base) ?: base.newBuilder().encodedPath("/favicon.ico").query(null).fragment(null).build().toString())
+                title = pageTitle(html)
+                pageIcon(html, base)?.toHttpUrlOrNull()?.takeIf { it.isWeb() }?.let { iconUrl = it }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            LinkPreview(null, fallbackIcon)
+        }
+        // ファビコンも同じ決まりの接続で取り、中身を画面に渡す（画像の読み込みの仕組みに直接取りに行かせない）
+        val icon = try {
+            var bytes: ByteArray? = null
+            if (isPublicHost(iconUrl.host)) get(iconUrl, "image/*") { response ->
+                if (response.isSuccessful) bytes = response.body.byteStream().readNBytes(MAX_ICON_BYTES + 1).takeIf { it.size <= MAX_ICON_BYTES }
+            }
+            bytes
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        LinkPreview(title, icon)
+    }
+
+    /** [url] を取り、転送は宛先を確かめながら [MAX_REDIRECTS] 回まで追う。最後の応答を [read] に渡す。 */
+    private fun get(url: HttpUrl, accept: String, read: (okhttp3.Response) -> Unit) {
+        var current = url
+        repeat(MAX_REDIRECTS + 1) {
+            val request = Request.Builder().url(current).header("Accept", accept).header("User-Agent", USER_AGENT).build()
+            client.newCall(request).execute().use { response ->
+                val next = response.header("Location")?.takeIf { response.isRedirect }?.let { current.resolve(it) }
+                if (next == null) {
+                    read(response)
+                    return
+                }
+                if (!next.isWeb() || !isPublicHost(next.host)) return
+                current = next
+            }
         }
     }
 
     private companion object {
         const val TIMEOUT_SECONDS = 8L
         const val MAX_HTML_BYTES = 256 * 1024
+        const val MAX_ICON_BYTES = 64 * 1024
+        const val MAX_REDIRECTS = 5
         const val CACHE_ENTRIES = 256
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android) Clawdroid"
         val HTML_TYPES = setOf("html", "xhtml+xml")
         val META_CHARSET = Regex("<meta[^>]+charset=[\"']?([\\w-]+)", RegexOption.IGNORE_CASE)
     }
 }
+
+private fun HttpUrl.isWeb() = scheme == "http" || scheme == "https"
+
+private fun HttpUrl.faviconUrl(): HttpUrl = newBuilder().encodedPath("/favicon.ico").query(null).fragment(null).build()
+
+/** 名前を引いて、内側の宛先が 1 つでも混じっていたら断る。 */
+private object PublicOnlyDns : okhttp3.Dns {
+    override fun lookup(hostname: String): List<java.net.InetAddress> {
+        val addresses = okhttp3.Dns.SYSTEM.lookup(hostname)
+        if (addresses.any { !isPublicAddress(it) }) throw java.net.UnknownHostException("non-public address for $hostname")
+        return addresses
+    }
+}
+
+/** 名前の見た目だけで分かる内側の宛先（数字で書いた宛先・localhost・.local など）。 */
+internal fun isPublicHost(host: String): Boolean {
+    val h = host.lowercase().trimEnd('.')
+    if (h == "localhost" || INTERNAL_SUFFIXES.any { h.endsWith(it) }) return false
+    val literal = ':' in h || IPV4_LITERAL.matches(h)
+    if (!literal) return true
+    return runCatching { isPublicAddress(java.net.InetAddress.getByName(h)) }.getOrDefault(false)
+}
+
+/** インターネットの向こうにある宛先か（プライベート・ループバック・リンクローカル・CGNAT・ULA・マルチキャストでない）。 */
+internal fun isPublicAddress(address: java.net.InetAddress): Boolean {
+    if (address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress ||
+        address.isAnyLocalAddress || address.isMulticastAddress
+    ) return false
+    val b = address.address
+    return when (b.size) {
+        // 100.64.0.0/10（CGNAT。Tailscale もここ）、0.0.0.0/8
+        4 -> !((b[0].toInt() and 0xFF) == 100 && (b[1].toInt() and 0xC0) == 64) && b[0].toInt() != 0
+        // fc00::/7（ULA）
+        16 -> (b[0].toInt() and 0xFE) != 0xFC
+        else -> false
+    }
+}
+
+private val IPV4_LITERAL = Regex("^[0-9.]+$")
+private val INTERNAL_SUFFIXES = listOf(".local", ".localhost", ".internal", ".lan", ".home", ".home.arpa", ".ts.net")
 
 /** og:title → twitter:title → <title> の順。空白はまとめ、HTML の文字参照を戻す。 */
 internal fun pageTitle(html: String): String? {
