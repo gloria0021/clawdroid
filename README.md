@@ -3,10 +3,9 @@
 English | [日本語](README.ja.md)
 
 An unofficial Android client for [OpenClaw](https://github.com/openclaw/openclaw), built to make AI coding with OpenClaw comfortable on a phone. The UI is designed around the file tree, file viewer, terminal, and easy parallel development with worktrees.
+> This app does not aim to cover all OpenClaw features.
 
-Note: This app does not aim to cover all OpenClaw features.
-
-[Watch the demo video](docs/media/demo-movie.mp4)
+https://github.com/user-attachments/assets/460b1cbb-cf53-4374-a51c-96633a2e692d
 
 ## Supported versions
 
