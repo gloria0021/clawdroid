@@ -106,17 +106,31 @@ internal fun AgentOverview(
 
         // ---- モデル（モデルと思考を 1 行に。マスター指定 2026-11-24）
         section("model", R.string.agent_overview_section_model)
-        val model = config?.model ?: agent.defaultModel?.let { Configured(it, inherited = false) }
+        // 保存中は選んだ値を先に見せる（null は全体の既定に戻す。マスター指定 2026-11-26）
+        val pending = state.pendingConfig
+        fun savedTick(field: ConfigField) = state.configSaved?.takeIf { it.first == field }?.second ?: 0
+        val model = pending?.takeIf { it.field == ConfigField.MODEL }
+            ?.let { p -> (p.value ?: config?.defaultModel)?.let { Configured(it, inherited = p.value == null) } }
+            ?: config?.model ?: agent.defaultModel?.let { Configured(it, inherited = false) }
         cellRows(
             "model",
             listOfNotNull(
-                Cell(R.drawable.ic_huge_model, R.string.agent_settings_model, model?.inherited == true, menu = modelMenu) {
-                    Value(model?.value ?: stringResource(R.string.agent_settings_model_unknown))
+                Cell(
+                    R.drawable.ic_huge_model, R.string.agent_settings_model, model?.inherited == true, menu = modelMenu,
+                    saving = pending?.field == ConfigField.MODEL, savedTick = savedTick(ConfigField.MODEL),
+                ) {
+                    // 会話の画面のピルと同じ短い名前（Opus 5.5 など。長い参照名で折り返さない。マスター指定 2026-11-26）
+                    Value(model?.value?.let { jp.miyavi.android.clawdroid.core.data.shortModelName(it) } ?: stringResource(R.string.agent_settings_model_unknown))
                 },
                 // 思考の既定は、定義が読めたら（未設定でも）出す。押して変えられる
                 if (config != null) {
-                    val thinking = config.thinking
-                    Cell(R.drawable.ic_huge_effort, R.string.agent_overview_thinking, thinking?.inherited == true, menu = thinkingMenu) {
+                    val thinking = pending?.takeIf { it.field == ConfigField.THINKING }
+                        ?.let { p -> (p.value ?: config.defaultThinking)?.let { Configured(it, inherited = p.value == null) } }
+                        ?: config.thinking
+                    Cell(
+                        R.drawable.ic_huge_effort, R.string.agent_overview_thinking, thinking?.inherited == true, menu = thinkingMenu,
+                        saving = pending?.field == ConfigField.THINKING, savedTick = savedTick(ConfigField.THINKING),
+                    ) {
                         if (thinking != null) LevelMeter(levels, thinking.value) else Value(stringResource(R.string.agent_settings_model_unknown))
                     }
                 } else null,
@@ -129,7 +143,17 @@ internal fun AgentOverview(
 }
 
 /** 1 つの項目（2 つ並べる升目）。 */
-private class Cell(val icon: Int, val title: Int, val inherited: Boolean, val menu: AgentMenu? = null, val value: @Composable () -> Unit)
+private class Cell(
+    val icon: Int,
+    val title: Int,
+    val inherited: Boolean,
+    val menu: AgentMenu? = null,
+    /** 保存中（∨ の位置に読み込み表示。押せない）。 */
+    val saving: Boolean = false,
+    /** 保存できた回数（増えたら ∨ の位置に一瞬チェック）。 */
+    val savedTick: Int = 0,
+    val value: @Composable () -> Unit,
+)
 
 /**
  * 升目を押すと出す選択のポップアップ（会話の画面のモデル・エフォートと同じ透過のドロップダウン。AGENTS.md 2.7）。
@@ -181,7 +205,11 @@ private fun CellView(cell: Cell, modifier: Modifier) {
         Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .then(if (click != null) Modifier.clickable(onClickLabel = stringResource(R.string.agent_overview_change_cd), onClick = click) else Modifier)
+            .then(
+                if (click != null) {
+                    Modifier.clickable(enabled = !cell.saving, onClickLabel = stringResource(R.string.agent_overview_change_cd), onClick = click)
+                } else Modifier,
+            )
             .padding(Spacing.xs),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -195,14 +223,20 @@ private fun CellView(cell: Cell, modifier: Modifier) {
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (cell.inherited) InheritedBadge()
-            // 押して変えられる項目の印
+            // 押して変えられる項目の印。保存中はその場所で読み込み表示、保存できたら一瞬チェック（マスター指定 2026-11-26）
             if (click != null) {
-                Icon(
-                    painterResource(R.drawable.ic_huge_arrow_down),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                jp.miyavi.android.clawdroid.core.designsystem.SaveStateIcon(
+                    saving = cell.saving,
+                    savedTick = cell.savedTick,
                     modifier = Modifier.size(Dimens.smallIcon),
-                )
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_huge_arrow_down),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(Dimens.smallIcon),
+                    )
+                }
             }
         }
         cell.value()
@@ -258,11 +292,23 @@ private fun LazyListScope.toolSection(config: AgentConfig, profiles: List<Pair<S
                     Value(stringResource(if (only.value) R.string.agent_overview_fs_workspace_only else R.string.agent_overview_fs_anywhere))
                 }
             },
-            config.elevated?.let { e -> Cell(R.drawable.ic_huge_key, R.string.agent_overview_elevated, e.inherited) { OnOff(e.value) } },
+            // 値はどれも同じ文字だけの形にそろえる（オン・オフに点を付けない。マスター指定 2026-11-26）
+            config.elevated?.let { e ->
+                Cell(R.drawable.ic_huge_key, R.string.agent_overview_elevated, e.inherited) {
+                    Value(stringResource(if (e.value) R.string.agent_overview_on else R.string.agent_overview_off))
+                }
+            },
+            // Web 検索はエージェントごとに決められない（openclaw.json 全体の tools.web.search）。ほかの項目と同じく
+            // 全体から引き継いだ印を付ける。このエージェントが web_search を拒否していれば、使えないのでオフ（マスター指定 2026-11-26）
             config.webSearch?.let { enabled ->
-                Cell(R.drawable.ic_huge_globe, R.string.agent_overview_web_search, false) {
-                    val text = if (enabled) config.webSearchProvider ?: stringResource(R.string.agent_overview_on) else stringResource(R.string.agent_overview_off)
-                    Value(stringResource(R.string.agent_overview_web_search_value, text))
+                val denied = config.deny.any { it == "web_search" || it == "group:web" }
+                Cell(R.drawable.ic_huge_globe, R.string.agent_overview_web_search, inherited = !denied) {
+                    Value(
+                        when {
+                            denied || !enabled -> stringResource(R.string.agent_overview_off)
+                            else -> config.webSearchProvider ?: stringResource(R.string.agent_overview_on)
+                        },
+                    )
                 }
             },
         ),
@@ -368,15 +414,6 @@ private fun Chips(items: List<String>, deny: Boolean) {
             if (deny) Pill(item, colors.errorContainer, colors.onErrorContainer)
             else Pill(item, colors.secondaryContainer, colors.onSecondaryContainer)
         }
-    }
-}
-
-@Composable
-private fun OnOff(on: Boolean) {
-    val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        Box(Modifier.size(Dimens.unreadDot).background(if (on) colors.primary else colors.outlineVariant, MaterialTheme.shapes.extraLarge))
-        Value(stringResource(if (on) R.string.agent_overview_on else R.string.agent_overview_off))
     }
 }
 

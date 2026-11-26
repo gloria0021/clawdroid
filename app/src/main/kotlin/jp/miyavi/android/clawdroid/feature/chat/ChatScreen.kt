@@ -56,7 +56,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.DismissibleNavigationDrawer
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -84,6 +84,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import jp.miyavi.android.clawdroid.core.designsystem.hazeSurface
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import kotlinx.coroutines.delay
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -164,6 +173,8 @@ internal fun ChatScreen(
     val pendingAlreadyTaken = stringResource(R.string.chat_pending_already_taken)
     val attachmentTooLarge = stringResource(R.string.chat_attach_too_large)
     val retry = stringResource(R.string.action_retry)
+    val pastedAsAttachment = stringResource(R.string.chat_text_pasted)
+    val expandLabel = stringResource(R.string.chat_text_expand)
     val worktreeCreating = stringResource(R.string.worktree_creating)
     val worktreePreserved = stringResource(R.string.worktree_preserved)
     val grouping by viewModel.sessionGrouping.collectAsStateWithLifecycle()
@@ -176,6 +187,10 @@ internal fun ChatScreen(
         viewModel.events.collect { event ->
             when (event) {
                 ChatEvent.SendFailed -> if (snackbar.showSnackbar(sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) viewModel.send()
+                // 長い貼り付けを添付にした。すぐ文字に戻せるようにする（マスター指定 2026-11-26）
+                is ChatEvent.PastedAsAttachment -> if (
+                    snackbar.showSnackbar(pastedAsAttachment, expandLabel, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed
+                ) viewModel.expandText(event.id)
                 ChatEvent.PendingAlreadyTaken -> snackbar.showSnackbar(pendingAlreadyTaken)
                 ChatEvent.AttachmentTooLarge -> snackbar.showSnackbar(attachmentTooLarge)
                 ChatEvent.WorktreeCreating -> snackbar.showSnackbar(worktreeCreating)
@@ -183,6 +198,10 @@ internal fun ChatScreen(
                     String.format(worktreePreserved, event.branch.orEmpty()), duration = SnackbarDuration.Long,
                 )
                 is ChatEvent.Error -> snackbar.showSnackbar(event.message ?: sendFailed)
+                // 設定は元の値に戻したうえで知らせ、同じ値で再試行できるようにする（マスター指定 2026-11-26）
+                is ChatEvent.SettingFailed -> if (
+                    snackbar.showSnackbar(event.message ?: sendFailed, retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed
+                ) viewModel.updateSessionSetting(event.setting, event.value)
             }
         }
     }
@@ -199,7 +218,16 @@ internal fun ChatScreen(
             restore = viewModel::restoreWorktree,
         ),
     ) {
+    // サイドパネルの存在を初回だけ知らせる（パネルを少しのぞかせる）。見せたか・自分で開いたかを端末に残す（マスター指定 2026-11-26）
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hintPrefs = remember(context) { context.getSharedPreferences(HINT_PREFS, android.content.Context.MODE_PRIVATE) }
+    var panelHintPending by remember { mutableStateOf(!hintPrefs.getBoolean(KEY_PANEL_HINT_SHOWN, false)) }
     ChatContent(
+        panelHintPending = panelHintPending,
+        onPanelHintDone = {
+            panelHintPending = false
+            hintPrefs.edit().putBoolean(KEY_PANEL_HINT_SHOWN, true).apply()
+        },
         grouping = grouping,
         inboundImages = inboundImages,
         state = state,
@@ -220,6 +248,10 @@ internal fun ChatScreen(
             delete = viewModel::delete,
             textChange = viewModel::onTextChange,
             reuse = viewModel::reuse,
+            addQuote = viewModel::addQuote,
+            addPastedText = viewModel::addPastedText,
+            removeText = viewModel::removeText,
+            expandText = viewModel::expandText,
             addImage = viewModel::addImage,
             removeImage = viewModel::removeImage,
             voiceText = viewModel::appendVoiceText,
@@ -260,6 +292,10 @@ data class ChatActions(
     val delete: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val textChange: (String) -> Unit,
     val reuse: (String) -> Unit = {},
+    val addQuote: (String) -> Unit = {},
+    val addPastedText: (String) -> Unit = {},
+    val removeText: (String) -> Unit = {},
+    val expandText: (String) -> Unit = {},
     val addImage: (android.net.Uri) -> Unit,
     val removeImage: (android.net.Uri) -> Unit,
     val voiceText: (String) -> Unit,
@@ -301,6 +337,10 @@ fun ChatContent(
     hasQuestion: Boolean = false,
     onOpenQuestion: () -> Unit = {},
     grouping: Map<String, jp.miyavi.android.clawdroid.core.settings.SessionGrouping> = emptyMap(),
+    /** サイドパネルを初回だけのぞかせるか。 */
+    panelHintPending: Boolean = false,
+    /** のぞかせた、または自分でパネルを開いた（もう知らせない）。 */
+    onPanelHintDone: () -> Unit = {},
 ) {
     var pickingFolder by rememberSaveable { mutableStateOf(false) }
     // タイトルバーの ⋮ から開いたもの（名前の変更・変更量・別のフォルダ）
@@ -350,6 +390,8 @@ fun ChatContent(
         uris.take(MAX_ATTACH_IMAGES).forEach(actions.addImage)
     }
     var openedImage by remember { mutableStateOf<jp.miyavi.android.clawdroid.feature.chat.message.ImageGallery?>(null) }
+    // プレビュー中の引用・コピーしたテキスト（id。外したり送ったりして無くなったら閉じる）
+    var openedText by rememberSaveable { mutableStateOf<String?>(null) }
     var openedVideo by rememberSaveable { mutableStateOf<String?>(null) }
     val voiceDenied = stringResource(R.string.voice_permission_denied)
     val voiceError = stringResource(R.string.voice_error)
@@ -361,9 +403,17 @@ fun ChatContent(
     val copied = stringResource(R.string.copied)
     var showSessionSheet by rememberSaveable { mutableStateOf(false) }
     val agent = state.selectedAgent
-    val model = composer.sessionOptions[SessionSetting.MODEL] ?: state.currentSession?.model ?: agent?.defaultModel
-    val effort = composer.sessionOptions[SessionSetting.EFFORT] ?: state.currentSession?.thinkingLevel ?: agent?.thinkingDefault
-    val permission = composer.sessionOptions[SessionSetting.PERMISSIONS] ?: state.currentSession?.permissionMode
+    // 保存中は選んだ値を先に見せる（null は既定に戻す。マスター指定 2026-11-26）
+    val pendingSetting = composer.pendingSetting
+    fun pendingOf(setting: SessionSetting): Pair<SessionSetting, String?>? = pendingSetting?.takeIf { it.first == setting }
+    fun savedTick(setting: SessionSetting): Int = composer.settingSaved?.takeIf { it.first == setting }?.second ?: 0
+    val model = pendingOf(SessionSetting.MODEL)?.let { it.second ?: agent?.defaultModel }
+        ?: composer.sessionOptions[SessionSetting.MODEL] ?: state.currentSession?.model ?: agent?.defaultModel
+    val effort = pendingOf(SessionSetting.EFFORT)?.let { it.second ?: agent?.thinkingDefault }
+        ?: composer.sessionOptions[SessionSetting.EFFORT] ?: state.currentSession?.thinkingLevel ?: agent?.thinkingDefault
+    val permissionPending = pendingOf(SessionSetting.PERMISSIONS)
+    val permission = if (permissionPending != null) permissionPending.second
+    else composer.sessionOptions[SessionSetting.PERMISSIONS] ?: state.currentSession?.permissionMode
     val canSelectFull = connected?.scopes?.contains("operator.admin") == true
     val writeScope = canSelectFull || connected?.scopes?.contains("operator.write") == true
     val writeMethod = if (state.currentSessionKey == null) "sessions.create" else "sessions.patch"
@@ -401,7 +451,87 @@ fun ChatContent(
     }
     CompositionLocalProvider(LocalInboundImages provides imageSource) {
     ProvideScreenHaze(hazeState) {
-        ModalNavigationDrawer(
+        // 会話の上に重ねず、会話を右へ押し出して横から出す（Gemini 型。暗くしない）。M3 の標準部品のまま
+        // （マスター指定 2026-11-26。以前は ModalNavigationDrawer で上に重ねていた）
+        val panelVeil = MaterialTheme.colorScheme.surface
+        // 初回だけ、パネルを 1/3 まで引き出して止め、説明を出す。「了解」を押すまで引き出したまま保ち、押したら閉じる
+        // （どこにあるかを伝える動き。一度きり。AGENTS.md 2.8。マスター指定 2026-11-26）。デバッグ版はメニューから何度でも流せる。
+        // 本物の引き出しを途中まで動かす。M3 の部品は閉じ切っているあいだパネルを置かない（会話の位置が 0 のときは描かない）ため、
+        // 会話だけをずらすとパネルが出なかった
+        val closeSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+        val hintDone by rememberUpdatedState(onPanelHintDone)
+        val hintText = stringResource(R.string.panel_hint_message)
+        val hintAck = stringResource(R.string.action_got_it)
+        // 説明は引き出しの外に重ねる（会話と一緒に動かない）。会話側だけを scrim で沈め、のぞいたパネルを明るく残す
+        // （スポットライト型。マスター指定 2026-11-26）。「了解」か戻るで閉じる
+        var hintOverlay by remember { mutableStateOf(false) }
+        var hintAckSignal by remember { mutableStateOf<kotlinx.coroutines.CompletableDeferred<Unit>?>(null) }
+        var hintRunning by remember { mutableStateOf(false) }
+        var hintJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+        val windowWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toFloat()
+        val playPanelHint: () -> Unit = {
+            hintJob?.cancel()
+            hintJob = scope.launch {
+                val closed = -windowWidthPx
+                val peek = closed * (1f - PANEL_HINT_FRACTION)
+                // 1/3 まで減速しながら出し、そこで止めておく（止まっているので、打ち切っても動きは途切れない）。
+                // shortcut: 位置を途中で止める動きはトークンのばねでは作れないため、キーフレームの時間を使う
+                // 1/3 で止めたまま保つため、止める区間を長く取る（「了解」で打ち切る。止まっているので途切れない）
+                val peekSpec = androidx.compose.animation.core.keyframes {
+                    durationMillis = PANEL_HINT_OPEN_MS + PANEL_HINT_HOLD_MAX_MS
+                    closed at 0
+                    peek at PANEL_HINT_OPEN_MS using androidx.compose.animation.core.EaseOutCubic
+                    peek at PANEL_HINT_OPEN_MS + PANEL_HINT_HOLD_MAX_MS - 1
+                }
+                hintRunning = true
+                try {
+                    val opening = launch { drawerState.animateTo(DrawerValue.Open, peekSpec) }
+                    // 自分でパネルを引き出し・閉じたら（案内の動きが打ち切られたら）、了解とみなして説明を下げる
+                    val ack = kotlinx.coroutines.CompletableDeferred<Unit>()
+                    hintAckSignal = ack
+                    launch {
+                        opening.join()
+                        ack.complete(Unit)
+                    }
+                    delay(PANEL_HINT_OPEN_MS.toLong())
+                    if (opening.isActive) hintOverlay = true
+                    // 「了解」を押すまで消えない。押すまでパネルも引き出したまま
+                    ack.await()
+                    hintOverlay = false
+                    if (opening.isActive) {
+                        opening.cancel()
+                        opening.join()
+                        drawerState.animateTo(DrawerValue.Closed, closeSpec)
+                    }
+                } finally {
+                    hintOverlay = false
+                    hintAckSignal = null
+                    hintRunning = false
+                }
+            }
+        }
+        // 会話を開いてエージェントがそろい、画面が落ち着いてから（動きと重い処理を重ねない）。自分で開いたら知らせない
+        val panelReady = state.sidebarAgents.isNotEmpty() && state.connection is ConnectionState.Connected
+        LaunchedEffect(panelHintPending, panelReady) {
+            if (!panelHintPending || !panelReady) return@LaunchedEffect
+            delay(PANEL_HINT_DELAY_MS)
+            if (drawerState.isOpen || drawerState.targetValue == DrawerValue.Open) { hintDone(); return@LaunchedEffect }
+            // 見せたことを先に残す（途中で画面を離れても二度は出さない）。動きはこの効果と切り離して最後まで流す
+            hintDone()
+            playPanelHint()
+        }
+        LaunchedEffect(drawerState) {
+            snapshotFlow { drawerState.targetValue }.collect { target ->
+                // 自分で開き始めたら（案内の動きは除く）、もう案内しない
+                if (target == DrawerValue.Open && !hintRunning && panelHintPending) hintDone()
+            }
+        }
+        fun revealOffset(): Float = drawerState.currentOffset
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val panelFloatPx = with(density) { PANEL_FLOAT.toPx() }
+        // パネルの幅（全画面のパネルなので窓の幅）。中身を浮かせる割合に使う
+        val drawerWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toFloat()
+        DismissibleNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
                 // 全画面のサイドパネル（Gemini 型）。開くと画面いっぱいまで広がる
@@ -436,6 +566,33 @@ fun ChatContent(
                         scope.launch { drawerState.close() }
                         actions.createWorktree(session, name, base, fork)
                     },
+                    // 看板も中身も、少し下から浮き上がる
+                    liftRange = PANEL_FLOAT,
+                    contentLift = {
+                        val offset = revealOffset()
+                        if (offset.isNaN() || drawerWidthPx <= 0f) 0f else (-offset / drawerWidthPx).coerceIn(0f, 1f) * panelFloatPx
+                    },
+                    // 引き出しの奥行き（Gemini 型。マスター指定 2026-11-26）: パネルは横に動かさず、会話の下に最初から置いてあるように
+                    // その場に留める（部品が左へずらす分を打ち消す）。引き出すにつれて少し下から浮き上がり、背景色（surface）のもやが晴れる。
+                    // 開き具合は描画の中だけで読む（再構成もレイアウトも起こさない。AGENTS.md 2.8）
+                    modifier = Modifier
+                        .graphicsLayer {
+                            val offset = drawerState.currentOffset
+                            if (offset.isNaN() || size.width <= 0f) return@graphicsLayer
+                            translationX = -offset.coerceAtMost(0f)
+                            // 部品はパネルを会話より上に描くので、その場に留めると会話を覆ってしまう（会話が右へずれる動きが
+                            // 見えず、いきなり全面に出ていた）。会話が退いた左側の幅だけを描き、そこだけ押せるようにする。
+                            // 閉じているときは幅 0 で、会話への操作を邪魔しない
+                            clip = true
+                            shape = RevealedWidthShape((size.width + offset).coerceIn(0f, size.width))
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            val offset = revealOffset()
+                            val shown = if (offset.isNaN() || size.width <= 0f) 0f else (1f + offset / size.width).coerceIn(0f, 1f)
+                            val veil = (1f - shown) * PANEL_VEIL_MAX
+                            if (veil > 0f) drawRect(panelVeil, alpha = veil)
+                        },
                 )
             },
         ) {
@@ -458,6 +615,8 @@ fun ChatContent(
                             onSessionAction = { sessionAction = it },
                             onTogglePin = { state.currentSession?.let { actions.setPinned(it, !it.pinned) } },
                             loadDiffSummary = actions.loadDiffSummary,
+                            // デバッグ版だけ: 初回の案内をもう一度流す（リリース版からは外した。マスター指定 2026-11-26）
+                            onDebugPanelHint = if (jp.miyavi.android.clawdroid.BuildConfig.DEBUG) playPanelHint else null,
                         )
                         ConnectionBanner(
                             if (offlinePlaceholder) connected ?: ConnectionState.NotConfigured else state.connection,
@@ -492,6 +651,18 @@ fun ChatContent(
                                 model = model,
                                 contextFraction = state.currentSession?.contextFraction,
                                 onOpenSession = { showSessionSheet = true },
+                                permission = agent?.let { a ->
+                                    jp.miyavi.android.clawdroid.feature.chat.composer.PermissionControl(
+                                        value = permission,
+                                        saving = pendingOf(SessionSetting.PERMISSIONS) != null,
+                                        savedTick = savedTick(SessionSetting.PERMISSIONS),
+                                        enabled = canEdit && state.currentSession?.permissionModePending != true,
+                                        options = jp.miyavi.android.clawdroid.feature.chat.composer.settingOptions(
+                                            SessionSetting.PERMISSIONS, a, state.currentSession, composer.sessionOptions, canSelectFull, catalog = null,
+                                        ).orEmpty(),
+                                        onSelect = { value -> actions.updateSetting(SessionSetting.PERMISSIONS, value) },
+                                    )
+                                },
                                 pending = state.chat?.queuedInputs.orEmpty(),
                                 onCancelPending = actions.cancelPending,
                                 onRestorePending = actions.restorePending,
@@ -500,6 +671,9 @@ fun ChatContent(
                                 // 写真は別の項目なので、ファイルは文書の種類に絞る（*/* だとピッカーの「最近」が写真で埋まる。マスター指定 2026-11-24）
                                 onPickFiles = { pickFile.launch(DOCUMENT_MIME_TYPES) },
                                 onRemoveImage = actions.removeImage,
+                                onOpenText = { openedText = it.id },
+                                onRemoveText = actions.removeText,
+                                onPasteLongText = actions.addPastedText,
                                 onPasteImage = actions.addImage,
                                 onOpenImage = { attachments, index ->
                                     // ファイルは並びから外し、押した画像の位置を数え直す
@@ -509,7 +683,12 @@ fun ChatContent(
                                         images.indexOf(attachments[index]).coerceAtLeast(0),
                                     )
                                 },
-                                onSend = actions.send,
+                                // 送ったらキーボードを閉じて、応答を読めるようにする（マスター指定 2026-11-26）
+                                onSend = {
+                                    keyboard?.hide()
+                                    focusManager.clearFocus()
+                                    actions.send()
+                                },
                                 onStop = actions.stop,
                                 modifier = Modifier.widthIn(max = Dimens.composerMaxWidth).padding(horizontal = Spacing.l, vertical = Spacing.s)
                                     .graphicsLayer { alpha = composerAlpha },
@@ -530,8 +709,9 @@ fun ChatContent(
                         // 文字を選んだときのメニューの「プロンプトに入力」（このアプリの中だけ）
                         jp.miyavi.android.clawdroid.feature.chat.message.PromptFromSelection(
                             onInsert = { text ->
+                                // 引用のタイルにする（本文には混ぜない。マスター指定 2026-11-26）
                                 if (canReply) {
-                                    actions.reuse(text)
+                                    actions.addQuote(text)
                                     if (composerFocus.requestFocus()) keyboard?.show()
                                 }
                             },
@@ -575,7 +755,62 @@ fun ChatContent(
                 }
             }
         }
+        // 案内の重ね（スポットライト型）。会話側（右の 2/3）だけを沈めて操作を受け止め、のぞいたパネル（左の 1/3）は
+        // 明るいまま触れる（引き出せば了解とみなす）。説明はパネルとの境目の近くに浮かせる
+        BackHandler(enabled = hintOverlay) { hintAckSignal?.complete(Unit) }
+        AnimatedVisibility(
+            visible = hintOverlay,
+            enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(1f - PANEL_HINT_FRACTION)
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = PANEL_HINT_SCRIM))
+                        // 下の会話には触れさせない（押しても消さない。読まずに消えるのを防ぐ）
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        },
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    jp.miyavi.android.clawdroid.core.designsystem.GlassPanel(
+                        hazeState = hazeState,
+                        fixedOpacity = jp.miyavi.android.clawdroid.core.designsystem.MENU_OPACITY,
+                        modifier = Modifier.padding(horizontal = Spacing.l),
+                    ) {
+                        Column(
+                            Modifier.padding(start = Spacing.xl, end = Spacing.m, top = Spacing.l, bottom = Spacing.s),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.s),
+                        ) {
+                            Text(
+                                hintText,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(end = Spacing.s).semantics { liveRegion = LiveRegionMode.Polite },
+                            )
+                            TextButton(
+                                onClick = { hintAckSignal?.complete(Unit) },
+                                modifier = Modifier.align(Alignment.End),
+                            ) { Text(hintAck) }
+                        }
+                    }
+                }
+            }
+        }
         ImageOverlay(gallery = openedImage, onDismiss = { openedImage = null })
+        composer.texts.firstOrNull { it.id == openedText }?.let { item ->
+            TextAttachmentSheet(
+                item = item,
+                hazeState = hazeState,
+                onExpand = { openedText = null; actions.expandText(item.id) },
+                onRemove = { openedText = null; actions.removeText(item.id) },
+                onDismiss = { openedText = null },
+            )
+        }
         val current = state.currentSession
         when (sessionAction) {
             SessionAction.RENAME -> if (current != null) SessionRenameDialog(current.title.orEmpty(), onDismiss = { sessionAction = null }) {
@@ -628,6 +863,8 @@ fun ChatContent(
                 loadContext = actions.loadContext,
                 loadHostStats = actions.loadHostStats,
                 cache = actions.sheetCache,
+                saving = pendingSetting?.first,
+                savedTick = ::savedTick,
                 onSelect = { setting, value -> actions.updateSetting(setting, value) },
                 onDismiss = { showSessionSheet = false },
             )
@@ -647,6 +884,7 @@ private fun SessionTitleBar(
     onSessionAction: (SessionAction) -> Unit = {},
     onTogglePin: () -> Unit = {},
     loadDiffSummary: suspend (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> jp.miyavi.android.clawdroid.core.data.SessionDiff? = { null },
+    onDebugPanelHint: (() -> Unit)? = null,
 ) {
     // 試し（マスター指定 2026-11-23）: 帯のガラスをやめ、サイドパネルと同じ「Clawdroid」のガラスのピルと、
     // ファイル・ターミナル・⋮ の丸いガラスのボタンだけを浮かせる。ピルを押すとサイドパネルが開く
@@ -671,6 +909,7 @@ private fun SessionTitleBar(
                 onAction = onSessionAction,
                 onTogglePin = onTogglePin,
                 loadDiffSummary = loadDiffSummary,
+                onDebugPanelHint = onDebugPanelHint,
                 onOpenFiles = if (key != null && agentId != null) ({ navigation.openFiles(key, agentId) }) else null,
                 onOpenTerminal = { navigation.openTerminal(key, agentId, state.currentSession?.cwd) },
                 anchor = { onClick ->
@@ -722,7 +961,9 @@ private fun OfflinePlaceholder(
     val agentsFailed = connected && !agents.loading && agents.agents.isEmpty()
     val trying = !agentsFailed && (
         connected || connection is ConnectionState.Connecting || connection is ConnectionState.Reconnecting ||
-            connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval
+            connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval ||
+            // 休んでいた接続は、前に戻るとすぐつなぎ直す
+            connection is ConnectionState.Paused
         )
     Column(
         modifier.padding(horizontal = Spacing.xl),
@@ -764,7 +1005,7 @@ private fun OfflinePlaceholder(
 @Composable
 private fun ConnectionBanner(connection: ConnectionState, onReconnect: () -> Unit, modifier: Modifier = Modifier) {
     val text = when (connection) {
-        is ConnectionState.Reconnecting, ConnectionState.Connecting -> stringResource(R.string.connection_reconnecting)
+        is ConnectionState.Reconnecting, ConnectionState.Connecting, ConnectionState.Paused -> stringResource(R.string.connection_reconnecting)
         ConnectionState.Restarting -> stringResource(R.string.connection_restarting)
         ConnectionState.Disconnected -> stringResource(R.string.connection_offline)
         is ConnectionState.Failed -> stringResource(R.string.connection_auth_expired)
@@ -1022,3 +1263,83 @@ private val DOCUMENT_MIME_TYPES = arrayOf("application/*", "text/*")
 
 private val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mov", "webm", "mkv", "3gp")
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif", "avif")
+
+/** サイドパネルを閉じかけのときに重ねるもやの、いちばん濃い不透明度（開き切ると 0）。 */
+private const val PANEL_VEIL_MAX = 0.9f
+
+/** 左から [width] だけを残す形（サイドパネルのうち、会話が退いて見えている所）。描画と押せる範囲の両方を切る。 */
+private data class RevealedWidthShape(val width: Float) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ) = androidx.compose.ui.graphics.Outline.Rectangle(androidx.compose.ui.geometry.Rect(0f, 0f, width, size.height))
+}
+
+/** 初回の案内で会話を右へずらす割合（画面の幅に対して。パネルの 1/3 が見える。マスター指定 2026-11-26）。 */
+private const val PANEL_HINT_FRACTION = 1f / 3f
+
+/** 初回の案内で、パネルを 1/3 まで出すのにかける時間（shortcut: 途中で止めるためキーフレームの時間で動かす）。 */
+private const val PANEL_HINT_OPEN_MS = 450
+
+/** 案内で会話側に重ねる scrim の不透明度（M3 のモーダルの後ろと同じくらい）。 */
+private const val PANEL_HINT_SCRIM = 0.32f
+
+/** 案内でパネルを止めておける上限（「了解」を押すまで保つ。押されなければこの時間のあと開き切る）。 */
+private const val PANEL_HINT_HOLD_MAX_MS = 60 * 60 * 1_000
+
+/** 会話を開いてから案内を始めるまでの間（画面が落ち着くのを待つ。shortcut: トークンに無い待ち時間）。 */
+private const val PANEL_HINT_DELAY_MS = 800L
+
+private const val HINT_PREFS = "hints"
+private const val KEY_PANEL_HINT_SHOWN = "panel_hint_shown"
+
+/** サイドパネルが閉じた位置で沈んでいる深さ（引き出すにつれて浮き上がる）。 */
+private val PANEL_FLOAT = Spacing.xl
+
+/**
+ * 引用・コピーしたテキストの全文（共通のボトムシート。AGENTS.md 2.5）。長ければ中の面だけをスクロールする。
+ * 引用は本文と同じ文字、コピーしたテキストはログやコードが多いので等幅（マスター指定 2026-11-26）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TextAttachmentSheet(
+    item: jp.miyavi.android.clawdroid.feature.chat.PendingText,
+    hazeState: dev.chrisbanes.haze.HazeState,
+    onExpand: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val quote = item.kind == jp.miyavi.android.clawdroid.feature.chat.PendingText.Kind.QUOTE
+    jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState) {
+        Text(
+            stringResource(if (quote) R.string.chat_text_quote else R.string.chat_text_paste) + "・" + stringResource(R.string.chat_text_chars, item.text.length),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs),
+        )
+        androidx.compose.material3.Surface(
+            color = jp.miyavi.android.clawdroid.core.designsystem.sheetFieldColor(),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false).padding(horizontal = Spacing.l, vertical = Spacing.s),
+        ) {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(
+                    item.text,
+                    style = if (quote) jp.miyavi.android.clawdroid.core.designsystem.bodyTextStyle()
+                    else MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                        .padding(horizontal = Spacing.m, vertical = Spacing.s),
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.l, vertical = Spacing.s),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.End),
+        ) {
+            TextButton(onClick = onRemove) { Text(stringResource(R.string.chat_text_remove)) }
+            androidx.compose.material3.FilledTonalButton(onClick = onExpand) { Text(stringResource(R.string.chat_text_expand)) }
+        }
+    }
+}

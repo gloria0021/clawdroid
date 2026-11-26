@@ -157,3 +157,16 @@ dependencies {
     testImplementation(libs.roborazzi.compose)
     testImplementation(libs.roborazzi.junit.rule)
 }
+
+// Release の日本語（app/src/release/res/values-ja）は main の日本語の写し。訳はリリースのときだけ作るが、
+// 日本語の写しはビルドのたびに作り直し、Release の画面の日本語が古いまま残らないようにする（訳さないのでトークンは使わない）
+val syncReleaseJapanese by tasks.registering(Exec::class) {
+    workingDir = rootDir
+    commandLine("python3", "scripts/translate-strings.py", "--ja-only")
+    inputs.dir("src/main/res/values")
+    outputs.file("src/release/res/values-ja/strings.xml")
+}
+// Release のリソースを読むタスクはいくつもあるので、Release のタスクすべての前に作り直す（写すだけなので一瞬）
+tasks.matching { it.name.contains("Release") && it.name != "syncReleaseJapanese" }.configureEach {
+    dependsOn(syncReleaseJapanese)
+}

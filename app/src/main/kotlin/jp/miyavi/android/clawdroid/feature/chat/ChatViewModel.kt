@@ -95,14 +95,44 @@ class SheetUsageCache {
 data class ComposerState(
     val text: String = "",
     val images: List<PendingImage> = emptyList(),
+    /** 引用とコピーしたテキスト（添付の列にタイルで並べる。マスター指定 2026-11-26）。 */
+    val texts: List<PendingText> = emptyList(),
     val sending: Boolean = false,
     val sessionOptions: Map<SessionSetting, String> = emptyMap(),
     val updatingSettings: Boolean = false,
+    /**
+     * 保存中のセッションの設定（先に見せる。value が null なら既定に戻す。マスター指定 2026-11-26: 反映が遅い回線でも、
+     * 切り替わったかが分かるように）。Gateway の値を読み直したら外す。
+     */
+    val pendingSetting: Pair<SessionSetting, String?>? = null,
+    /** 保存できた設定と、その回数（その場所の印を一瞬チェックにする合図）。 */
+    val settingSaved: Pair<SessionSetting, Int>? = null,
     /** 新しいセッションの作業フォルダ（null ならエージェントの既定）。 */
     val newSessionCwd: String? = null,
 )
 
 data class PendingImage(val uri: Uri, val image: OutgoingImage)
+
+/**
+ * 文字の添付。引用（吹き出しの文字を選んで「プロンプトに入力」）は本文の前に Markdown の引用で、
+ * コピーしたテキスト（長い貼り付け）は .txt の添付で送る（マスター指定 2026-11-26）。
+ */
+data class PendingText(val id: String, val kind: Kind, val text: String) {
+    enum class Kind { QUOTE, PASTE }
+}
+
+/** 長い貼り付けを添付にする境目（この文字数以上で、かつ改行を含むとき。1 行の URL やコマンドは本文に入れる）。 */
+internal const val LONG_PASTE_CHARS = 100
+
+/** 貼り付けた文字を添付にするか。 */
+internal fun isLongPaste(text: CharSequence): Boolean = text.length >= LONG_PASTE_CHARS && '\n' in text
+
+/** 送る本文。引用を Markdown の引用にして先頭に置く（複数なら空行で分ける）。 */
+internal fun withQuotes(text: String, quotes: List<String>): String {
+    if (quotes.isEmpty()) return text
+    val block = quotes.joinToString("\n\n") { q -> q.trim().lines().joinToString("\n") { "> $it" } }
+    return if (text.isBlank()) block else "$block\n\n$text"
+}
 
 /** サイドバーと会話の画面の状態。 */
 data class ChatScreenState(
@@ -132,7 +162,11 @@ data class ChatScreenState(
 sealed interface ChatEvent {
     data object WorktreeCreating : ChatEvent
     data class Error(val message: String?) : ChatEvent
+    /** セッションの設定を保存できなかった（元の値に戻した）。同じ値で再試行できる。 */
+    data class SettingFailed(val message: String?, val setting: SessionSetting, val value: String?) : ChatEvent
     data object SendFailed : ChatEvent
+    /** 長い貼り付けを添付にした（Snackbar の「入力欄に戻す」で戻せる）。 */
+    data class PastedAsAttachment(val id: String) : ChatEvent
     data object PendingAlreadyTaken : ChatEvent
     data object AttachmentTooLarge : ChatEvent
     /** 削除したが、ワークツリーは使用中などで残った。 */
@@ -339,18 +373,29 @@ class ChatViewModel(
             return
         }
         if (settingsJob?.isActive == true) return
-        _composer.update { it.copy(updatingSettings = true) }
+        _composer.update { it.copy(updatingSettings = true, pendingSetting = setting to value) }
         settingsJob = viewModelScope.launch {
+            // setOption は保存のあと一覧を読み直してから戻るので、外した時点で本物の値がそろっている
+            var saved = false
             try {
                 sessions.setOption(chat.sessionKey, chat.agentId, setting, value)
+                saved = true
             } catch (_: TimeoutCancellationException) {
-                _events.tryEmit(ChatEvent.Error(null))
+                _events.tryEmit(ChatEvent.SettingFailed(null, setting, value))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                _events.tryEmit(ChatEvent.Error(error.message))
+                _events.tryEmit(ChatEvent.SettingFailed(error.message, setting, value))
             } finally {
-                if (currentChat.value === chat) _composer.update { it.copy(updatingSettings = false) }
+                if (currentChat.value === chat) {
+                    _composer.update {
+                        it.copy(
+                            updatingSettings = false,
+                            pendingSetting = null,
+                            settingSaved = if (saved) setting to ((it.settingSaved?.second ?: 0) + 1) else it.settingSaved,
+                        )
+                    }
+                }
             }
         }
     }
@@ -575,6 +620,29 @@ class ChatViewModel(
 
     fun removeImage(uri: Uri) = _composer.update { c -> c.copy(images = c.images.filterNot { it.uri == uri }) }
 
+    /** 吹き出しの文字を選んで「プロンプトに入力」。引用のタイルにする（長さに関係なく）。 */
+    fun addQuote(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        _composer.update { it.copy(texts = it.texts + PendingText(java.util.UUID.randomUUID().toString(), PendingText.Kind.QUOTE, trimmed)) }
+    }
+
+    /** 長い貼り付けを、コピーしたテキストのタイルにする。 */
+    fun addPastedText(text: String) {
+        val id = java.util.UUID.randomUUID().toString()
+        _composer.update { it.copy(texts = it.texts + PendingText(id, PendingText.Kind.PASTE, text)) }
+        _events.tryEmit(ChatEvent.PastedAsAttachment(id))
+    }
+
+    fun removeText(id: String) = _composer.update { c -> c.copy(texts = c.texts.filterNot { it.id == id }) }
+
+    /** タイルをやめて、文字として入力欄に展開する（書きかけがあれば後ろへ足す）。 */
+    fun expandText(id: String) = _composer.update { c ->
+        val item = c.texts.firstOrNull { it.id == id } ?: return@update c
+        val body = if (item.kind == PendingText.Kind.QUOTE) withQuotes("", listOf(item.text)) else item.text
+        c.copy(texts = c.texts - item, text = if (c.text.isBlank()) body else "${c.text.trimEnd()}\n\n$body")
+    }
+
     fun appendVoiceText(text: String) = _composer.update { c ->
         c.copy(text = if (c.text.isBlank()) text else c.text.trimEnd() + " " + text)
     }
@@ -584,8 +652,17 @@ class ChatViewModel(
      */
     fun send() {
         val composer = _composer.value
-        val text = composer.text.trim()
-        if (composer.updatingSettings || (text.isEmpty() && composer.images.isEmpty())) return
+        val typed = composer.text.trim()
+        if (composer.updatingSettings || (typed.isEmpty() && composer.images.isEmpty() && composer.texts.isEmpty())) return
+        val pastes = composer.texts.filter { it.kind == PendingText.Kind.PASTE }
+        val quoted = withQuotes(typed, composer.texts.filter { it.kind == PendingText.Kind.QUOTE }.map { it.text })
+        // コピーしたテキストは .txt の添付で送る。新しいチャットの最初の 1 通は添付を運べないので本文の後ろに入れる
+        val text = if (currentChat.value == null && pastes.isNotEmpty()) {
+            (listOf(quoted) + pastes.map { it.text }).filter(String::isNotBlank).joinToString("\n\n")
+        } else quoted
+        val textFiles = pastes.mapIndexed { i, p ->
+            OutgoingImage("text/plain", Base64.encodeToString(p.text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP), "pasted-text-${i + 1}.txt")
+        }
         val agentId = selectedAgentId.value ?: return
         val idempotencyKey = GatewayClient.newIdempotencyKey()
         val draft = draftKey()
@@ -609,14 +686,14 @@ class ChatViewModel(
                         settings.selectSession(agentId, key)
                     }
                 } else {
-                    chat.send(text, composer.images.map { it.image }, idempotencyKey)
+                    chat.send(text, composer.images.map { it.image } + textFiles, idempotencyKey)
                 }
                 drafts.delete(draft)
                 _composer.update { it.copy(sending = false) }
             } catch (e: Exception) {
                 // 失敗したら、入力欄が空のときだけ戻す（あとから書いた文を上書きしない）
                 _composer.update { current ->
-                    if (current.text.isBlank() && current.images.isEmpty()) composer.copy(sending = false) else current.copy(sending = false)
+                    if (current.text.isBlank() && current.images.isEmpty() && current.texts.isEmpty()) composer.copy(sending = false) else current.copy(sending = false)
                 }
                 _events.tryEmit(ChatEvent.SendFailed)
             }

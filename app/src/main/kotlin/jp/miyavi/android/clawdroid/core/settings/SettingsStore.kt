@@ -25,8 +25,6 @@ enum class SurfaceStyle { GLASS, BLUR }
 
 enum class AppFont { LINE_SEED_JP, SYSTEM }
 
-enum class LockScreenContent { FOLLOW_SYSTEM, HIDE }
-
 /** セッション履歴の並べ方。 */
 enum class SessionGrouping { UPDATED, FOLDER }
 
@@ -56,11 +54,11 @@ data class ThemeSettings(
 data class NotificationSettings(
     /** 通知ぜんたいのオン・オフ（オフなら常駐もしない。マスター指定 2026-11-24）。 */
     val enabled: Boolean = true,
-    val backgroundConnection: Boolean = true,
+    /** 常時接続（常駐して裏でも通知を受ける）。電池を使うので既定はオフ（マスター指定 2026-11-26）。 */
+    val backgroundConnection: Boolean = false,
     val notifyReplies: Boolean = true,
     val notifyApprovals: Boolean = true,
     val notifyAutomationFailures: Boolean = true,
-    val lockScreenContent: LockScreenContent = LockScreenContent.FOLLOW_SYSTEM,
 )
 
 data class UiSelection(
@@ -91,11 +89,10 @@ class SettingsStore(context: Context) {
     val notifications: Flow<NotificationSettings> = store.data.map { p ->
         NotificationSettings(
             enabled = p[NOTIFICATIONS_ENABLED] ?: true,
-            backgroundConnection = p[BACKGROUND_CONNECTION] ?: true,
+            backgroundConnection = p[BACKGROUND_CONNECTION] ?: false,
             notifyReplies = p[NOTIFY_REPLIES] ?: true,
             notifyApprovals = p[NOTIFY_APPROVALS] ?: true,
             notifyAutomationFailures = p[NOTIFY_AUTOMATION_FAILURES] ?: true,
-            lockScreenContent = p[LOCK_SCREEN].toEnum(LockScreenContent.FOLLOW_SYSTEM),
         )
     }.distinctUntilChanged()
 
@@ -126,7 +123,6 @@ class SettingsStore(context: Context) {
     suspend fun setNotifyReplies(v: Boolean) = store.edit { it[NOTIFY_REPLIES] = v }
     suspend fun setNotifyApprovals(v: Boolean) = store.edit { it[NOTIFY_APPROVALS] = v }
     suspend fun setNotifyAutomationFailures(v: Boolean) = store.edit { it[NOTIFY_AUTOMATION_FAILURES] = v }
-    suspend fun setLockScreenContent(v: LockScreenContent) = store.edit { it[LOCK_SCREEN] = v.name }
 
     suspend fun setNotifications(v: NotificationSettings) = store.edit {
         it[NOTIFICATIONS_ENABLED] = v.enabled
@@ -134,7 +130,6 @@ class SettingsStore(context: Context) {
         it[NOTIFY_REPLIES] = v.notifyReplies
         it[NOTIFY_APPROVALS] = v.notifyApprovals
         it[NOTIFY_AUTOMATION_FAILURES] = v.notifyAutomationFailures
-        it[LOCK_SCREEN] = v.lockScreenContent.name
     }
 
     suspend fun selectAgent(agentId: String) = store.edit { it[SELECTED_AGENT] = agentId }
@@ -195,7 +190,6 @@ class SettingsStore(context: Context) {
         val NOTIFY_REPLIES = booleanPreferencesKey("notify_replies")
         val NOTIFY_APPROVALS = booleanPreferencesKey("notify_approvals")
         val NOTIFY_AUTOMATION_FAILURES = booleanPreferencesKey("notify_automation_failures")
-        val LOCK_SCREEN = stringPreferencesKey("lock_screen_content")
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
         val SELECTED_SESSIONS = stringPreferencesKey("selected_sessions")
         val AGENT_LAYOUT = stringPreferencesKey("agent_layout")

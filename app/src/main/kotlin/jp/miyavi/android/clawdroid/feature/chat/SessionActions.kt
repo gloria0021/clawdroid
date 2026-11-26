@@ -35,6 +35,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -66,6 +68,8 @@ internal fun SessionMoreMenu(
     onAction: (SessionAction) -> Unit,
     onTogglePin: () -> Unit,
     loadDiffSummary: suspend (SessionSummary) -> SessionDiff? = { null },
+    /** デバッグ版だけの「デバッグ → サイドパネルヒント」（null なら節ごと出さない）。 */
+    onDebugPanelHint: (() -> Unit)? = null,
     /** ファイル（開けないときは null）。 */
     onOpenFiles: (() -> Unit)? = null,
     onOpenTerminal: (() -> Unit)? = null,
@@ -82,6 +86,9 @@ internal fun SessionMoreMenu(
     }
     Box {
         anchor { open = true }
+        // メニューの右端をボタンの右端にそろえる（画面の右上のボタンから出るので）。M3 のメニューは起点の左端から
+        // 右へ開こうとするため、ボタンの右下に幅 0 の起点を置き、入りきらない側として右揃えで開かせる（マスター指定 2026-11-26）
+        Box(Modifier.align(androidx.compose.ui.Alignment.BottomEnd).requiredSize(androidx.compose.ui.unit.DpSize.Zero)) {
         GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             // 並び（マスター指定 2026-11-23）: 名前を変更・ピン留め、区切って ファイル・ターミナル・並行開発・変更量
             // （別のフォルダで続けるは廃止）。新しいチャットではファイル・ターミナルだけ
@@ -89,8 +96,22 @@ internal fun SessionMoreMenu(
                 onOpenFiles?.let { MenuRow(R.drawable.ic_huge_folder, R.string.menu_files) { open = false; it() } }
                 onOpenTerminal?.let { MenuRow(R.drawable.ic_huge_terminal, R.string.menu_terminal) { open = false; it() } }
             }
+            // デバッグ版だけの節（最後に区切って置く）
+            val debug: @Composable () -> Unit = {
+                onDebugPanelHint?.let { hint ->
+                    jp.miyavi.android.clawdroid.core.designsystem.GlassMenuDivider()
+                    Text(
+                        stringResource(R.string.menu_debug_section),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.xs),
+                    )
+                    MenuRow(R.drawable.ic_huge_play, R.string.menu_debug_panel_hint) { open = false; hint() }
+                }
+            }
             if (session == null) {
                 files()
+                debug()
                 return@GlassDropdownMenu
             }
             MenuRow(R.drawable.ic_huge_edit, R.string.session_menu_rename) { open = false; onAction(SessionAction.RENAME) }
@@ -112,11 +133,13 @@ internal fun SessionMoreMenu(
                     text = { Text(stringResource(R.string.session_menu_diff)) },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_huge_diff), contentDescription = null) },
                     trailingIcon = summary?.takeIf { it.unavailable == null }?.let { diff ->
-                        { DiffCounts(diff.additions, diff.deletions, MaterialTheme.typography.labelMedium) }
+                        { StackedDiffCounts(diff.additions, diff.deletions, MaterialTheme.typography.labelMedium) }
                     },
                     onClick = { open = false; onAction(SessionAction.DIFF) },
                 )
             }
+            debug()
+        }
         }
     }
 }
@@ -285,6 +308,33 @@ private fun DiffCounts(additions: Int, deletions: Int, style: androidx.compose.u
         jp.miyavi.android.clawdroid.core.designsystem.RollingCounter(deletions, style, colors.error, prefix = "−")
     }
 }
+
+/**
+ * メニュー用の変更量。追加と削除を 2 行に重ね、幅は 4 桁分に固定する（数が変わってもメニューの幅が変わらないように。
+ * マスター指定 2026-11-26）。5 桁以上のときだけ広がる。右揃え。
+ */
+@Composable
+private fun StackedDiffCounts(additions: Int, deletions: Int, style: androidx.compose.ui.text.TextStyle) {
+    val colors = MaterialTheme.colorScheme
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // いちばん幅を取る 4 桁（8 が最も広い字形が多い）と符号で測る
+    val minWidth = remember(style, density) {
+        with(density) {
+            maxOf(measurer.measure("+$FOUR_DIGIT_SAMPLE", style).size.width, measurer.measure("−$FOUR_DIGIT_SAMPLE", style).size.width).toDp()
+        }
+    }
+    androidx.compose.foundation.layout.Column(
+        Modifier.widthIn(min = minWidth),
+        horizontalAlignment = androidx.compose.ui.Alignment.End,
+    ) {
+        jp.miyavi.android.clawdroid.core.designsystem.RollingCounter(additions, style, colors.tertiary, prefix = "+")
+        jp.miyavi.android.clawdroid.core.designsystem.RollingCounter(deletions, style, colors.error, prefix = "−")
+    }
+}
+
+/** 変更量の幅を決める見本の 4 桁。 */
+private const val FOUR_DIGIT_SAMPLE = "8888"
 
 /** 「+12 −3」（追加は tertiary、削除は error）。 */
 @Composable

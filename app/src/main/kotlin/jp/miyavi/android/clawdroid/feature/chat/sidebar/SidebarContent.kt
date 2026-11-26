@@ -174,6 +174,13 @@ fun SidePanel(
     /** 並行開発のシートで、元にするブランチの候補を取る。 */
     loadBranches: suspend (SessionSummary) -> jp.miyavi.android.clawdroid.core.data.RepoBranches? = { null },
     onUnpin: (SessionSummary) -> Unit = {},
+    /**
+     * パネルの中身を下へずらす量（px。引き出すにつれて 0 へ）。看板も一緒に浮き上がる（マスター指定 2026-11-26）。
+     * 描画の中だけで読む。ずらしても上端に隙間が出ないよう、看板の画像は [liftRange] だけ上にはみ出して描く。
+     */
+    contentLift: () -> Float = { 0f },
+    /** [contentLift] のいちばん大きい値（看板の画像を上にはみ出させる長さ）。 */
+    liftRange: androidx.compose.ui.unit.Dp = Spacing.xl,
 ) {
     val hazeState = rememberHazeState()
     val agentsById = remember(agents) { agents.associateBy(Agent::id) }
@@ -205,13 +212,14 @@ fun SidePanel(
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val grouping = currentAgent?.id?.let { groupingByAgent[it] } ?: SessionGrouping.UPDATED
     ProvideScreenHaze(hazeState) {
-        Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxSize()) {
+        // 会話（surface）より一段沈んだ面にして、会話の下にある引き出しに見せる（Gemini 型。マスター指定 2026-11-26）
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Column(Modifier.fillMaxSize().widthIn(max = Dimens.maxReadingWidth)) {
                     // 頭の看板（マスター指定 2026-11-23）: 選んでいるエージェントの顔を、ステータスバーの裏まで横いっぱいに敷き、
                     // 下へいくほど背景に溶かす。右上に閉じる（ガラスの面で、どの画像の上でも読める）
                     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                    Box(Modifier.fillMaxWidth().height(statusTop + Dimens.agentHeroHeight)) {
+                    Box(Modifier.fillMaxWidth().height(statusTop + Dimens.agentHeroHeight).graphicsLayer { translationY = contentLift() }) {
                         if (currentAgent == null) {
                             // エージェントがまだ無い（つながっていない）: 淡いマスコットを看板の代わりに置く（マスター指定 2026-11-25）
                             Image(
@@ -225,7 +233,8 @@ fun SidePanel(
                         currentAgent?.let { agent ->
                             jp.miyavi.android.clawdroid.feature.chat.AgentHero(
                                 agent,
-                                Modifier.matchParentSize().hazeSource(hazeState, zIndex = HERO_HAZE_Z).graphicsLayer {
+                                // 浮き上がる分だけ上にはみ出させて、下へずれても上端に隙間を作らない（はみ出した所は画面の外）
+                                Modifier.overhangTop(liftRange).hazeSource(hazeState, zIndex = HERO_HAZE_Z).graphicsLayer {
                                     alpha = if (revealedAgentId == currentAgent.id) agentOpacity.value else 0f
                                 },
                             )
@@ -242,13 +251,15 @@ fun SidePanel(
                     Column(
                         modifier = Modifier.weight(1f).fillMaxWidth().graphicsLayer {
                             alpha = if (revealedAgentId == currentAgent?.id) agentOpacity.value else 0f
+                            translationY = contentLift()
                         },
                     ) {
                         // エージェントの名前（画像の下、ホームの上。titleMedium の 1.5 倍 = headlineSmall。
                         // ガラスは付けない。マスター指定 2026-11-23）
                         if (currentAgent == null) {
                             val trying = connection is ConnectionState.Connecting || connection is ConnectionState.Reconnecting ||
-                                connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval
+                                connection is ConnectionState.Restarting || connection is ConnectionState.AwaitingApproval ||
+                                connection is ConnectionState.Paused
                             Text(
                                 stringResource(
                                     when {
@@ -1116,3 +1127,12 @@ private fun SessionMenu(
 
 /** 看板の画像を、画面の透かす元に重ねる順（ガラスのボタンが画像を透かすように）。 */
 private const val HERO_HAZE_Z = 1f
+
+/** 親の大きさに合わせたうえで、上へ [overhang] だけはみ出して描く（大きさは親のまま）。 */
+private fun Modifier.overhangTop(overhang: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, constraints ->
+    val extra = overhang.roundToPx()
+    val width = constraints.maxWidth
+    val height = constraints.maxHeight
+    val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(width, height + extra))
+    layout(width, height) { placeable.place(0, -extra) }
+}

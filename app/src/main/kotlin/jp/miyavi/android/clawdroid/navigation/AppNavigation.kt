@@ -308,7 +308,7 @@ private fun MainNavigation(container: AppContainer) {
                     jp.miyavi.android.clawdroid.feature.settings.NotificationSettingsScreen(
                         settings = current,
                         onChange = { next -> scope.launch { container.settings.setNotifications(next) } },
-                        onTest = { container.notifier.center.showTest() },
+                        onTest = { container.notifier.showTest() },
                         onBack = { gate.run { backStack.pop() } },
                     )
                 }

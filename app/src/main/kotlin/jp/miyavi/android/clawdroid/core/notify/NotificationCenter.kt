@@ -88,31 +88,21 @@ internal class NotificationCenter(private val context: Context) {
             .setContentIntent(openIntent(null, REQUEST_CONNECTION))
             .build()
 
-    fun showReply(agentId: String, agentName: String, sessionKey: String, title: String, text: String, hideOnLock: Boolean, avatar: android.graphics.Bitmap? = null) {
+    fun showReply(agentId: String, agentName: String, sessionKey: String, title: String, text: String, avatar: android.graphics.Bitmap? = null) {
         val channel = replyChannel(agentId, agentName)
         val group = "$GROUP_REPLIES:$agentId"
-        val notification = base(channel, hideOnLock, context.getString(R.string.notify_reply_hidden))
-            .setContentTitle(title)
-            .setSubText(agentName)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setGroup(group)
-            .setLargeIcon(avatar)
-            .setAutoCancel(true)
-            .setContentIntent(openIntent(OpenTarget.Session(agentId, sessionKey), sessionKey.hashCode()))
-            .build()
-        post(replyId(sessionKey), notification)
+        post(replyId(sessionKey), reply(channel, group, agentName, title, text, avatar, openIntent(OpenTarget.Session(agentId, sessionKey), sessionKey.hashCode())))
         // エージェントごとにまとめる要約（FR-012）
         post(
             group.hashCode(),
-            base(channel, hideOnLock, agentName).setContentTitle(agentName).setGroup(group).setGroupSummary(true).setAutoCancel(true)
+            base(channel, agentName).setContentTitle(agentName).setGroup(group).setGroupSummary(true).setAutoCancel(true)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN).build(),
         )
     }
 
-    fun showApproval(item: PendingApproval, agentName: String?, sessionTitle: String?, hideOnLock: Boolean, avatar: android.graphics.Bitmap? = null) {
+    fun showApproval(item: PendingApproval, agentName: String?, sessionTitle: String?, avatar: android.graphics.Bitmap? = null) {
         val body = approvalBody(item, sessionTitle)
-        val builder = base(CHANNEL_APPROVALS, hideOnLock, context.getString(R.string.notify_approval_hidden))
+        val builder = base(CHANNEL_APPROVALS, context.getString(R.string.notify_approval_hidden))
             .setContentTitle(context.getString(R.string.notify_approval_title, agentName ?: context.getString(R.string.notify_agent_fallback)))
             .setContentText(item.detail.lineSequence().firstOrNull().orEmpty())
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -152,11 +142,11 @@ internal class NotificationCenter(private val context: Context) {
 
     fun cancel(id: Int) = manager.cancel(id)
 
-    fun showAutomationFailure(failure: AutomationFailure, hideOnLock: Boolean) {
+    fun showAutomationFailure(failure: AutomationFailure) {
         val text = failure.error ?: context.getString(R.string.notify_automation_failed)
         post(
             failure.jobId.hashCode(),
-            base(CHANNEL_AUTOMATION, hideOnLock, context.getString(R.string.notify_automation_failed))
+            base(CHANNEL_AUTOMATION, context.getString(R.string.notify_automation_failed))
                 .setContentTitle(failure.name ?: context.getString(R.string.notify_automation_failed))
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -166,18 +156,36 @@ internal class NotificationCenter(private val context: Context) {
         )
     }
 
-    fun showTest() {
+    /**
+     * テスト通知。本物の応答の通知と同じ形（エージェントの顔・名前・チャンネル）で出す（マスター指定 2026-11-26）。
+     * エージェントを読めていなければ、名前だけ「Clawdroid」で出す。押すとアプリを開く。
+     */
+    fun showTest(agentId: String?, agentName: String?, avatar: android.graphics.Bitmap?) {
+        val name = agentName ?: context.getString(R.string.app_name)
+        val channel = replyChannel(agentId ?: TEST_AGENT, name)
         post(
             TEST_ID,
-            NotificationCompat.Builder(context, replyChannel(TEST_AGENT, context.getString(R.string.notify_test_title)))
-                .setSmallIcon(R.drawable.ic_stat_clawdroid)
-                .setContentTitle(context.getString(R.string.notify_test_title))
-                .setContentText(context.getString(R.string.notify_test_body))
-                .setAutoCancel(true)
-                .setContentIntent(openIntent(null, TEST_ID))
-                .build(),
+            reply(
+                channel, "$GROUP_REPLIES:test", name, context.getString(R.string.notify_test_title), context.getString(R.string.notify_test_body),
+                avatar, openIntent(null, TEST_ID),
+            ),
         )
     }
+
+    /** 応答の通知の形（本物もテストも同じ）。 */
+    private fun reply(
+        channel: String, group: String, agentName: String, title: String, text: String,
+        avatar: android.graphics.Bitmap?, open: PendingIntent,
+    ): Notification = base(channel, context.getString(R.string.notify_reply_hidden))
+        .setContentTitle(title)
+        .setSubText(agentName)
+        .setContentText(text)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+        .setGroup(group)
+        .setLargeIcon(avatar)
+        .setAutoCancel(true)
+        .setContentIntent(open)
+        .build()
 
     /** 承認の全文。コマンドは等幅、続けて対象・警告・会話（長すぎる分は「続きはアプリで」）。 */
     private fun approvalBody(item: PendingApproval, sessionTitle: String?): CharSequence {
@@ -191,19 +199,17 @@ internal class NotificationCenter(private val context: Context) {
         }
     }
 
-    private fun base(channel: String, hideOnLock: Boolean, publicTitle: String): NotificationCompat.Builder =
+    /**
+     * ロック画面で内容を出すかは端末の設定に任せる（アプリの項目は置かない。マスター指定 2026-11-26）。
+     * 端末が「機密を伏せる」ときに出るよう、題だけの公開版を付けておく。
+     */
+    private fun base(channel: String, publicTitle: String): NotificationCompat.Builder =
         NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_stat_clawdroid)
             .setWhen(System.currentTimeMillis())
-            .apply {
-                // ロック画面で伏せるときは、題だけの公開版を付ける（FR-032）。端末の設定に従うときは何も変えない
-                if (hideOnLock) {
-                    setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                    setPublicVersion(
-                        NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_stat_clawdroid).setContentTitle(publicTitle).build(),
-                    )
-                }
-            }
+            .setPublicVersion(
+                NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_stat_clawdroid).setContentTitle(publicTitle).build(),
+            )
 
     private fun openIntent(target: OpenTarget?, requestCode: Int): PendingIntent {
         val intent = OpenIntents.intent(context, target).apply {

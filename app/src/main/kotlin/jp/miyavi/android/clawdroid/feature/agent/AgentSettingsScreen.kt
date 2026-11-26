@@ -92,7 +92,7 @@ fun AgentSettingsScreen(
     val failed = stringResource(R.string.skill_toggle_failed)
     val failedPlain = stringResource(R.string.skill_toggle_failed_plain)
     val identitySaved = stringResource(R.string.agent_identity_saved)
-    val configSaved = stringResource(R.string.agent_config_saved)
+    val retryLabel = stringResource(R.string.action_retry)
     val identityFailed = stringResource(R.string.agent_identity_failed)
     val identityFailedPlain = stringResource(R.string.agent_identity_failed_plain)
     // ファイルを直して戻ってきたときに、一覧（大きさ・更新日時・数）を読み直す
@@ -112,9 +112,13 @@ fun AgentSettingsScreen(
                     snackbar.showSnackbar(event.message?.let { String.format(failed, it) } ?: failedPlain)
                 }
                 AgentSettingsEvent.IdentitySaved -> scope.launch { snackbar.showSnackbar(identitySaved) }
-                AgentSettingsEvent.ConfigSaved -> scope.launch { snackbar.showSnackbar(configSaved) }
+                AgentSettingsEvent.ConfigSaved -> Unit
+                // 失敗は元の値に戻したうえで知らせ、同じ値で再試行できるようにする（マスター指定 2026-11-26）
                 is AgentSettingsEvent.ConfigFailed -> scope.launch {
-                    snackbar.showSnackbar(event.message?.let { String.format(identityFailed, it) } ?: identityFailedPlain)
+                    val text = event.message?.let { String.format(identityFailed, it) } ?: identityFailedPlain
+                    if (snackbar.showSnackbar(text, actionLabel = retryLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
+                        viewModel.save(event.retry)
+                    }
                 }
                 is AgentSettingsEvent.IdentityFailed -> scope.launch {
                     snackbar.showSnackbar(event.message?.let { String.format(identityFailed, it) } ?: identityFailedPlain)
@@ -439,13 +443,15 @@ internal const val DISABLED_ALPHA = 0.6f
 /** スキルの数がこれを超えたら検索を出す（FR-035）。 */
 private const val SKILL_SEARCH_THRESHOLD = 20
 
-/** 個別に決めている既定のモデル（全体の既定を使っていれば null）。 */
+/** 個別に決めている既定のモデル（全体の既定を使っていれば null）。保存中は選んだ値。 */
 private fun currentModel(state: AgentSettingsUiState): String? =
-    (state.config as? Load.Loaded)?.value?.model?.takeIf { !it.inherited }?.value
+    state.pendingConfig?.takeIf { it.field == ConfigField.MODEL }?.let { return it.value }
+        ?: (state.config as? Load.Loaded)?.value?.model?.takeIf { !it.inherited }?.value
 
-/** 個別に決めている思考の既定（全体の既定を使っていれば null）。 */
+/** 個別に決めている思考の既定（全体の既定を使っていれば null）。保存中は選んだ値。 */
 private fun currentThinking(state: AgentSettingsUiState): String? =
-    (state.config as? Load.Loaded)?.value?.thinking?.takeIf { !it.inherited }?.value
+    state.pendingConfig?.takeIf { it.field == ConfigField.THINKING }?.let { return it.value }
+        ?: (state.config as? Load.Loaded)?.value?.thinking?.takeIf { !it.inherited }?.value
 
 /** 既定のモデルの選択肢。先頭は「全体の既定を使う」、続いて選べるモデル。読み込み中は null。 */
 @Composable

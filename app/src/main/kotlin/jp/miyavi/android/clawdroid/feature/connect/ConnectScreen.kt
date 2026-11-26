@@ -106,7 +106,7 @@ private enum class ConnectPhase { FORM, CONNECTING, APPROVAL, FAILED, CONNECTED 
 
 private fun ConnectionState.phase(): ConnectPhase = when (this) {
     ConnectionState.NotConfigured, ConnectionState.Disconnected -> ConnectPhase.FORM
-    ConnectionState.Connecting, ConnectionState.Restarting -> ConnectPhase.CONNECTING
+    ConnectionState.Connecting, ConnectionState.Restarting, ConnectionState.Paused -> ConnectPhase.CONNECTING
     is ConnectionState.AwaitingApproval -> ConnectPhase.APPROVAL
     is ConnectionState.Reconnecting, is ConnectionState.Failed -> ConnectPhase.FAILED
     is ConnectionState.Connected -> ConnectPhase.CONNECTED

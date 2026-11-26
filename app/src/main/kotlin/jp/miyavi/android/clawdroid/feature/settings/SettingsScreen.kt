@@ -43,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -141,8 +142,11 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
             ) {
                 // 並び: 通知・表示・エージェント・接続・情報（マスター指定 2026-11-25）
                 // 通知（spec 006）
-                state.notifications?.let { notifications ->
-                    item(key = "notifications") {
+                // 設定を読み込む前から行を置く。後から先頭に差し込むと、LazyColumn が見えていた「表示」の位置を保とうとして、
+                // 開いたときに通知が上に隠れていたため（マスター指定 2026-11-26: 先頭から出す）
+                item(key = "notifications") {
+                    val notifications = state.notifications
+                    run {
                         // 設定の画面では通知のオン・オフだけ。行を押すと詳しい設定（マスター指定 2026-11-24）
                         Section(R.string.settings_section_notifications) {
                             ListItem(
@@ -156,7 +160,13 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                             Modifier.height(Spacing.xl).padding(end = Spacing.l),
                                             color = MaterialTheme.colorScheme.outlineVariant,
                                         )
-                                        Switch(checked = notifications.enabled, onCheckedChange = { actions.setNotifications(notifications.copy(enabled = it)) })
+                                        // 読み込むまでは場所だけ取っておく（仮の値を一瞬見せない）
+                                        Switch(
+                                            checked = notifications?.enabled == true,
+                                            onCheckedChange = { on -> notifications?.let { actions.setNotifications(it.copy(enabled = on)) } },
+                                            enabled = notifications != null,
+                                            modifier = Modifier.graphicsLayer { alpha = if (notifications != null) 1f else 0f },
+                                        )
                                     }
                                 },
                                 colors = transparentItem(),
@@ -234,7 +244,8 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                 }
                 // 接続: 1 行に接続先と状態。再接続・切断・接続情報の削除は右のアイコン
                 item(key = "connection") {
-                    Section(R.string.settings_section_connection) {
+                    // 見出しは「Gateway」。中の行は Gateway のことと分かるので、行の文言から「Gateway」を外す（マスター指定 2026-11-25）
+                    Section(R.string.settings_section_gateway) {
                         val connected = state.connection as? ConnectionState.Connected
                         ListItem(
                             leadingContent = {
@@ -255,11 +266,18 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             },
                             trailingContent = {
                                 Row {
-                                    IconButton(onClick = actions.reconnect) {
-                                        Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = stringResource(R.string.settings_reconnect))
-                                    }
-                                    IconButton(onClick = actions.disconnect) {
-                                        Icon(painterResource(R.drawable.ic_huge_unlink), contentDescription = stringResource(R.string.settings_disconnect))
+                                    // 接続と切断は同じ場所で入れ替える（再生と停止のように）。つないでいる・つなごうとしているあいだは切断、
+                                    // 切れている・止まっているあいだは接続し直す（マスター指定 2026-11-25）
+                                    val active = state.connection !is ConnectionState.Disconnected && state.connection !is ConnectionState.Failed &&
+                                        state.connection !is ConnectionState.NotConfigured
+                                    if (active) {
+                                        IconButton(onClick = actions.disconnect) {
+                                            Icon(painterResource(R.drawable.ic_huge_unlink), contentDescription = stringResource(R.string.settings_disconnect))
+                                        }
+                                    } else {
+                                        IconButton(onClick = actions.reconnect) {
+                                            Icon(painterResource(R.drawable.ic_huge_refresh), contentDescription = stringResource(R.string.settings_reconnect))
+                                        }
                                     }
                                     IconButton(onClick = { dialog = "forget" }) {
                                         Icon(

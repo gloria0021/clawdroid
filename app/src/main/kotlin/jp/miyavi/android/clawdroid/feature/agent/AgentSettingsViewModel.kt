@@ -60,6 +60,13 @@ data class AgentSettingsUiState(
     val modelCatalog: Load<jp.miyavi.android.clawdroid.core.data.ModelCatalog?>? = null,
     /** 既定のモデル・思考を保存中。 */
     val configSaving: Boolean = false,
+    /**
+     * 保存中の値（先に見せる。マスター指定 2026-11-26: モバイル回線では反映が遅く、切り替わったか分からなかった）。
+     * 定義を読み直して本物の値がそろったら外す。失敗したら外して元の値に戻す。
+     */
+    val pendingConfig: PendingConfig? = null,
+    /** 保存できた項目と、その回数（セルの印を一瞬チェックにする合図）。 */
+    val configSaved: Pair<ConfigField, Int>? = null,
 ) {
     /** 見せる有効・無効（切り替え中は先に見せる値）。 */
     fun enabled(skill: SkillStatus): Boolean = pendingToggles[skill.skillKey] ?: skill.enabled
@@ -68,13 +75,20 @@ data class AgentSettingsUiState(
     val skillCounts: Pair<Int, Int>? get() = (skills as? Load.Loaded)?.value?.let { list -> list.count { it.state == SkillState.ENABLED } to list.size }
 }
 
+/** 概要で変えられる既定の項目。 */
+enum class ConfigField { MODEL, THINKING }
+
+/** 保存中の値。[value] が null なら全体の既定に戻す。 */
+data class PendingConfig(val field: ConfigField, val value: String?)
+
 sealed interface AgentSettingsEvent {
     data class Toggled(val skill: SkillStatus, val enabled: Boolean) : AgentSettingsEvent
     data class ToggleFailed(val message: String?) : AgentSettingsEvent
     data object IdentitySaved : AgentSettingsEvent
     data class IdentityFailed(val message: String?) : AgentSettingsEvent
     data object ConfigSaved : AgentSettingsEvent
-    data class ConfigFailed(val message: String?) : AgentSettingsEvent
+    /** 保存できなかった。[retry] で同じ値をもう一度保存する。 */
+    data class ConfigFailed(val message: String?, val retry: PendingConfig) : AgentSettingsEvent
 }
 
 /** エージェントのファイルの一覧（ViewModel のテストで偽物に差し替える）。 */
@@ -250,18 +264,26 @@ class AgentSettingsViewModel(
     }
 
     /** 既定のモデルを変える（null なら全体の既定に戻す）。 */
-    fun saveModel(model: String?) = saveConfig { configs.setModel(agentId, model) }
+    fun saveModel(model: String?) = save(PendingConfig(ConfigField.MODEL, model))
 
     /** 思考の既定を変える（null なら全体の既定に戻す）。読んだときの設定の版を添える。 */
-    fun saveThinking(level: String?) {
-        val baseHash = (_state.value.config as? Load.Loaded)?.value?.baseHash
-        saveConfig { configs.setThinking(agentId, level, baseHash) }
+    fun saveThinking(level: String?) = save(PendingConfig(ConfigField.THINKING, level))
+
+    /** 失敗した保存をやり直す（Snackbar の「再試行」）。 */
+    fun save(pending: PendingConfig) = saveConfig(pending) {
+        when (pending.field) {
+            ConfigField.MODEL -> configs.setModel(agentId, pending.value)
+            ConfigField.THINKING -> configs.setThinking(agentId, pending.value, (_state.value.config as? Load.Loaded)?.value?.baseHash)
+        }
     }
 
-    /** 保存して、定義とエージェントの一覧を読み直す。失敗も読み直して、他で変わった内容をそろえる。 */
-    private fun saveConfig(block: suspend () -> Unit) {
+    /**
+     * 選んだ値を先に見せて保存し、定義とエージェントの一覧を読み直す。読み直した値がそろってから先に見せた値を外す
+     * （外した瞬間に古い値が一瞬出ないように）。失敗も読み直して、他で変わった内容をそろえる。保存中は、そのセルを押せない。
+     */
+    private fun saveConfig(pending: PendingConfig, block: suspend () -> Unit) {
         if (_state.value.configSaving) return
-        _state.update { it.copy(configSaving = true) }
+        _state.update { it.copy(configSaving = true, pendingConfig = pending) }
         viewModelScope.launch {
             val error = try {
                 block()
@@ -271,13 +293,20 @@ class AgentSettingsViewModel(
             } catch (e: Exception) {
                 e
             }
-            _state.update { it.copy(configSaving = false) }
-            loadConfig(quiet = true)
+            configJob?.cancel()
+            val reloaded = if (supports("config.get")) load { configs.load(agentId) } else null
+            _state.update { s ->
+                val config = if (reloaded == null || reloaded is Load.Failed && s.config is Load.Loaded) s.config else reloaded
+                s.copy(
+                    config = config,
+                    configSaving = false,
+                    pendingConfig = null,
+                    configSaved = if (error == null) pending.field to ((s.configSaved?.second ?: 0) + 1) else s.configSaved,
+                )
+            }
             runCatchingNonCancel { refreshAgents() }
-            _events.tryEmit(
-                if (error == null) AgentSettingsEvent.ConfigSaved
-                else AgentSettingsEvent.ConfigFailed((error as? GatewayRpcException)?.error?.message),
-            )
+            // 成功はセルの印で伝える（Snackbar は出さない）。失敗だけ知らせ、やり直せるようにする
+            if (error != null) _events.tryEmit(AgentSettingsEvent.ConfigFailed((error as? GatewayRpcException)?.error?.message, pending))
         }
     }
 

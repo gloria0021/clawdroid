@@ -73,6 +73,35 @@ class GatewayClientTest {
         assertEquals(1, echoed.asObject()?.int("x"))
     }
 
+    @Test fun pause_closesTheSocket_andResumeReconnects() {
+        gateway.enqueue(ConnectBehavior.Accept())
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+
+        client.pause()
+        assertEquals(ConnectionState.Paused, client.state.value)
+        // 休んでいるあいだは自分からつなぎ直さない
+        runBlocking { kotlinx.coroutines.delay(1_500) }
+        assertEquals(ConnectionState.Paused, client.state.value)
+        assertEquals(1, gateway.connectParams.size)
+
+        assertTrue(client.resumeFromPause())
+        await { client.awaitConnected() }
+        assertEquals(2, gateway.connectParams.size)
+        // つながっていれば何もしない
+        assertEquals(false, client.resumeFromPause())
+    }
+
+    @Test fun pause_isIgnoredAfterUserDisconnect() {
+        gateway.enqueue(ConnectBehavior.Accept())
+        await { client.connect(gateway.url, "t") }
+        await { client.awaitConnected() }
+        client.disconnect()
+        client.pause()
+        assertEquals(ConnectionState.Disconnected, client.state.value)
+    }
+
     @Test fun pairingRequired_thenApproved_connects() {
         gateway.enqueue(ConnectBehavior.PairingRequired(resolveWith = "approved"))
         gateway.enqueue(ConnectBehavior.Accept())

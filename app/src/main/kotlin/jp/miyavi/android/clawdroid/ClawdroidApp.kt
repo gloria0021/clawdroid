@@ -15,6 +15,7 @@ import jp.miyavi.android.clawdroid.core.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.map
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -78,7 +79,7 @@ class ClawdroidApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.gateway.start()
-        container.notifier.start()
+        container.notifier.start(busy = container.downloads.tasks.map { it.isNotEmpty() })
         container.shortcuts.start()
         // 前後の切り替え: 裏では文字ごとの流れを止め（spec 006 FR-004）、前に来たら常駐を始め直す（裏からは始められないため）
         androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {

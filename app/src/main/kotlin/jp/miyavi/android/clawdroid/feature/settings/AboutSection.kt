@@ -23,8 +23,8 @@ import jp.miyavi.android.clawdroid.feature.chat.message.rememberChatLinkOpener
 import kotlinx.coroutines.launch
 
 /**
- * 設定の「情報」（spec 003 US4・FR-030〜032）。アプリの版・接続中の Gateway の版・Android の版・端末の機種と、
- * それをまとめてコピーする行、プライバシーポリシー、オープンソースのライセンス。
+ * 設定の「情報」（spec 003 US4・FR-030〜032）。プライバシーポリシー、オープンソースのライセンス、アプリの版。
+ * 版の行を押すと、版・接続中の Gateway の版・端末・Android の版をまとめてコピーする（不具合の報告用）。
  * コピーする文には接続先の URL・トークン・セッション名・パスを含めない（FR-031）。
  */
 @Composable
@@ -46,27 +46,21 @@ internal fun AboutSection(state: SettingsState, actions: SettingsActions, snackb
     val openLink = rememberChatLinkOpener(onFailure = {})
     val language = LocalConfiguration.current.locales[0].language
 
-    InfoRow(R.drawable.ic_huge_info, stringResource(R.string.app_name), appLine)
-    InfoRow(R.drawable.ic_huge_server, stringResource(R.string.about_gateway), gatewayLine)
-    // 端末の行: 機種と Android の版を 1 行に（合う Hugeicons が無い行を増やさない）
-    InfoRow(R.drawable.ic_huge_launcher_glyph, stringResource(R.string.about_device), "$deviceLine · $androidLine")
-    ActionRow(R.drawable.ic_huge_copy, R.string.about_copy) {
-        scope.launch {
-            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, report)))
-            snackbar.showSnackbar(copiedText)
-        }
-    }
+    // 並び: プライバシーポリシー・オープンソースのライセンス・版（マスター指定 2026-11-25）。
+    // Gateway の版は接続の行に出ているので出さない。版の行を押すと、不具合の報告用に版と環境をまとめてコピーする
     ActionRow(R.drawable.ic_huge_globe, R.string.about_privacy_policy) { openLink(Uri.parse(privacyPolicyUrl(language))) }
     ActionRow(R.drawable.ic_huge_file, R.string.about_licenses, onClick = actions.openLicenses)
-}
-
-@Composable
-private fun InfoRow(icon: Int, title: String, value: String) {
     ListItem(
-        leadingContent = { Icon(painterResource(icon), contentDescription = null) },
-        headlineContent = { Text(title) },
-        supportingContent = { Text(value) },
+        leadingContent = { Icon(painterResource(R.drawable.ic_huge_info), contentDescription = null) },
+        headlineContent = { Text(stringResource(R.string.app_name)) },
+        supportingContent = { Text(appLine) },
         colors = transparentItem(),
+        modifier = Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.about_copy)) {
+            scope.launch {
+                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, report)))
+                snackbar.showSnackbar(copiedText)
+            }
+        },
     )
 }
 

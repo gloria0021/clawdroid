@@ -63,6 +63,8 @@ sealed interface ConnectionState {
     data class Failed(val reason: FailureReason, val message: String?, val code: String? = null) : ConnectionState
     /** 利用者が切断した。 */
     data object Disconnected : ConnectionState
+    /** アプリが裏にあるあいだ、電池のために接続を休んでいる（常時接続がオフのとき。前に戻るとつなぎ直す）。 */
+    data object Paused : ConnectionState
 }
 
 /** Gateway から届いたイベント。 */
@@ -154,6 +156,29 @@ class GatewayClient(
         loopJob?.cancel()
         closeSocket()
         _state.value = ConnectionState.Disconnected
+    }
+
+    /**
+     * 裏にあるあいだ接続を休む（常時接続がオフのとき。マスター指定 2026-11-26）。ソケットを開けたままだと、
+     * アプリが凍結されていても tick を受けるたびに電波が起きるため。接続情報は残し、[resumeFromPause] でつなぎ直す。
+     * 未設定・利用者の切断・自動でつなぎ直さない失敗のときは何もしない。
+     */
+    fun pause() {
+        when (_state.value) {
+            ConnectionState.NotConfigured, ConnectionState.Disconnected, ConnectionState.Paused, is ConnectionState.Failed -> return
+            else -> Unit
+        }
+        loopJob?.cancel()
+        closeSocket()
+        _state.value = ConnectionState.Paused
+    }
+
+    /** 休んでいた接続をつなぎ直す。休んでいなければ false（何もしない）。 */
+    fun resumeFromPause(): Boolean {
+        if (_state.value != ConnectionState.Paused) return false
+        _state.value = if (restartPending) ConnectionState.Restarting else ConnectionState.Connecting
+        launchLoop()
+        return true
     }
 
     /** 接続情報を消して、接続画面に戻す。 */

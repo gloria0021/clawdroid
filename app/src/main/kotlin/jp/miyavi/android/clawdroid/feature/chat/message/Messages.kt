@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -347,8 +348,13 @@ fun LiveAssistantMessage(
             )
         },
     ) {
-        // 未完の Markdown をチャンクごとに再解析せず、確定後に Markdown として描画する。
-        if (text.isNotBlank()) Text(text, style = bodyTextStyle())
+        // 未完の Markdown をチャンクごとに再解析せず、確定後に Markdown として描画する。届いた文字は 1 文字ずつフェードで出す
+        // 開いた時点で届いていた分は動かさず、そのあとに届いた文字だけを出す（最初の塗りも含めて）。
+        // 本文が空に戻ったら（次の区切りの本文）、また頭から出す
+        val reveal = rememberStreamingReveal(text.length)
+        val blank = text.isBlank()
+        LaunchedEffect(blank) { if (blank) reveal.floatValue = 0f }
+        if (!blank) StreamingText(text, style = bodyTextStyle(), revealed = reveal)
     }
 }
 

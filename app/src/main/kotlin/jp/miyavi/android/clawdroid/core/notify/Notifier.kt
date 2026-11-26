@@ -17,13 +17,17 @@ import jp.miyavi.android.clawdroid.core.gateway.GatewayClient
 import jp.miyavi.android.clawdroid.core.gateway.array
 import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.obj
-import jp.miyavi.android.clawdroid.core.settings.LockScreenContent
 import jp.miyavi.android.clawdroid.core.settings.NotificationSettings
 import jp.miyavi.android.clawdroid.core.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -55,10 +59,16 @@ internal class Notifier(
     val decidedApprovals: MutableSet<ApprovalKey> = ConcurrentHashMap.newKeySet()
     private val shownFailures = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var wantService = false
+    /** 常駐が要るか（通知と裏での接続がオンで、接続情報がある）。端末の起動で待つのに使う。 */
+    private val serviceWanted = kotlinx.coroutines.flow.MutableStateFlow(false)
 
-    private val hideOnLock get() = config.lockScreenContent == LockScreenContent.HIDE
+    /** 休んでいた接続を前に戻ってつなぎ直した。このつなぎ直しでは、裏にいたあいだに終わった応答を通知しない（未読の点で分かる）。 */
+    @Volatile private var quietCatchUp = false
 
-    fun start() {
+    /**
+     * @param busy 裏でも接続を保つ用事があるか（ダウンロード中など。リンクが接続に紐付く）。
+     */
+    fun start(busy: Flow<Boolean> = flowOf(false)) {
         scope.launch { settings.notifications.collect { config = it } }
         scope.launch {
             gateway.events.collect { event ->
@@ -72,9 +82,36 @@ internal class Notifier(
         scope.launch {
             var connectedBefore = false
             gateway.state.map { it is ConnectionState.Connected }.distinctUntilChanged().collect { connected ->
-                if (connected && connectedBefore) catchUp()
-                if (connected) connectedBefore = true
+                if (connected && connectedBefore) catchUp(notify = !quietCatchUp)
+                if (connected) {
+                    connectedBefore = true
+                    quietCatchUp = false
+                }
             }
+        }
+        // 常時接続がオフのとき: 裏に回ってしばらくしたら接続を休み、前に戻ったらつなぎ直す（電池のため。マスター指定 2026-11-26）。
+        // 切り替えた直後に届く応答は通知できるよう少し待つ。承認待ちがある・ダウンロード中は、通知のボタンや続きが効くよう保つ
+        scope.launch {
+            val keep = combine(
+                foreground.inForeground,
+                settings.notifications.map { it.enabled && it.backgroundConnection },
+                approvals.requests.map { it.isNotEmpty() },
+                busy,
+            ) { fg, always, approving, working -> fg || always || approving || working }
+            combine(keep, gateway.state.map { it == ConnectionState.Paused }) { k, paused -> k to paused }
+                .distinctUntilChanged()
+                .collectLatest { (k, paused) ->
+                    when {
+                        k && paused -> {
+                            quietCatchUp = true
+                            gateway.resumeFromPause()
+                        }
+                        !k && !paused -> {
+                            delay(BACKGROUND_GRACE_MS)
+                            gateway.pause()
+                        }
+                    }
+                }
         }
         // 画面で開いた会話の応答の通知は消す
         scope.launch {
@@ -92,6 +129,7 @@ internal class Notifier(
                 .distinctUntilChanged()
                 .collect { want ->
                     wantService = want
+                    serviceWanted.value = want
                     if (want) startService() else context.stopService(Intent(context, ConnectionService::class.java))
                 }
         }
@@ -100,6 +138,16 @@ internal class Notifier(
     /** アプリが前に来た・端末が起動した（裏からは常駐を始められないので、ここで始め直す）。 */
     fun ensureService() {
         if (wantService) startService()
+    }
+
+    /**
+     * 端末の起動（BOOT_COMPLETED）で常駐を始める。起動直後は接続情報の読み出し（暗号化した保存先）と設定の読み込みが
+     * 終わっておらず、まだ「要らない」に見える。決まるまで [timeoutMs] だけ待ってから始める（起動の知らせを受けているあいだは
+     * 裏からでも connectedDevice の常駐を始められる）。接続情報が無ければ、待ち切って何もしない。
+     */
+    suspend fun startServiceAfterBoot(timeoutMs: Long) {
+        val want = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { serviceWanted.first { it } } ?: false
+        if (want) startService()
     }
 
     private fun startService() {
@@ -111,16 +159,16 @@ internal class Notifier(
         }
     }
 
-    private fun onSession(session: SessionSummary) {
+    private fun onSession(session: SessionSummary, notify: Boolean = true) {
         val was = running.put(session.key, session.running)
-        if (isRunCompleted(was, session.running)) scope.launch { notifyReply(session) }
+        if (notify && isRunCompleted(was, session.running)) scope.launch { notifyReply(session) }
     }
 
-    private suspend fun catchUp() {
+    private suspend fun catchUp(notify: Boolean) {
         val rows = runCatching {
             gateway.request("sessions.list", buildJsonObject { put("limit", CATCH_UP_LIMIT) }).asObject()?.array("sessions").orEmpty()
         }.getOrNull() ?: return
-        rows.mapNotNull { (it as? JsonObject)?.let(Parse::session) }.forEach(::onSession)
+        rows.mapNotNull { (it as? JsonObject)?.let(Parse::session) }.forEach { onSession(it, notify) }
     }
 
     private suspend fun notifyReply(session: SessionSummary) {
@@ -145,7 +193,6 @@ internal class Notifier(
             sessionKey = session.key,
             title = session.title ?: context.getString(R.string.session_untitled),
             text = notificationText(reply, context.getString(R.string.notify_reply_image)),
-            hideOnLock = hideOnLock,
             avatar = avatar(agentId),
         )
     }
@@ -169,8 +216,17 @@ internal class Notifier(
             scope.launch(Dispatchers.Main.immediate) {
                 val face = item.agentId?.let { avatar(it) }
                 // 顔を読むあいだに解決されていたら出さない
-                if (item.key in shownApprovals) center.showApproval(item, agentName, sessionTitle, hideOnLock, face)
+                if (item.key in shownApprovals) center.showApproval(item, agentName, sessionTitle, face)
             }
+        }
+    }
+
+    /** テスト通知。本物の応答の通知と同じ形で、既定のエージェント（無ければ先頭）の顔と名前で出す。 */
+    fun showTest() {
+        val state = sessions.agents.value
+        val agent = state.agents.firstOrNull { it.id == state.defaultId } ?: state.agents.firstOrNull()
+        scope.launch(Dispatchers.Main.immediate) {
+            center.showTest(agent?.id, agent?.name, agent?.let { avatar(it.id) })
         }
     }
 
@@ -181,13 +237,15 @@ internal class Notifier(
     private fun onAutomationFailure(failure: AutomationFailure) {
         if (!config.enabled || !config.notifyAutomationFailures || foreground.inForeground.value) return
         if (!shownFailures.add("${failure.jobId}:${failure.runAt}")) return
-        center.showAutomationFailure(failure, hideOnLock)
+        center.showAutomationFailure(failure)
     }
 
     private companion object {
         const val PREFS = "notified_replies"
         const val HISTORY_LIMIT = 6
         const val CATCH_UP_LIMIT = 200
+        /** 常時接続がオフのとき、裏に回ってから接続を休むまでの待ち時間（マスター指定 2026-11-26）。 */
+        const val BACKGROUND_GRACE_MS = 60_000L
         /** 通知の大きなアイコンの大きさ（端末が縮めて使う）。 */
         const val AVATAR_PX = 192
     }

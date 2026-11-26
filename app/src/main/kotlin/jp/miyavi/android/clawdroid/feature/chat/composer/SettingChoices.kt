@@ -64,6 +64,12 @@ internal fun SettingIconRow(
     modifier: Modifier = Modifier,
     /** ボタンに重ねるポップアップ（ボタンの位置を起点に出す）。 */
     popup: @Composable (SessionSetting) -> Unit = {},
+    /** 実行権限も並べるか（セッションのシートでは入力欄に移したので出さない。マスター指定 2026-11-26）。 */
+    showPermissions: Boolean = true,
+    /** 保存中の設定（アイコンの場所で読み込み表示。マスター指定 2026-11-26）。 */
+    saving: SessionSetting? = null,
+    /** 設定ごとの保存できた回数（増えたらアイコンの場所で一瞬チェック）。 */
+    savedTick: (SessionSetting) -> Int = { 0 },
 ) {
     val defaultLabel = stringResource(R.string.chat_setting_default)
     val permissionChoice = PermissionChoice.entries.firstOrNull { it.value == permission } ?: PermissionChoice.Default
@@ -72,8 +78,8 @@ internal fun SettingIconRow(
         listOf(
             Triple(SessionSetting.MODEL, R.drawable.ic_huge_model, model?.let(::shortModelName) ?: defaultLabel),
             Triple(SessionSetting.EFFORT, R.drawable.ic_huge_effort, effort ?: defaultLabel),
-            Triple(SessionSetting.PERMISSIONS, permissionChoice.icon, permissionLabel),
-        ).forEach { (setting, icon, value) ->
+            Triple(SessionSetting.PERMISSIONS, permissionChoice.icon, permissionLabel).takeIf { showPermissions },
+        ).filterNotNull().forEach { (setting, icon, value) ->
             val enabled = when (setting) {
                 SessionSetting.MODEL -> availability.model
                 SessionSetting.EFFORT -> availability.effort
@@ -84,7 +90,10 @@ internal fun SettingIconRow(
                     setting = setting,
                     icon = icon,
                     value = value,
-                    enabled = enabled && agent != null,
+                    // 保存中は押せない（重ねて選んだ値が捨てられないように）
+                    enabled = enabled && agent != null && saving == null,
+                    saving = saving == setting,
+                    savedTick = savedTick(setting),
                     onOpen = { onOpen(setting) },
                     // 実行権限はアイコンだけ（ラベルは読み上げとメニューで分かる）
                     showValue = setting != SessionSetting.PERMISSIONS,
@@ -103,6 +112,8 @@ private fun SettingIconButton(
     enabled: Boolean,
     onOpen: () -> Unit,
     showValue: Boolean = true,
+    saving: Boolean = false,
+    savedTick: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val title = stringResource(setting.title())
@@ -123,7 +134,10 @@ private fun SettingIconButton(
             horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
+            // 設定のアイコンの場所で、保存中は読み込み表示、保存できたら一瞬チェック
+            jp.miyavi.android.clawdroid.core.designsystem.SaveStateIcon(saving, savedTick, Modifier.size(Spacing.l + Spacing.xs)) {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Spacing.l + Spacing.xs))
+            }
             if (showValue) Text(value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

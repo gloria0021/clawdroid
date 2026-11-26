@@ -29,6 +29,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +72,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.offset
@@ -108,13 +111,13 @@ import jp.miyavi.android.clawdroid.feature.chat.ComposerState
 import jp.miyavi.android.clawdroid.feature.chat.message.rememberBase64Bitmap
 
 /**
- * 画面下部に浮くガラスの入力欄（AGENTS.md 2.7）。上に入力、下の行に 添付 ｜ モデルのピル ｜ 送信。
- * モデルのピルはコンテキストの消費で色が変わり、押すとセッションのシート（設定と使用量）を開く。
- * 入力が空のあいだは送信の位置に音声入力（生成中は停止）。生成中でも入力があれば送れる（FR-022・029）。
+ * 画面下部に浮くガラスの入力欄（AGENTS.md 2.7）。上に入力、下の行に 添付 ｜ 実行権限 ｜ モデルのピル ｜ 送信。
+ * モデルのピルはコンテキストの消費で塗りが伸び、押すとセッションのシート（モデル・エフォートと使用量）を開く。
+ * 右端は音声入力と送信（入力が空で実行中なら停止）。生成中でも入力があれば送れる（FR-022・029）。
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun ComposerPill(
+internal fun ComposerPill(
     hazeState: HazeState,
     state: ComposerState,
     slashCommands: List<SlashCommand> = emptyList(),
@@ -127,6 +130,8 @@ fun ComposerPill(
     model: String?,
     contextFraction: Float?,
     onOpenSession: () -> Unit,
+    /** 実行権限のボタン。null なら出さない（エージェントを読めていない）。 */
+    permission: PermissionControl? = null,
     pending: List<PendingInput>,
     onCancelPending: (String) -> Unit,
     onRestorePending: (String) -> Unit,
@@ -138,10 +143,22 @@ fun ComposerPill(
     onPasteImage: (android.net.Uri) -> Unit = {},
     /** 添付した画像を押したとき（全画面のプレビュー）。並びと押した位置。 */
     onOpenImage: (List<jp.miyavi.android.clawdroid.feature.chat.PendingImage>, Int) -> Unit = { _, _ -> },
+    /** 引用・コピーしたテキストのタイルを押した（全文のプレビュー）・外した・長い貼り付けがあった。 */
+    onOpenText: (jp.miyavi.android.clawdroid.feature.chat.PendingText) -> Unit = {},
+    onRemoveText: (String) -> Unit = {},
+    onPasteLongText: (String) -> Unit = {},
     onSend: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // シート・メニューを開くときは入力欄のフォーカスを外す。閉じたあとにキーボードが戻ると画面の高さが何度も変わるため、
+    // 文字入力に戻るのは入力欄を自分で押したときだけ（マスター指定 2026-11-26）
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val leaveInput = {
+        keyboard?.hide()
+        focusManager.clearFocus()
+    }
     Column(modifier) {
         // あとで答えることにしたエージェントからの質問。押すとシートを開き直す
         AnimatedVisibility(visible = hasQuestion, enter = expandEnter(), exit = shrinkExit()) {
@@ -167,9 +184,12 @@ fun ComposerPill(
             if (fieldState.text.toString() != state.text) fieldState.setTextAndPlaceCursorAtEnd(state.text)
         }
         val currentOnTextChange by rememberUpdatedState(onTextChange)
+        // 最新の値で比べる（最初の値を掴んだままだと、最後の 1 文字を消して空に戻したときに「変わっていない」と見なし、
+        // 空になったことが伝わらずプレースホルダーが出なかった）
+        val latestText by rememberUpdatedState(state.text)
         LaunchedEffect(fieldState) {
             snapshotFlow { fieldState.text.toString() }.collect { text ->
-                if (text != state.text) {
+                if (text != latestText) {
                     sync.sent(text)
                     currentOnTextChange(text)
                 }
@@ -196,7 +216,7 @@ fun ComposerPill(
         ) {
             // 添付は入力欄の中、文字の上に並べる（マスター指定 2026-11-24。外に浮かせると背景と同化する）。
             // 押すと全画面のプレビュー、右上の × で外す
-            AnimatedVisibility(visible = state.images.isNotEmpty(), enter = expandEnter(), exit = shrinkExit()) {
+            AnimatedVisibility(visible = state.images.isNotEmpty() || state.texts.isNotEmpty(), enter = expandEnter(), exit = shrinkExit()) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.m),
                     contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = Spacing.xs),
@@ -209,6 +229,10 @@ fun ComposerPill(
                             onRemove = { onRemoveImage(pending.uri) },
                         )
                     }
+                    // 引用とコピーしたテキストも同じ列に、同じ形のタイルで（マスター指定 2026-11-26）
+                    items(state.texts, key = { it.id }) { item ->
+                        TextAttachmentTile(item, onOpen = { onOpenText(item) }, onRemove = { onRemoveText(item.id) })
+                    }
                 }
             }
             Box(
@@ -220,17 +244,45 @@ fun ComposerPill(
                 contentAlignment = Alignment.CenterStart,
             ) {
                 val textStyle = bodyTextStyle().copy(color = LocalContentColor.current)
-                if (state.text.isEmpty()) {
+                // 空かどうかは入力欄そのものの文字で見る（届くのを待たずに出す）
+                val fieldEmpty = fieldState.text.isEmpty()
+                // プレースホルダーは候補からランダムに 1 つ。空に戻るたびに選び直す（打っている途中では変えない。マスター指定 2026-11-26）
+                val placeholders = androidx.compose.ui.res.stringArrayResource(R.array.chat_input_placeholders)
+                var placeholderIndex by rememberSaveable { mutableIntStateOf(placeholders.indices.random()) }
+                var wasEmpty by remember { mutableStateOf(fieldEmpty) }
+                LaunchedEffect(fieldEmpty) {
+                    if (fieldEmpty && !wasEmpty) placeholderIndex = placeholders.indices.random()
+                    wasEmpty = fieldEmpty
+                }
+                if (fieldEmpty) {
                     // 聞き取り中は、途中の結果（まだ無ければ「聞き取り中…」）を入力欄の位置に薄く出す
                     val hint = when {
-                        !voice.listening -> stringResource(R.string.chat_input_placeholder)
+                        !voice.listening -> placeholders.getOrElse(placeholderIndex) { placeholders.first() }
                         voice.partial.isNotBlank() -> voice.partial
                         else -> stringResource(R.string.chat_voice_listening)
                     }
-                    Text(hint, style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 入力した文字と見分けがつくよう、プレースホルダーは薄く（AGENTS.md 2.2 の「無効・折りたたみ」と同じ
+                    // onSurfaceVariant の 0.6。聞き取り中の途中の結果も同じ薄さ。マスター指定 2026-11-26）
+                    Text(hint, style = textStyle, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = jp.miyavi.android.clawdroid.core.designsystem.DisabledAlpha))
+                }
+                // 長い貼り付け（100 文字以上で改行を含む）は、本文に入れずにコピーしたテキストのタイルにする。
+                // 打つ文字は 1 度にこれほど入らないので、貼り付け（メニュー・キーボードのクリップボード）だけが当たる
+                val currentOnLongPaste by rememberUpdatedState(onPasteLongText)
+                val longPasteGuard = remember {
+                    androidx.compose.foundation.text.input.InputTransformation {
+                        for (i in changes.changeCount - 1 downTo 0) {
+                            val range = changes.getRange(i)
+                            if (range.length < jp.miyavi.android.clawdroid.feature.chat.LONG_PASTE_CHARS) continue
+                            val inserted = asCharSequence().subSequence(range.min, range.max).toString()
+                            if (!jp.miyavi.android.clawdroid.feature.chat.isLongPaste(inserted)) continue
+                            replace(range.min, range.max, "")
+                            currentOnLongPaste(inserted)
+                        }
+                    }
                 }
                 BasicTextField(
                     state = fieldState,
+                    inputTransformation = longPasteGuard,
                     enabled = enabled,
                     textStyle = textStyle,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -248,7 +300,7 @@ fun ComposerPill(
                         },
                 )
             }
-            val canSend = state.text.isNotBlank() || state.images.isNotEmpty()
+            val canSend = state.text.isNotBlank() || state.images.isNotEmpty() || state.texts.isNotEmpty()
             // 送信ボタンが角に寄りすぎないよう、右と下にも余白を取る（マスター指定 2026-11-23）
             val rowModifier = Modifier.fillMaxWidth().padding(start = Spacing.xs, end = Spacing.s, bottom = Spacing.s)
             // 聞き取り中は、下の行が「やめる・声の波形・終える・終えて送信」に変わる。行どうしはフェードで入れ替える
@@ -269,7 +321,7 @@ fun ComposerPill(
                         // 添付は 写真 / ファイル を選ぶメニュー（マスター指定 2026-11-24）
                         Box {
                             var attachMenu by remember { mutableStateOf(false) }
-                            IconButton(onClick = { attachMenu = true }, enabled = enabled) {
+                            IconButton(onClick = { leaveInput(); attachMenu = true }, enabled = enabled) {
                                 Icon(painterResource(R.drawable.ic_huge_attach), contentDescription = stringResource(R.string.chat_attach_cd))
                             }
                             GlassDropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
@@ -285,9 +337,21 @@ fun ComposerPill(
                                 )
                             }
                         }
-                        ModelPill(model = model, contextFraction = contextFraction, onClick = onOpenSession)
-                        Spacer(Modifier.weight(1f))
-                        // 音声入力は送信ボタンの左にいつも置く（入力の途中から言い足せる）
+                        // 実行権限はモデルの左に、今の段階のアイコンだけで（押すと選ぶ。マスター指定 2026-11-26）。
+                        // 押せる範囲（48dp）は保ったまま、添付と重ねてアイコンどうしの間を詰める（空きすぎ。マスター指定 2026-11-26）
+                        permission?.let { PermissionButton(it, onOpen = leaveInput, modifier = Modifier.offset(x = -ICON_PAIR_OVERLAP)) }
+                        // ピルは中身の長さに合わせる。残りの幅は外側の箱が受け持ち、足りないときだけ省略する
+                        // （ピルと Spacer の両方に weight を付けると残りを半分ずつ分け、短い名前でも切れていた。マスター指定 2026-11-26）
+                        Box(
+                            Modifier.weight(1f).then(if (permission != null) Modifier.offset(x = -ICON_PAIR_OVERLAP) else Modifier),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            ModelPill(
+                                model = model, contextFraction = contextFraction,
+                                onClick = { leaveInput(); onOpenSession() },
+                            )
+                        }
+                        // 音声入力は送信ボタンの左にいつも置く（入力の途中から言い足せる。2 つに分けた形に戻す。マスター指定 2026-11-26）
                         if (voice.available) {
                             IconButton(onClick = voice::toggle, enabled = enabled) {
                                 Icon(painterResource(R.drawable.ic_huge_mic), contentDescription = stringResource(R.string.chat_mic_cd))
@@ -304,6 +368,112 @@ fun ComposerPill(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** 入力欄の実行権限のボタンに渡すもの。 */
+internal data class PermissionControl(
+    /** 今の段階（null はエージェントの既定）。 */
+    val value: String?,
+    val enabled: Boolean,
+    val options: List<SettingOption>,
+    /** 保存中（アイコンの場所で読み込み表示）。 */
+    val saving: Boolean = false,
+    /** 保存できた回数（増えたら一瞬チェック）。 */
+    val savedTick: Int = 0,
+    val onSelect: (String?) -> Unit,
+)
+
+/** 実行権限。今の段階のアイコンだけを出し、押すと透過効果のメニューで選ぶ。 */
+@Composable
+private fun PermissionButton(control: PermissionControl, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val choice = PermissionChoice.entries.firstOrNull { it.value == control.value } ?: PermissionChoice.Default
+    Box(modifier) {
+        var open by remember { mutableStateOf(false) }
+        IconButton(onClick = { onOpen(); open = true }, enabled = control.enabled && !control.saving) {
+            val cd = stringResource(R.string.chat_permission_button, stringResource(choice.label))
+            // 保存中は同じ場所で読み込み表示、保存できたら一瞬チェック（マスター指定 2026-11-26）
+            jp.miyavi.android.clawdroid.core.designsystem.SaveStateIcon(
+                control.saving, control.savedTick, Modifier.size(Spacing.xl).semantics { contentDescription = cd },
+            ) {
+                Icon(painterResource(choice.icon), contentDescription = null)
+            }
+        }
+        GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            SettingOptionsList(SessionSetting.PERMISSIONS, control.options) { value ->
+                open = false
+                control.onSelect(value)
+            }
+        }
+    }
+}
+
+/**
+ * 引用・コピーしたテキストのタイル。画像の添付と同じ大きさ・形・影・右上の ×（マスター指定 2026-11-26）。
+ * 中に先頭の数行を小さく薄く、下に種類と文字数。押すと全文のプレビュー。
+ */
+@Composable
+private fun TextAttachmentTile(item: jp.miyavi.android.clawdroid.feature.chat.PendingText, onOpen: () -> Unit, onRemove: () -> Unit) {
+    val shape = MaterialTheme.shapes.medium
+    val quote = item.kind == jp.miyavi.android.clawdroid.feature.chat.PendingText.Kind.QUOTE
+    val label = stringResource(if (quote) R.string.chat_text_quote else R.string.chat_text_paste)
+    val count = stringResource(R.string.chat_text_chars, item.text.length)
+    val cd = stringResource(R.string.chat_text_tile_cd, label, item.text.length)
+    Box(Modifier.padding(top = Spacing.s, end = Spacing.s)) {
+        Column(
+            Modifier
+                .size(Dimens.attachmentThumbnail)
+                .shadow(Dimens.imageElevation, shape)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .clickable(onClickLabel = stringResource(R.string.chat_text_preview_cd), onClick = onOpen)
+                .semantics(mergeDescendants = true) { contentDescription = cd }
+                .padding(Spacing.xs),
+        ) {
+            // 先頭の数行（中身の手がかり。読ませるものではないので小さく薄く）
+            Text(
+                item.text,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = jp.miyavi.android.clawdroid.core.designsystem.DisabledAlpha),
+                maxLines = 2,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.weight(1f),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs / 2)) {
+                Icon(
+                    painterResource(if (quote) R.drawable.ic_huge_ai_chat else R.drawable.ic_huge_text),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(Dimens.attachmentRemoveIcon),
+                )
+                Text(count, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = Spacing.s, y = -Spacing.s)
+                .size(Dimens.compactTouchTarget)
+                .clip(CircleShape)
+                .clickable(onClickLabel = stringResource(R.string.chat_remove_attachment_cd), onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shadowElevation = Dimens.imageElevation,
+                modifier = Modifier.size(Dimens.attachmentRemove),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(R.drawable.ic_huge_close),
+                        contentDescription = stringResource(R.string.chat_remove_attachment_cd),
+                        modifier = Modifier.size(Dimens.attachmentRemoveIcon),
+                    )
                 }
             }
         }
@@ -577,11 +747,15 @@ private fun ModelPill(model: String?, contextFraction: Float?, onClick: () -> Un
                 .padding(horizontal = Spacing.m),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            // 文字はアプリの文字サイズに引っ張られない（大きくすると下の行が並べきれない。マスター指定 2026-11-26）
+            Text(name, style = jp.miyavi.android.clawdroid.core.designsystem.LocalFixedTypography.current.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(vertical = Spacing.s))
         }
     }
 }
+
+/** 添付と実行権限のボタンを重ねる幅（押せる範囲は 48dp のまま、アイコンの間だけ詰める）。 */
+private val ICON_PAIR_OVERLAP = Spacing.s
 
 /** モデルのピルの塗りで、強調の色を背景に溶かす割合（使用量の帯と同じ）。 */
 private const val PILL_FILL_MIX = 0.78f

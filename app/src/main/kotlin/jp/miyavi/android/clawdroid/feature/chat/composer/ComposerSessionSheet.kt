@@ -70,6 +70,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -96,8 +98,9 @@ import jp.miyavi.android.clawdroid.core.designsystem.shrinkExit
 data class SettingAvailability(val model: Boolean, val effort: Boolean, val permissions: Boolean)
 
 /**
- * 入力欄のモデルのピルから開くシート。上にこのセッションの設定（モデル・エフォート・実行権限）をアイコンで横 1 行、
- * その下にコンテキストとプロバイダの使用量。設定はアイコンを押すと透過効果のメニューで選ぶ。
+ * 入力欄のモデルのピルから開くシート。「モデル」の節にこのセッションのモデル・エフォート（アイコンで横 1 行）と
+ * コンテキストウィンドウ、その下にプロバイダの使用量、最後に「リソース」（Gateway のホストのメモリ・ディスク）。
+ * 設定はアイコンを押すと透過効果のメニューで選ぶ。実行権限は入力欄に移した（マスター指定 2026-11-26）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +120,10 @@ fun ComposerSessionSheet(
     loadHostStats: suspend () -> HostStats?,
     /** 前回の値。あれば 1 フレーム目からそれで組む。 */
     cache: SheetUsageCache,
+    /** 保存中の設定（その場所で読み込み表示）。 */
+    saving: SessionSetting? = null,
+    /** 設定ごとの保存できた回数（増えたら一瞬チェック）。 */
+    savedTick: (SessionSetting) -> Int = { 0 },
     onSelect: (SessionSetting, String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -176,8 +183,13 @@ fun ComposerSessionSheet(
                 Modifier.verticalScroll(rememberScrollState()).padding(Spacing.l),
                 verticalArrangement = Arrangement.spacedBy(Spacing.m),
             ) {
-                // このセッションの設定（モデル・エフォート・実行権限）。アイコンを横 1 行に並べ、押すとそのボタンを中心に選択肢が出る
+                // 「モデル」の節: このセッションのモデル・エフォート。アイコンを横 1 行に並べ、押すとそのボタンを中心に選択肢が出る。
+                // コンテキストウィンドウもモデルで上限が決まるので、この節に入れる（マスター指定 2026-11-26）
+                SectionTitle(R.string.chat_setting_model)
                 SettingIconRow(
+                    showPermissions = false,
+                    saving = saving,
+                    savedTick = savedTick,
                     agent = agent,
                     session = session,
                     model = model,
@@ -222,32 +234,59 @@ private fun SettingPopup(expanded: Boolean, hazeState: HazeState, onDismiss: () 
     val margin = with(density) { Spacing.s.roundToPx() }
     val top = WindowInsets.statusBars.getTop(density) + margin
     val bottom = WindowInsets.navigationBars.getBottom(density) + margin
-    val provider = remember(margin, top, bottom) { CenterOnAnchor(margin, top, bottom) }
+    // 拡大の起点は、押したボタンの位置（ポップアップは画面の端に寄せるので、ポップアップの中心からだと
+    // 押した所とは別の所から出てくるように見えた。マスター指定 2026-11-26）
+    val origin = remember { mutableStateOf(androidx.compose.ui.graphics.TransformOrigin.Center) }
+    val provider = remember(margin, top, bottom) { CenterOnAnchor(margin, top, bottom, origin) }
     val motion = MaterialTheme.motionScheme
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         AnimatedVisibility(
             visibleState = visible,
-            enter = scaleIn(motion.fastSpatialSpec(), initialScale = MENU_START_SCALE) + fadeIn(motion.defaultEffectsSpec()),
-            exit = scaleOut(motion.fastSpatialSpec(), targetScale = MENU_START_SCALE) + fadeOut(motion.fastEffectsSpec()),
+            enter = fadeIn(motion.defaultEffectsSpec()),
+            exit = fadeOut(motion.fastEffectsSpec()),
         ) {
+            val scale by transition.animateFloat(
+                transitionSpec = { motion.fastSpatialSpec() },
+                label = "settingPopupScale",
+            ) { state -> if (state == androidx.compose.animation.EnterExitState.Visible) 1f else MENU_START_SCALE }
             GlassPanel(
                 hazeState = hazeState,
                 fixedOpacity = MENU_OPACITY,
                 shape = MaterialTheme.shapes.large as? RoundedCornerShape ?: RoundedCornerShape(Spacing.l),
-                modifier = Modifier.width(IntrinsicSize.Max).widthIn(max = Dimens.settingMenuMaxWidth),
+                modifier = Modifier
+                    .graphicsLayer {
+                        transformOrigin = origin.value
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .width(IntrinsicSize.Max).widthIn(max = Dimens.settingMenuMaxWidth),
             ) { content() }
         }
     }
 }
 
-/** ボタンの中心にポップアップの中心を合わせ、画面（システムバーの内側）からはみ出す分だけ内側に寄せる。 */
-private class CenterOnAnchor(private val margin: Int, private val top: Int, private val bottom: Int) : PopupPositionProvider {
+/**
+ * ボタンの中心にポップアップの中心を合わせ、画面（システムバーの内側）からはみ出す分だけ内側に寄せる。
+ * 寄せたあとのポップアップの中での、ボタンの中心の位置を [origin] に書く（拡大の起点）。
+ */
+private class CenterOnAnchor(
+    private val margin: Int,
+    private val top: Int,
+    private val bottom: Int,
+    private val origin: androidx.compose.runtime.MutableState<androidx.compose.ui.graphics.TransformOrigin>,
+) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         val center = anchorBounds.center
         val x = (center.x - popupContentSize.width / 2)
             .coerceAtMost(windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin)
         val y = (center.y - popupContentSize.height / 2)
             .coerceAtMost(windowSize.height - popupContentSize.height - bottom).coerceAtLeast(top)
+        if (popupContentSize.width > 0 && popupContentSize.height > 0) {
+            origin.value = androidx.compose.ui.graphics.TransformOrigin(
+                ((center.x - x).toFloat() / popupContentSize.width).coerceIn(0f, 1f),
+                ((center.y - y).toFloat() / popupContentSize.height).coerceIn(0f, 1f),
+            )
+        }
         return IntOffset(x, y)
     }
 }
@@ -264,58 +303,38 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
         val used = session?.totalTokens
         val limit = session?.contextTokens
         val contextHigh = contextLevel(fraction) == ContextLevel.HIGH
-        if (host is HostLoad.Unavailable) {
-            // ホストの数字が取れない Gateway: コンテキストウィンドウを横幅いっぱいで出す（見出しの右に「使った量 / 上限 · 割合」）
+        // コンテキストウィンドウ（「モデル」の節の続き）。プロバイダの使用枠と同じ帯（マスター指定 2026-11-26）:
+        // 上に名前と使った割合、帯の中に「使った量 / 上限」。その下に内訳の行を横幅いっぱいで（文字 200% でも切れないように）
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle(R.string.chat_context_title, Modifier.weight(1f))
-                if (fraction != null && used != null && limit != null) {
+                Text(
+                    stringResource(R.string.chat_context_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                if (fraction != null) {
                     Text(
-                        "${compactTokens(used)} / ${compactTokens(limit)} · ${percent.format(fraction)}",
+                        percent.format(fraction),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (contextHigh) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
-            if (fraction != null && limit != null) ContextBar(breakdown, limit, fraction)
-        } else {
-            // コンテキスト・メモリ・ディスクを 3 等分で並べる。形はプロバイダの使用枠と同じ（上に名前と使った割合、
-            // 帯の中に量。割合は出さない）。メモリとディスクの量は帯の塗りと同じ「使った量 / 全体」（マスター指定 2026-11-25）
-            val ready = (host as? HostLoad.Ready)?.stats
-            // 見出しは「リソース」（プロバイダの使用枠と同じ並び。内訳の区分の「システム」と紛れないように。マスター指定 2026-11-25）
-            SectionTitle(R.string.chat_resources_title)
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                Meter(
-                    title = R.string.chat_context_short,
+            if (fraction != null && limit != null) {
+                UsageMeter(
                     fraction = fraction,
-                    amount = if (used != null && limit != null) "${compactTokens(used)} / ${compactTokens(limit)}" else null,
+                    remaining = used?.let { "${compactTokens(it)} / ${compactTokens(limit)}" },
                     warn = contextHigh,
-                    modifier = Modifier.weight(1f),
-                )
-                Meter(
-                    title = R.string.host_memory_title,
-                    fraction = ready?.memoryUsedFraction,
-                    amount = ready?.let { usedOfTotal(it.memoryTotalBytes - it.memoryFreeBytes, it.memoryTotalBytes) },
-                    warn = ready != null && ready.memoryUsedFraction >= HOST_HIGH,
-                    modifier = Modifier.weight(1f),
-                )
-                Meter(
-                    title = R.string.host_disk_title,
-                    fraction = ready?.diskUsedFraction,
-                    amount = ready?.let { usedOfTotal(it.diskTotalBytes - it.diskAvailableBytes, it.diskTotalBytes) },
-                    warn = ready != null && ready.diskUsedFraction >= HOST_HIGH,
-                    modifier = Modifier.weight(1f),
                 )
             }
-            // 内訳は区分ごとに塗り分けた棒と行で、横幅いっぱいに
-            if (fraction != null && limit != null && breakdown != null) ContextBar(breakdown, limit, fraction)
         }
-        // 内訳の行は細い幅に詰めず、横幅いっぱいで（文字 200% でも切れないように）
         if (fraction != null && limit != null) {
             // 届いてから下に開く（高さが一度に変わらないように）
             AnimatedVisibility(breakdown != null, enter = expandEnter(), exit = shrinkExit()) {
                 breakdown?.let { ContextRows(it) }
             }
-        } else if (host is HostLoad.Unavailable) {
+        } else {
             MutedText(stringResource(R.string.chat_usage_unavailable))
         }
 
@@ -386,6 +405,29 @@ private fun Usage(session: SessionSummary?, breakdown: ContextBreakdown?, provid
         }
         }
         }
+        // プロバイダの使用枠の下に（マスター指定 2026-11-26）
+        // リソース: Gateway のホストのメモリとディスク。取れない Gateway（古いものなど）では節ごと出さない。
+        // 形はプロバイダの使用枠と同じ（上に名前と使った割合、帯の中に「使った量 / 全体」。マスター指定 2026-11-25）
+        if (host !is HostLoad.Unavailable) {
+            val ready = (host as? HostLoad.Ready)?.stats
+            SectionTitle(R.string.chat_resources_title)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                Meter(
+                    title = R.string.host_memory_title,
+                    fraction = ready?.memoryUsedFraction,
+                    amount = ready?.let { usedOfTotal(it.memoryTotalBytes - it.memoryFreeBytes, it.memoryTotalBytes) },
+                    warn = ready != null && ready.memoryUsedFraction >= HOST_HIGH,
+                    modifier = Modifier.weight(1f),
+                )
+                Meter(
+                    title = R.string.host_disk_title,
+                    fraction = ready?.diskUsedFraction,
+                    amount = ready?.let { usedOfTotal(it.diskTotalBytes - it.diskAvailableBytes, it.diskTotalBytes) },
+                    warn = ready != null && ready.diskUsedFraction >= HOST_HIGH,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 
@@ -399,22 +441,13 @@ private fun SectionTitle(text: Int, modifier: Modifier = Modifier) {
     )
 }
 
-/** 内訳の 5 つの区分と色（区分を見分けるための色。AGENTS.md 2.2 の「意味のある色分け」）。 */
+/** 内訳の 5 つの区分。 */
 private enum class ContextPart(val label: Int) {
     MESSAGES(R.string.context_part_messages),
     FILES(R.string.context_part_files),
     TOOLS(R.string.context_part_tools),
     SKILLS(R.string.context_part_skills),
     SYSTEM(R.string.context_part_system),
-}
-
-@Composable
-private fun ContextPart.color(): Color = when (this) {
-    ContextPart.MESSAGES -> MaterialTheme.colorScheme.primary
-    ContextPart.FILES -> MaterialTheme.colorScheme.tertiary
-    ContextPart.TOOLS -> MaterialTheme.colorScheme.secondary
-    ContextPart.SKILLS -> MaterialTheme.colorScheme.error
-    ContextPart.SYSTEM -> MaterialTheme.colorScheme.outline
 }
 
 private fun ContextBreakdown.parts(): List<Pair<ContextPart, Long?>> = listOf(
@@ -425,37 +458,12 @@ private fun ContextBreakdown.parts(): List<Pair<ContextPart, Long?>> = listOf(
     ContextPart.SYSTEM to system,
 )
 
-/** 細い棒。内訳があれば区分ごとに塗り分け、なければ使った割合を 1 色で。伸びはばね。 */
-@Composable
-private fun ContextBar(breakdown: ContextBreakdown?, limit: Long, fraction: Float) {
-    val motion = MaterialTheme.motionScheme
-    // 内訳の棒は 0 から伸ばさない（届いた値にそのまま置く。マスター指定 2026-11-25）
-    val grow = remember { Animatable(1f) }
-    val colors = MaterialTheme.colorScheme
-    val track = colors.surfaceContainerHighest
-    // 内訳が無いときは 1 色の帯。くすみ色だと下地と見分けにくいので、はっきりした強調の色（残りが少ないときはエラーの色）
-    val single = if (contextLevel(fraction) == ContextLevel.HIGH) colors.error else colors.primary
-    val segments = breakdown?.parts()?.mapNotNull { (part, tokens) -> tokens?.let { part.color() to it.toFloat() / limit } }
-        ?: listOf(single to fraction)
-    Box(
-        Modifier.fillMaxWidth().height(Dimens.usageBarHeight).clip(CircleShape).background(track).drawBehind {
-            var x = 0f
-            segments.forEach { (color, share) ->
-                val w = size.width * share.coerceIn(0f, 1f) * grow.value
-                drawRect(color, topLeft = androidx.compose.ui.geometry.Offset(x, 0f), size = size.copy(width = w))
-                x += w
-            }
-        },
-    )
-}
-
-/** 内訳の行（色の四角・区分名・見積もりのトークン数）。 */
+/** 内訳の行（区分名・見積もりのトークン数）。帯は 1 本にまとめたので、色の四角は付けない。 */
 @Composable
 private fun ContextRows(breakdown: ContextBreakdown) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
         breakdown.parts().forEach { (part, tokens) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                Box(Modifier.size(Spacing.m).clip(MaterialTheme.shapes.extraSmall).background(part.color()))
                 Text(stringResource(part.label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 Text(
                     tokens?.let { "~${compactTokens(it)}" } ?: stringResource(R.string.chat_usage_unknown),

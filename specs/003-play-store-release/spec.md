@@ -26,6 +26,7 @@
 
 - `scripts/translate-strings.py`: 日本語の文言から各言語の strings.xml を `app/src/release/res/` へ作る。前回訳したときの日本語を `app/src/release/translations.json` に残し、変わった文言だけを `claude -p` で訳す。置き場所（%1$s など）・複数形の数量・配列の数を確かめ、合わなければ 1 回だけ訳し直す。`--check` で訳が最新かだけを見る
 - Release だけが訳を使う（ビルドの種類の重ね合わせ）。Release の既定の言語は英語、Debug は日本語だけ。アプリ単位の言語の一覧は自動生成をやめ、`res/xml/locales_config.xml` を main（ja）と release（スクリプトが作る）に置く（AGP は main の resources.properties しか読まず、既定の言語をビルドの種類ごとに分けられないため）
+- 2026-11-25 追記: Release の日本語（`values-ja/`）は main の日本語の写しで、訳のスクリプトを流すまで古いまま残り、Release 版だけ古い文言が出ていた（サイドパネルの「更新順 ⇔ フォルダ順」・設定の「このアプリについて」）。Release のビルドのたびに Gradle の `syncReleaseJapanese` が `scripts/translate-strings.py --ja-only` で日本語の写しだけを作り直す（訳さない）
 - `scripts/release.sh`: 訳 → 版を上げる → Release の lint とテスト → コミットとタグ → 署名した AAB と難読化の対応表 →（確認）→ Push。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `CLAWDROID_*`
 - ~~`scripts/publish-public.sh`~~: 2026-11-25 に削除。レポジトリをそのまま公開する方針に変えたため（下の Session 2026-11-25）。`release.sh` の公開用レポジトリへの送信の手順も外した
 - `docs/privacy-policy.md`（日本語・英語）と `README.md` の原稿
@@ -47,6 +48,7 @@
 
 - Q: レポジトリの公開の仕方 → A: Gerbil のように README と docs だけを別の公開用レポジトリに出すのではなく、今の非公開レポジトリ（`clawdroid`）をそのまま公開して OSS にする（マスター指定 2026-11-25。FR-013・FR-036〜038）。プライバシーポリシーはこのレポジトリの `docs/privacy-policy.md` を指す。`scripts/publish-public.sh` は消した
 - 設定の「このアプリについて」は節の名前を「情報」にし、設定の並びを 通知・表示・エージェント・接続・情報 にする（マスター指定 2026-11-25）。US4（FR-030〜035）は 2026-11-25 に先に実装した（`feature/settings/AboutSection.kt`・`LicensesScreen.kt`・`core/licenses/OssLicenses.kt`。一覧は AboutLibraries の Gradle プラグインで依存関係から作り、実行時の依存は足していない）
+- 「情報」の行は プライバシーポリシー・オープンソースのライセンス・版（Clawdroid）の 3 つだけにする。Gateway の版は接続の行に出ているので出さず、端末の行と「情報をコピー」の行も外す。版の行を押すと、版・Gateway の版・端末・Android の版をまとめてコピーする（マスター指定 2026-11-25。FR-030・031 をこの形で満たす）
 - Q: 審査専用の Gateway の置き場所 → A: 自宅の常時稼働の PC の Docker で動かし、Cloudflare Tunnel で外へ出す。ルーターのポートは開けない。クラウドの無料枠は使わない（マスター承認 2026-11-25。FR-019）。審査は更新のたびに来るため、公開しているあいだ動かし続ける前提で選んだ
   - 自宅＋Tunnel を選んだ理由: 費用 0 円、TLS の証明書と名前の解決を Cloudflare に任せられ、自宅の IP を出さない。ホストは 24 時間動いており、`docker` と `cloudflared` が入っている
   - ポートを開けて直接出す案は採らない: 自宅の IP と開いたポートが外にさらされ続け、証明書の更新とダイナミック DNS も自前で回すことになる

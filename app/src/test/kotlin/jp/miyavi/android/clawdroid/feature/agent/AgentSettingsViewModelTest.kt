@@ -159,4 +159,21 @@ class AgentSettingsViewModelTest {
         assertTrue(modelUpdates.isEmpty())
         assertFalse(vm.state.value.configSaving)
     }
+
+    @Test fun saveModel_success_countsSaved_andClearsPending() {
+        val vm = viewModel()
+        vm.saveModel("anthropic/claude-opus-5-5")
+        assertEquals(null, vm.state.value.pendingConfig)
+        assertEquals(ConfigField.MODEL to 1, vm.state.value.configSaved)
+        vm.saveThinking("high")
+        assertEquals(ConfigField.THINKING to 2, vm.state.value.configSaved)
+    }
+
+    @Test fun saveModel_failure_dropsPending_andKeepsSavedCount() {
+        configFails = true
+        val vm = viewModel()
+        vm.saveModel("x/y")
+        assertEquals(null, vm.state.value.pendingConfig)
+        assertEquals(null, vm.state.value.configSaved)
+    }
 }

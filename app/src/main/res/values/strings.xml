@@ -6,6 +6,7 @@
     <string name="action_retry">再試行</string>
     <string name="action_cancel">キャンセル</string>
     <string name="action_ok">OK</string>
+    <string name="action_got_it">了解</string>
     <string name="action_save">保存</string>
     <string name="action_delete">削除</string>
     <string name="action_discard">破棄</string>
@@ -103,8 +104,29 @@
     <!-- 会話 -->
     <string name="chat_new_cd">新規チャット</string>
     <string name="chat_more_cd">その他の操作</string>
-    <string name="chat_input_placeholder">メッセージ</string>
+    <!-- 入力欄のプレースホルダー。空のときにランダムで 1 つ出す（マスター指定 2026-11-26） -->
+    <string-array name="chat_input_placeholders">
+        <item>まとまらない思考をそのまま投げる</item>
+        <item>脳のメモリをここに逃がす</item>
+        <item>思考のダンプ先はこちら</item>
+        <item>言語化の手前からどうぞ</item>
+        <item>仮説でも妄想でも入力可</item>
+        <item>コンテキストに何を放り込む？</item>
+        <item>プロンプトの出来は問いません</item>
+        <item>とりあえずログを貼ってもいい</item>
+        <item>面倒な作業を丸投げする</item>
+        <item>次の無茶振りを入力…</item>
+        <item>まずは雑に投げてみる</item>
+    </string-array>
     <string name="chat_send_cd">送信</string>
+    <string name="chat_text_quote">引用</string>
+    <string name="chat_text_paste">コピーしたテキスト</string>
+    <string name="chat_text_chars">%1$d文字</string>
+    <string name="chat_text_tile_cd">%1$s、%2$d文字</string>
+    <string name="chat_text_preview_cd">全文を見る</string>
+    <string name="chat_text_pasted">長いテキストを添付にしました</string>
+    <string name="chat_text_expand">入力欄に戻す</string>
+    <string name="chat_text_remove">外す</string>
     <string name="chat_stop_cd">停止</string>
     <string name="chat_attach_cd">添付</string>
     <string name="chat_attach_photos">写真</string>
@@ -220,6 +242,9 @@
     <string name="voice_error">音声を認識できませんでした</string>
 
     <!-- メニュー -->
+    <string name="menu_debug_section">デバッグ</string>
+    <string name="menu_debug_panel_hint">サイドパネルヒント</string>
+    <string name="panel_hint_message">サイドパネルでエージェントを管理します</string>
     <string name="menu_files">ファイル</string>
     <string name="menu_terminal">ターミナル</string>
     <string name="menu_usage">使用量</string>
@@ -268,15 +293,14 @@
     <string name="shortcut_disabled_gateway">接続先が変わりました</string>
     <string name="settings_title">設定</string>
     <string name="back_cd">戻る</string>
-    <string name="settings_section_connection">接続</string>
-    <string name="settings_connection_state_connected">接続済み（Gateway %1$s）</string>
+    <string name="settings_connection_state_connected">接続済み（%1$s）</string>
     <string name="settings_connection_address">接続先</string>
     <string name="settings_reconnect">接続し直す</string>
     <string name="settings_disconnect">切断</string>
     <string name="settings_forget">接続情報を消す</string>
     <string name="settings_forget_confirm">接続先とトークンを端末から消して、接続画面に戻ります。</string>
     <string name="settings_section_gateway">Gateway</string>
-    <string name="settings_restart">Gateway を再起動</string>
+    <string name="settings_restart">再起動</string>
     <string name="settings_restart_desc">実行中の作業がひと区切りついてから再起動します</string>
     <string name="settings_section_appearance">表示</string>
     <string name="settings_appearance_system">システム</string>
@@ -307,7 +331,7 @@
     <string name="about_gateway_offline">未接続</string>
     <string name="about_device">端末</string>
     <string name="about_android_version">Android %1$s（API %2$d）</string>
-    <string name="about_copy">情報をコピー</string>
+    <string name="about_copy">版と環境をコピー</string>
     <string name="about_privacy_policy">プライバシーポリシー</string>
     <string name="about_licenses">オープンソースのライセンス</string>
     <string name="licenses_title">オープンソースのライセンス</string>
@@ -438,7 +462,6 @@
     <string name="chat_usage_provider">プロバイダの使用枠</string>
     <string name="chat_usage_unavailable">データなし</string>
     <string name="chat_resources_title">リソース</string>
-    <string name="chat_context_short">コンテキスト</string>
     <string name="host_memory_title">メモリ</string>
     <string name="host_disk_title">ディスク</string>
     <string name="host_amount">%1$s / %2$s</string>
@@ -711,9 +734,9 @@
     <string name="agent_overview_section_model">モデル</string>
     <string name="agent_overview_section_tools">ツール</string>
     <string name="agent_overview_section_workspace">ワークスペース</string>
-    <string name="agent_overview_inherited">既定</string>
-    <string name="agent_overview_inherited_cd">既定の値を引き継いでいます</string>
-    <string name="agent_overview_thinking">思考の既定</string>
+    <string name="agent_overview_inherited">全体</string>
+    <string name="agent_overview_inherited_cd">全体の設定を引き継いでいます</string>
+    <string name="agent_overview_thinking">既定のエフォート</string>
     <string name="agent_overview_profile">ツールのプロファイル</string>
     <string name="tool_profile_minimal">最小</string>
     <string name="tool_profile_coding">コーディング</string>
@@ -734,8 +757,7 @@
     <string name="agent_overview_fs_workspace_only">ワークスペースの中だけ</string>
     <string name="agent_overview_fs_anywhere">どこでも</string>
     <string name="agent_overview_web_search">Web 検索</string>
-    <string name="agent_overview_web_search_value">%1$s（Gateway 全体）</string>
-    <string name="agent_overview_config_failed">openclaw.json の定義を読めませんでした</string>
+        <string name="agent_overview_config_failed">openclaw.json の定義を読めませんでした</string>
     <string name="agent_overview_config_missing">openclaw.json にこのエージェントの定義がありません</string>
     <string name="agent_overview_config_unsupported">この Gateway では設定を読めません</string>
     <string name="skill_origin_workspace">専用</string>
@@ -779,11 +801,10 @@
     <string name="agent_identity_failed_plain">変えられませんでした</string>
     <string name="agent_identity_name_required">名前を入れてください</string>
     <string name="agent_overview_change_cd">変える</string>
-    <string name="agent_config_saved">変えました。次のセッションから使われます</string>
     <string name="agent_choice_use_default">全体の既定を使う</string>
     <string name="agent_choice_default_value">いまの既定: %1$s</string>
     <string name="agent_choice_model_note">このエージェントの新しいセッションで使うモデルです。openclaw.json に反映します。</string>
-    <string name="agent_choice_thinking_note">このエージェントの新しいセッションで使う思考の段階です。openclaw.json に反映します。</string>
+    <string name="agent_choice_thinking_note">このエージェントの新しいセッションで使うエフォートです。openclaw.json に反映します。</string>
     <string name="session_worktree_cd">ブランチ %1$s</string>
     <string name="worktree_delete_title">ワークツリーのセッションを削除</string>
     <string name="worktree_delete_body">「%1$s」を削除すると、会話を消し、ワークツリーのフォルダを片付けます。</string>
@@ -832,20 +853,18 @@
     <string name="notify_test_body">Clawdroid からの通知はこのように届きます</string>
     <string name="settings_section_notifications">通知</string>
     <string name="settings_notify_enabled">通知設定</string>
-    <string name="settings_notify_details">押すと、常駐・種類・ロック画面などを設定します</string>
-    <string name="settings_notify_background">常駐して通知を受け取る</string>
-    <string name="settings_notify_background_desc">オフにすると、アプリを開いているあいだだけ届きます</string>
+    <string name="settings_notify_details">常時接続と通知の種類</string>
+    <string name="settings_notify_background">常時接続</string>
+    <string name="settings_notify_background_desc">アプリを閉じていても通知を受け取ります。電池の消費が増えます</string>
     <string name="settings_notify_replies">応答の完了</string>
     <string name="settings_notify_approvals">承認待ち</string>
     <string name="settings_notify_automation">自動化の失敗</string>
-    <string name="settings_notify_lock_screen">ロック画面に内容を出す</string>
-    <string name="settings_notify_lock_screen_desc">オフにすると、ロック画面では内容を伏せます</string>
     <string name="settings_notify_permission">通知の許可</string>
-    <string name="settings_notify_permission_missing">許可されていません。押すと許可を求めます</string>
+    <string name="settings_notify_permission_missing">許可されていません</string>
     <string name="settings_notify_permission_ok">許可されています</string>
     <string name="settings_notify_battery">電池の最適化</string>
-    <string name="settings_notify_battery_on">最適化の対象です。通知が遅れたり届かなかったりします。押すと外せます</string>
-    <string name="settings_notify_battery_off">対象から外れています。押すとこのアプリの電池の設定を開きます</string>
+    <string name="settings_notify_battery_on">対象です。通知が遅れることがあります</string>
+    <string name="settings_notify_battery_off">対象外です</string>
     <string name="settings_notify_channels">エージェントごとの音とオン・オフ</string>
     <string name="settings_notify_channels_desc">端末の通知の設定を開きます</string>
     <string name="settings_notify_test">テスト通知を送る</string>

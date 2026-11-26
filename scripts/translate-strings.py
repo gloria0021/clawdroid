@@ -265,6 +265,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="訳が最新か確かめるだけ")
     ap.add_argument("--dry-run", action="store_true", help="訳す件数を数えるだけ")
+    ap.add_argument("--ja-only", action="store_true", help="日本語の写し（values-ja）だけを作り直す。訳さない（Release のビルドのたびに Gradle が呼ぶ）")
     ap.add_argument("--locales", help="対象の言語（カンマ区切り。既定はすべて）")
     ap.add_argument("--model", default=os.environ.get("TRANSLATE_MODEL", "sonnet"))
     ap.add_argument("--batch", type=int, default=60)
@@ -295,6 +296,13 @@ def main() -> int:
     ja_text = render(source, "scripts/translate-strings.py が app/src/main/res/values から写したもの。手で直さない")
     ja_path = OUT_RES / "values-ja" / "strings.xml"
     ja_stale = not ja_path.exists() or ja_path.read_text(encoding="utf-8") != ja_text
+    if args.ja_only:
+        # Release の日本語が、普段書いている日本語より古くならないようにする（訳はリリースのときだけ）
+        if ja_stale:
+            ja_path.parent.mkdir(parents=True, exist_ok=True)
+            ja_path.write_text(ja_text, encoding="utf-8")
+        print(f"ja: {'写し直しました' if ja_stale else '最新'}")
+        return 0
     config_stale = not LOCALES_CONFIG.exists() or LOCALES_CONFIG.read_text(encoding="utf-8") != locales_config()
     removed = {l: sorted(set(current[l]) - set(source)) for l in locales}
 

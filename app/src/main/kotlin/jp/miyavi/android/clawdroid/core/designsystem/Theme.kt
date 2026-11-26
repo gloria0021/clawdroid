@@ -94,6 +94,12 @@ private val LineSeedFamily = FontFamily(
     Font(R.font.line_seed_jp_regular, FontWeight.Normal),
     Font(R.font.line_seed_jp_bold, FontWeight.Bold),
 )
+/**
+ * アプリの文字サイズ（設定のスライダー）に引っ張られない文字の形。端末の文字サイズには従う。
+ * 入力欄の下の行のように、大きくすると並べきれなくなる所だけで使う（マスター指定 2026-11-26）。
+ */
+val LocalFixedTypography = androidx.compose.runtime.staticCompositionLocalOf { Typography() }
+
 private fun appTypography(font: AppFont, fontSizeSp: Int): Typography {
     val t = SystemTypography
     val scale = fontSizeSp / t.bodyLarge.fontSize.value
@@ -149,7 +155,9 @@ fun ClawdroidTheme(
         AccentContainer(scheme.primaryContainer, scheme.onPrimaryContainer)
     }
     val typography = remember(settings.font, settings.fontSizeSp) { appTypography(settings.font, settings.fontSizeSp) }
+    val fixedTypography = remember(settings.font) { appTypography(settings.font, jp.miyavi.android.clawdroid.core.settings.ThemeSettings.DEFAULT_FONT_SIZE_SP) }
     CompositionLocalProvider(
+        LocalFixedTypography provides fixedTypography,
         LocalSurfaceStyle provides settings.surfaceStyle,
         LocalGlassLevels provides GlassLevels(settings.glassRefraction, settings.blurStrength),
         LocalAccentContainer provides accent,

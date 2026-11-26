@@ -33,7 +33,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import jp.miyavi.android.clawdroid.R
-import jp.miyavi.android.clawdroid.core.settings.LockScreenContent
 import jp.miyavi.android.clawdroid.core.settings.NotificationSettings
 
 /**
@@ -103,6 +102,12 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
         if (!granted) appNotificationSettings()
     }
 
+    // 通知の許可がいちばん大事なので先頭に（マスター指定 2026-11-26）
+    StatusItem(
+        R.drawable.ic_huge_notification, R.string.settings_notify_permission,
+        if (permitted) R.string.settings_notify_permission_ok else R.string.settings_notify_permission_missing, warn = !permitted,
+        onClick = if (permitted) null else ({ requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }),
+    )
     SwitchItem(R.drawable.ic_huge_connection, R.string.settings_notify_background, R.string.settings_notify_background_desc, settings.backgroundConnection) {
         onChange(settings.copy(backgroundConnection = it))
     }
@@ -111,19 +116,13 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
     SwitchItem(R.drawable.ic_huge_automation, R.string.settings_notify_automation, null, settings.notifyAutomationFailures) {
         onChange(settings.copy(notifyAutomationFailures = it))
     }
-    SwitchItem(
-        R.drawable.ic_huge_view, R.string.settings_notify_lock_screen, R.string.settings_notify_lock_screen_desc,
-        settings.lockScreenContent != LockScreenContent.HIDE,
-    ) { show -> onChange(settings.copy(lockScreenContent = if (show) LockScreenContent.FOLLOW_SYSTEM else LockScreenContent.HIDE)) }
-    // 状態の行（許可・電池の最適化）と導線
-    StatusItem(
-        R.drawable.ic_huge_notification, R.string.settings_notify_permission,
-        if (permitted) R.string.settings_notify_permission_ok else R.string.settings_notify_permission_missing, warn = !permitted,
-        onClick = if (permitted) null else ({ requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }),
-    )
-    StatusItem(
+    // ロック画面での内容の出し方は端末の設定に任せる（アプリの項目は置かない。マスター指定 2026-11-26）
+    // 状態の行（電池の最適化）と導線
+    // 電池の最適化が効くのは常時接続のときだけ（オフなら裏では接続を休む）
+    if (settings.backgroundConnection) StatusItem(
         R.drawable.ic_huge_alert_circle, R.string.settings_notify_battery,
         if (optimized) R.string.settings_notify_battery_on else R.string.settings_notify_battery_off, warn = optimized,
+        // 権限は残す（Play Protect の警告は出てよい。OSS とストアの公開で透明性を担保する。マスター指定 2026-11-26）
         onClick = if (optimized) ({
             @android.annotation.SuppressLint("BatteryLife")
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))

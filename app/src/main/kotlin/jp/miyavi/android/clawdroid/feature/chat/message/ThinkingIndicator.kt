@@ -79,7 +79,8 @@ fun ThinkingIndicator(
                 withStyle(SpanStyle(color = color.copy(alpha = 0f))) { append(".".repeat(DOT_COUNT - dots)) }
             },
             modifier = Modifier.clearAndSetSemantics { contentDescription = shown },
-            style = MaterialTheme.typography.labelMedium,
+            // 状態の言い回しは 1 段大きく（経過時間とトークン数は labelMedium のまま。マスター指定 2026-11-26）
+            style = MaterialTheme.typography.labelLarge,
             color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
