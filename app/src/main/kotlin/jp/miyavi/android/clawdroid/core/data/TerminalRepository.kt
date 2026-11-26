@@ -179,6 +179,59 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
         }
     }
 
+    /** 使い捨てのシェル 1 つの中で、ファイルの受け渡し（`terminal.upload`）とコマンドを続けて行う。 */
+    inner class OneShot internal constructor(private val sessionId: String) {
+        /**
+         * ホストの一時置き場にファイルを置く（Control UI のターミナルへのドロップと同じ経路）。置いた場所の絶対パス。
+         * 一時置き場は Gateway がしばらくして消す。
+         */
+        suspend fun upload(name: String, contentBase64: String): String? = guarded {
+            gateway.request("terminal.upload", buildJsonObject {
+                put("sessionId", sessionId)
+                put("name", name)
+                put("contentBase64", contentBase64)
+            }, timeoutMs = UPLOAD_TIMEOUT_MS).asObject()?.string("path")
+        }
+
+        /** [input] を送り、[done] が結果を返すまで出力を集める。切れたら null。 */
+        suspend fun <R : Any> run(input: String, done: (String) -> R?): R? = kotlinx.coroutines.coroutineScope {
+            val output = StringBuilder()
+            val result = kotlinx.coroutines.CompletableDeferred<R?>()
+            val collector = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                events(sessionId).collect { event ->
+                    when (event) {
+                        is TerminalEvent.Data -> {
+                            output.append(event.data)
+                            done(output.toString())?.let { result.complete(it) }
+                        }
+                        is TerminalEvent.Exit -> result.complete(null)
+                    }
+                }
+            }
+            input(sessionId, input)
+            result.await().also { collector.cancel() }
+        }
+    }
+
+    /** 使い捨てのシェルを開いて [block] を行い、必ず閉じる。開けない・時間切れは null。 */
+    suspend fun <T> withOneShot(agentId: String?, timeoutMs: Long, block: suspend OneShot.() -> T): T? {
+        if (availability() != null) return null
+        val info = guarded {
+            parseInfo(gateway.request("terminal.open", buildJsonObject {
+                agentId?.let { put("agentId", it) }
+                put("cols", ONE_SHOT_COLUMNS)
+                put("rows", ONE_SHOT_ROWS)
+            }).asObject())
+        } ?: return null
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { OneShot(info.sessionId).block() }
+        } finally {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                runCatching { gateway.request("terminal.close", buildJsonObject { put("sessionId", info.sessionId) }) }
+            }
+        }
+    }
+
     private suspend fun <T> guarded(block: suspend () -> T): T? = try {
         block()
     } catch (e: GatewayRpcException) {
@@ -194,6 +247,8 @@ class TerminalRepository(private val gateway: GatewayClient, private val ids: Te
     companion object {
         private const val ONE_SHOT_COLUMNS = 200
         private const val ONE_SHOT_ROWS = 24
+        /** 1 ファイル（最大 12 MB）を送り終えるまで待つ時間。 */
+        private const val UPLOAD_TIMEOUT_MS = 180_000L
 
         /** 作業フォルダへ移る入力。パスはシングルクォートで包み、中の ' は '\'' にする。 */
         fun changeDirectoryCommand(cwd: String): String = "cd -- '" + cwd.replace("'", "'\\''") + "' && clear\r"

@@ -107,7 +107,7 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
                 put("name", path)
             }).asObject())
         }
-        file?.let(OpenResult::Opened) ?: OpenResult.Missing
+        (file?.let { if (root is FileRoot.Session) withLargeImage(root, it) else it })?.let(OpenResult::Opened) ?: OpenResult.Missing
     } catch (e: GatewayRpcException) {
         when (e.detailType) {
             "session_file_not_found" -> OpenResult.Missing
@@ -161,6 +161,24 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
         } catch (e: GatewayRpcException) {
             if (e.detailType == "agent_file_conflict") SaveResult.Conflict else SaveResult.Failed(e.error.message)
         }
+    }
+
+    /**
+     * Gateway が中身を返さなかった画像（中身を添えるのは小さな画像だけ）を、ダウンロードの短命リンクから取って
+     * プレビューできるようにする（マスター指定 2026-11-26）。取れなければそのまま（種類と大きさとダウンロード）。
+     */
+    private suspend fun withLargeImage(root: FileRoot.Session, file: OpenedFile): OpenedFile {
+        if (file.kind != PreviewKind.UNSUPPORTED || file.mimeType?.lowercase() !in PREVIEWABLE_IMAGES) return file
+        if ((file.size ?: Long.MAX_VALUE) > MAX_IMAGE_PREVIEW_BYTES) return file
+        val link = downloadSource(root, file.path) as? DownloadSource.Link ?: return file
+        var bytes: ByteArray? = null
+        val attempt = runCatching {
+            gateway.downloadLink(link.url) { input, _, _ ->
+                bytes = input.readNBytes(MAX_IMAGE_PREVIEW_BYTES.toInt() + 1).takeIf { it.size <= MAX_IMAGE_PREVIEW_BYTES }
+            }
+        }.getOrNull()
+        val data = bytes?.takeIf { attempt == GatewayClient.LinkAttempt.COMPLETE } ?: return file
+        return file.copy(kind = PreviewKind.IMAGE, imageBase64 = java.util.Base64.getEncoder().encodeToString(data))
     }
 
     /** ダウンロードのもと。作業フォルダは短命リンク、ワークスペースは中身。 */
@@ -236,5 +254,9 @@ class FilesRepository(private val gateway: GatewayClient) : FileSource {
         /** ワークスペースの 1 つのフォルダで読む上限。 */
         const val WORKSPACE_MAX_ENTRIES = 2_000
         const val OCTET_STREAM = "application/octet-stream"
+        /** ダウンロードのリンクから取ってプレビューする画像の上限。 */
+        const val MAX_IMAGE_PREVIEW_BYTES = 20L * 1024 * 1024
+        /** 端末で表示できる画像の種類。 */
+        val PREVIEWABLE_IMAGES = setOf("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp", "image/heic", "image/heif", "image/avif")
     }
 }

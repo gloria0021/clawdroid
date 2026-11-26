@@ -79,6 +79,19 @@ class FileOpsTest {
             assertEquals(FileOpResult.NotFound, run(FileOp.Delete("nope", false)))
             assertEquals(FileOpResult.Done, run(FileOp.Delete("link", false)))
             assertTrue(File(base, "outside").exists())
+            // アップロード: 一時置き場から置く。同じ名前は上書きを選んだときだけ、フォルダは置き換えない
+            fun staged(text: String) = File.createTempFile("upload", ".bin", base).apply { writeText(text) }.path
+            assertEquals(FileOpResult.Done, run(FileOp.Place("", "up load.txt", staged("one"), overwrite = false)))
+            assertEquals("one", File(root, "up load.txt").readText())
+            assertEquals(FileOpResult.AlreadyExists, run(FileOp.Place("", "up load.txt", staged("two"), overwrite = false)))
+            assertEquals(FileOpResult.Done, run(FileOp.Place("", "up load.txt", staged("two"), overwrite = true)))
+            assertEquals("two", File(root, "up load.txt").readText())
+            assertEquals(FileOpResult.Done, run(FileOp.CreateFolder("", "dir")))
+            assertEquals(FileOpResult.AlreadyExists, run(FileOp.Place("", "dir", staged("x"), overwrite = true)))
+            Files.createSymbolicLink(File(root, "link2").toPath(), File(base, "outside").toPath())
+            assertEquals(FileOpResult.OutsideRoot, run(FileOp.Place("link2", "x", staged("x"), overwrite = false)))
+            assertEquals(FileOpResult.NotFound, run(FileOp.Place("", "y", File(base, "missing").path, overwrite = false)))
+            assertTrue(root.listFiles()!!.none { it.name.startsWith(".clawdroid-upload") })
         } finally {
             base.deleteRecursively()
         }

@@ -87,6 +87,8 @@ data class FilesUiState(
     val pendingOp: String? = null,
     /** ツリーを引き下げて読み直している。 */
     val treeRefreshing: Boolean = false,
+    /** アップロードの途中（何件目か）。 */
+    val upload: UploadStatus? = null,
 ) {
     /** 画面の中だけで済む「戻る」（確認・検索・編集）があるか。 */
     val handlesBackInPage: Boolean
@@ -95,7 +97,15 @@ data class FilesUiState(
     val rows: List<TreeRow> get() = flattenTree(tree)
 }
 
+/** アップロードの進み。[index] は 0 始まり、[size] は今送っているファイルの大きさ（分かれば）。 */
+data class UploadStatus(val parent: String, val index: Int, val total: Int, val name: String, val size: Long? = null)
+
 sealed interface FilesEvent {
+    /**
+     * アップロードが終わった。[done] 件置けた、[tooLarge] は容量の上限を超えて送らなかった名前、
+     * [failed] はそれ以外で置けなかった件数、[cancelled] は途中で止めた。
+     */
+    data class Uploaded(val done: Int, val failed: Int, val tooLarge: List<String> = emptyList(), val cancelled: Boolean = false) : FilesEvent
     data object Saved : FilesEvent
     data class SaveFailed(val message: String?) : FilesEvent
     data object FileGone : FilesEvent
@@ -316,12 +326,14 @@ class FilesViewModel(
             is FileOp.CreateFolder -> childPath(op.parent, op.name)
             is FileOp.Rename -> op.path
             is FileOp.Delete -> op.path
+            is FileOp.Place -> childPath(op.parent, op.name)
         }
         val parent = when (op) {
             is FileOp.CreateFile -> op.parent
             is FileOp.CreateFolder -> op.parent
             is FileOp.Rename -> op.path.substringBeforeLast('/', "")
             is FileOp.Delete -> op.path.substringBeforeLast('/', "")
+            is FileOp.Place -> op.parent
         }
         _state.update { it.copy(pendingOp = target) }
         viewModelScope.launch {
@@ -346,12 +358,58 @@ class FilesViewModel(
                         if (openedPath == target) openFile(childPath(parent, op.newName))
                     }
                     is FileOp.Delete -> if (openedPath == target || openedPath?.startsWith("$target/") == true) closeFile()
-                    is FileOp.CreateFolder -> Unit
+                    is FileOp.CreateFolder, is FileOp.Place -> Unit
                 }
             }
             _events.tryEmit(FilesEvent.Operated(op, result))
         }
     }
+
+    /**
+     * 端末のファイルを [parent] にアップロードする（1 つずつ。終わったらフォルダを読み直して知らせる）。
+     * 置く名前と上書きするかは、呼ぶ側が同じ名前の確認を済ませて [files] に入れておく。
+     */
+    fun upload(parent: String, files: List<jp.miyavi.android.clawdroid.core.data.UploadFile>) {
+        val repo = ops ?: return
+        val s = _state.value
+        val root = s.rootPath ?: return
+        if (!s.canModify || s.upload != null || files.isEmpty()) return
+        _state.update { it.copy(upload = UploadStatus(parent, 0, files.size, files.first().name, files.first().size)) }
+        uploadJob = viewModelScope.launch {
+            var results: List<FileOpResult> = emptyList()
+            var cancelled = false
+            try {
+                results = runCatchingNonCancel {
+                    repo.upload(agentId, root, parent, files) { index, file ->
+                        _state.update { it.copy(upload = UploadStatus(parent, index, files.size, file.name, file.size)) }
+                    }
+                } ?: List(files.size) { FileOpResult.Unknown }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                cancelled = true
+                throw e
+            } finally {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    _state.update { current ->
+                        var tree = current.tree.invalidate(parent)
+                        if (parent.isNotEmpty() && parent !in tree.expanded) tree = tree.toggle(parent)
+                        current.copy(tree = tree, upload = null)
+                    }
+                    persistTree()
+                    load(parent)
+                    val tooLarge = files.zip(results).filter { (_, r) -> (r as? FileOpResult.Failed)?.message == jp.miyavi.android.clawdroid.core.data.UPLOAD_TOO_LARGE }.map { it.first.name }
+                    val done = results.count { it == FileOpResult.Done }
+                    _events.tryEmit(FilesEvent.Uploaded(done, results.size - done - tooLarge.size, tooLarge, cancelled))
+                }
+            }
+        }
+    }
+
+    /** アップロードを止める（送り終えたファイルはそのまま。送っている途中の 1 件は置かない）。 */
+    fun cancelUpload() {
+        uploadJob?.cancel()
+    }
+
+    private var uploadJob: Job? = null
 
     fun startEditing() = opened.startEditing()
     fun toggleCode() = opened.toggleCode()

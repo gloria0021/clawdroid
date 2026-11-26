@@ -84,6 +84,7 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
     val retry = stringResource(R.string.action_retry)
     val context = androidx.compose.ui.platform.LocalContext.current
     val eventScope = rememberCoroutineScope()
+    var uploadResult by remember { mutableStateOf<FilesEvent.Uploaded?>(null) }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -93,6 +94,8 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
                 is FilesEvent.Operated -> snackbar.showSnackbar(context.operationMessage(event.op, event.result))
                 // 読み直した結果（中身が同じだと表示が変わらず、効いたか分からないため）
                 is FilesEvent.Refreshed -> snackbar.showSnackbar(if (event.changed) refreshed else unchanged)
+                // 結果はアップロードの帯で出す（ツリーのパネルの上にも見える）
+                is FilesEvent.Uploaded -> uploadResult = event
                 // 次のお知らせを止めないよう、再試行の返事は別に待つ
                 is FilesEvent.RefreshFailed -> eventScope.launch {
                     if (snackbar.showSnackbar(refreshFailed, actionLabel = retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
@@ -127,6 +130,10 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
         onCloseSearch = viewModel::closeSearch,
         onToggleWrap = viewModel::toggleWrap,
         onOperate = viewModel::operate,
+        onUpload = viewModel::upload,
+        onCancelUpload = viewModel::cancelUpload,
+        uploadResult = uploadResult,
+        onUploadResultShown = { uploadResult = null },
         onRefreshOpened = viewModel::refreshOpened,
         onRefreshTree = viewModel::refreshTree,
     )
@@ -139,6 +146,7 @@ private fun android.content.Context.operationMessage(op: FileOp, result: FileOpR
         is FileOp.CreateFolder -> getString(R.string.files_op_created, op.name)
         is FileOp.Rename -> getString(R.string.files_op_renamed, op.newName)
         is FileOp.Delete -> getString(R.string.files_op_deleted, op.path.substringAfterLast('/'))
+        is FileOp.Place -> getString(R.string.files_op_created, op.name)
     }
     FileOpResult.AlreadyExists -> getString(R.string.files_name_error_exists)
     FileOpResult.OutsideRoot -> getString(R.string.files_op_outside)
@@ -179,6 +187,12 @@ internal fun FilesContent(
     wrap: Boolean = false,
     onToggleWrap: () -> Unit = {},
     onOperate: (FileOp) -> Unit = {},
+    /** 端末のファイルをフォルダにアップロードする。 */
+    onUpload: (String, List<jp.miyavi.android.clawdroid.core.data.UploadFile>) -> Unit = { _, _ -> },
+    onCancelUpload: () -> Unit = {},
+    /** 終わったアップロードの結果（帯で少しだけ出す）。 */
+    uploadResult: FilesEvent.Uploaded? = null,
+    onUploadResultShown: () -> Unit = {},
     /** タイトルバーのボタンで、開いているファイルを読み直す。 */
     onRefreshOpened: () -> Unit = {},
     /** 引き下げて、ツリーを読み直す。 */
@@ -208,6 +222,11 @@ internal fun FilesContent(
     // 編集中の入力欄は画面の上で持つ（記号の行と取り消しが同じ欄を触る）
     val editor = if (ready?.editing == true) rememberEditorState(ready, onEdit) else null
 
+    // アップロードはダイアログを出さず、端末のファイル選択を開く（複数可）
+    val pickFiles = rememberUploadLauncher(
+        existingNames = { parent -> state.tree.namesIn(parent) },
+        onUpload = onUpload,
+    )
     val tree: @Composable (PaddingValues) -> Unit = { padding ->
         RefreshBox(refreshing = state.treeRefreshing, onRefresh = onRefreshTree, topInset = padding.calculateTopPadding()) {
         FileTree(
@@ -221,7 +240,7 @@ internal fun FilesContent(
                 if (!entry.isDirectory && !twoPane) scope.launch { drawerState.close() }
             },
             onDownload = onDownloadEntry,
-            onAction = { treeAction = it },
+            onAction = { if (it is TreeAction.Upload) pickFiles(it.parent) else treeAction = it },
             onRetry = onRetry,
         )
         }
@@ -381,6 +400,7 @@ internal fun FilesContent(
     }
 
     androidx.compose.runtime.CompositionLocalProvider(jp.miyavi.android.clawdroid.feature.chat.message.LocalLinkActions provides linkActions) {
+    Box(Modifier.fillMaxSize()) {
         if (twoPane) {
             screen()
         } else {
@@ -400,15 +420,27 @@ internal fun FilesContent(
                 }
             }
         }
+        // アップロードの帯（ダウンロードの帯と同じ形。ツリーのパネルより上に重ねる）
+        UploadBanner(
+            status = state.upload,
+            result = uploadResult,
+            hazeState = hazeState,
+            onCancel = onCancelUpload,
+            onResultShown = onUploadResultShown,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+    }
     }
     ImageOverlay(overlayImage) { overlayImage = null }
 
     treeAction?.let { action ->
+        if (action is TreeAction.Upload) return@let
         val parent = when (action) {
             is TreeAction.NewFile -> action.parent
             is TreeAction.NewFolder -> action.parent
             is TreeAction.Rename -> action.entry.path.substringBeforeLast('/', "")
             is TreeAction.Delete -> action.entry.path.substringBeforeLast('/', "")
+            is TreeAction.Upload -> action.parent
         }
         // 保存していない変更のあるファイル（またはそれを含むフォルダ）の名前の変更・削除は、変更が失われることも示す
         val target = (action as? TreeAction.Rename)?.entry?.path ?: (action as? TreeAction.Delete)?.entry?.path

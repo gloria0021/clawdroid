@@ -42,6 +42,7 @@ internal fun FileOpDialog(action: TreeAction, siblings: List<String>, losesEdits
         is TreeAction.Rename -> NameDialog(R.string.files_rename, R.string.action_save, action.entry.name, siblings - action.entry.name, onDismiss, losesEdits) {
             if (it == action.entry.name) onDismiss() else onConfirm(FileOp.Rename(action.entry.path, it))
         }
+        is TreeAction.Upload -> Unit
         is TreeAction.Delete -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.files_delete_title, action.entry.name)) },

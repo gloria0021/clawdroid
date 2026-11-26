@@ -9,6 +9,11 @@ sealed interface FileOp {
     data class CreateFolder(val parent: String, val name: String) : FileOp
     data class Rename(val path: String, val newName: String) : FileOp
     data class Delete(val path: String, val isDirectory: Boolean) : FileOp
+    /**
+     * ホストの一時置き場（[staged]）にあるアップロードしたファイルを、[parent] に [name] で置く。
+     * [overwrite] なら同じ名前のファイルを置き換える（フォルダは置き換えない）。
+     */
+    data class Place(val parent: String, val name: String, val staged: String, val overwrite: Boolean) : FileOp
 }
 
 sealed interface FileOpResult {
@@ -53,8 +58,10 @@ fun fileOpCommand(op: FileOp, root: String, nonce: String): String {
         is FileOp.CreateFolder -> Triple("create-folder", op.parent.ifEmpty { "." }, op.name)
         is FileOp.Rename -> Triple("rename", op.path, op.newName)
         is FileOp.Delete -> Triple("delete", op.path, "")
+        is FileOp.Place -> Triple("place", op.parent.ifEmpty { "." }, op.name)
     }
-    val args = listOf(name, root, rel, arg).joinToString(" ", transform = ::shellQuote)
+    val extra = (op as? FileOp.Place)?.let { listOf(it.staged, if (it.overwrite) "overwrite" else "keep") }.orEmpty()
+    val args = (listOf(name, root, rel, arg) + extra).joinToString(" ", transform = ::shellQuote)
     // 先に履歴のファイルを外す（使い捨てのシェルの入力を、利用者のシェルの履歴に残さない）
     return "unset HISTFILE\rstty -echo; sh -c ${shellQuote(FILE_OP_SCRIPT)} clawdroid-op $args; printf '\\036%s:%s\\036\\n' ${shellQuote(nonce)} \"$?\"\r"
 }
@@ -113,6 +120,19 @@ case "${"$"}op" in
     { [ -e "${"$"}dir/${"$"}base" ] || [ -L "${"$"}dir/${"$"}base" ]; } || exit 5
     if [ -d "${"$"}dir/${"$"}base" ] && [ ! -L "${"$"}dir/${"$"}base" ]; then rm -rf -- "${"$"}dir/${"$"}base" || exit 1
     else rm -f -- "${"$"}dir/${"$"}base" || exit 1; fi ;;
+  place)
+    staged=${"$"}5 mode=${"$"}6
+    dir=${"$"}(cd -P -- "${"$"}rel" 2>/dev/null && pwd -P) || exit 5
+    inside "${"$"}dir" || exit 3
+    [ -f "${"$"}staged" ] || exit 5
+    target="${"$"}dir/${"$"}name"
+    if [ -e "${"$"}target" ] || [ -L "${"$"}target" ]; then
+      [ "${"$"}mode" = overwrite ] && [ -f "${"$"}target" ] && [ ! -L "${"$"}target" ] || exit 2
+    fi
+    tmp="${"$"}dir/.clawdroid-upload.${"$"}${"$"}"
+    cp -- "${"$"}staged" "${"$"}tmp" || { rm -f -- "${"$"}tmp"; exit 1; }
+    mv -f -- "${"$"}tmp" "${"$"}target" || { rm -f -- "${"$"}tmp"; exit 1; }
+    rm -f -- "${"$"}staged" ;;
   *) exit 64 ;;
 esac
 exit 0

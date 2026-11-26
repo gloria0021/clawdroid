@@ -58,6 +58,8 @@ internal sealed interface TreeAction {
     data class NewFolder(val parent: String) : TreeAction
     data class Rename(val entry: FileEntry) : TreeAction
     data class Delete(val entry: FileEntry) : TreeAction
+    /** [parent] に端末のファイルをアップロードする（複数を選べる）。 */
+    data class Upload(val parent: String) : TreeAction
 }
 
 /**
@@ -88,6 +90,7 @@ internal fun FileTree(
         item(key = "header", contentType = "header") {
             if (state.sessionRoot != null) RootSwitcher(state, onSelectRoot)
         }
+
         items(rows, key = { it.key }, contentType = { it::class }) { row ->
             val itemModifier = Modifier.animateItem(
                 fadeInSpec = motion.defaultEffectsSpec(),
@@ -145,6 +148,7 @@ private fun androidx.compose.foundation.lazy.LazyItemScope.BlankArea(onAction: (
         GlassDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             MenuRow(R.drawable.ic_huge_file_add, R.string.files_new_file) { menu = false; onAction(TreeAction.NewFile("")) }
             MenuRow(R.drawable.ic_huge_folder_add, R.string.files_new_folder) { menu = false; onAction(TreeAction.NewFolder("")) }
+            MenuRow(R.drawable.ic_huge_upload, R.string.files_upload) { menu = false; onAction(TreeAction.Upload("")) }
         }
     }
 }
@@ -218,6 +222,7 @@ private fun TreeItem(
                 val parent = if (entry.isDirectory) entry.path else entry.path.substringBeforeLast('/', "")
                 MenuRow(R.drawable.ic_huge_file_add, R.string.files_new_file) { menu = false; onAction(TreeAction.NewFile(parent)) }
                 MenuRow(R.drawable.ic_huge_folder_add, R.string.files_new_folder) { menu = false; onAction(TreeAction.NewFolder(parent)) }
+                MenuRow(R.drawable.ic_huge_upload, R.string.files_upload) { menu = false; onAction(TreeAction.Upload(parent)) }
             }
             if (!entry.isDirectory) MenuRow(R.drawable.ic_huge_download, R.string.files_download_cd) { menu = false; onDownload() }
             if (canModify) {

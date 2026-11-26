@@ -66,7 +66,7 @@ fun AgentFileScreen(viewModel: AgentFileViewModel, onBack: () -> Unit) {
                 // エージェントのファイルでは作成・削除をしない
                 is FilesEvent.Operated -> Unit
                 // 読み直しは、ファイルビューアだけ
-                is FilesEvent.RefreshFailed, is FilesEvent.Refreshed -> Unit
+                is FilesEvent.RefreshFailed, is FilesEvent.Refreshed, is FilesEvent.Uploaded -> Unit
             }
         }
     }
