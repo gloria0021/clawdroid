@@ -91,7 +91,6 @@
     <string name="approval_pending_banner">承認待ちが %1$d 件あります</string>
     <string name="approval_plugin_title">プラグイン操作の承認待ち</string>
     <string name="approval_title">承認が必要です</string>
-    <string name="automation_default_hint">空にすると既定に戻ります</string>
     <string name="automation_delete">削除</string>
     <string name="automation_delete_body">「%1$s」を削除します。実行履歴も見られなくなります。</string>
     <string name="automation_delete_title">この自動化を削除しますか？</string>
@@ -182,9 +181,16 @@
     <string name="chat_elapsed_minutes_seconds">%1$d分%2$d秒</string>
     <string name="chat_elapsed_seconds">%1$d秒</string>
     <string name="chat_empty_title">何をしましょうか</string>
+    <string name="chat_file_failed">保存できませんでした</string>
+    <string name="chat_file_kind">ファイル</string>
+    <string name="chat_file_open">開く</string>
+    <string name="chat_file_save_cd">ダウンロード</string>
+    <string name="chat_file_saved">保存しました</string>
     <string name="chat_image_cd">画像</string>
     <string name="chat_image_close_cd">画像を閉じる</string>
+    <string name="chat_image_failed">表示できません</string>
     <string name="chat_image_position">%1$d / %2$d</string>
+    <string name="chat_image_progress">%1$s / %2$s</string>
     <string name="chat_image_save_cd">画像を保存</string>
     <string name="chat_image_save_failed">保存できませんでした</string>
     <string name="chat_image_saved">「ダウンロード」に保存しました</string>
@@ -431,6 +437,9 @@
     <string name="files_open_download">Download を開く</string>
     <string name="files_open_failed">ファイルを開けませんでした</string>
     <string name="files_redo_cd">やり直し</string>
+    <string name="files_refresh_cd">読み直す</string>
+    <string name="files_refresh_failed">読み直せませんでした</string>
+    <string name="files_refreshed">更新しました</string>
     <string name="files_rename">名前を変更</string>
     <string name="files_root_session">作業フォルダ</string>
     <string name="files_root_workspace">ワークスペース</string>
@@ -448,6 +457,7 @@
     <string name="files_title">ファイル</string>
     <string name="files_tree_open_cd">ファイルのツリーを開く</string>
     <string name="files_truncated">項目が多いため、一部だけを表示しています</string>
+    <string name="files_unchanged">変更はありません</string>
     <string name="files_undo_cd">取り消し</string>
     <string name="files_unsupported">このファイルは表示できません</string>
     <string name="files_updated_hours_ago">%1$d時間前</string>
@@ -638,6 +648,8 @@
     <string name="settings_forget_confirm">接続先とトークンを端末から消して、接続画面に戻ります。</string>
     <string name="settings_glass_refraction">ガラスの屈折</string>
     <string name="settings_glass_refraction_desc">縁で背景をどれだけ曲げて見せるか</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_language_system">システム</string>
     <string name="settings_notify_approvals">承認待ち</string>
     <string name="settings_notify_automation">自動化の失敗</string>
     <string name="settings_notify_background">常時接続</string>

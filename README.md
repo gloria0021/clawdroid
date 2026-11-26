@@ -1,22 +1,35 @@
 # Clawdroid
 
-自分で運用している [OpenClaw](https://github.com/openclaw/openclaw) Gateway に接続して、AI エージェントとの会話・ファイル・ターミナル・自動化をスマホから操作する Android アプリです。OpenClaw の公式アプリではありません。
+English | [日本語](README.ja.md)
 
-An Android app for working with your AI agents — conversations, files, terminal, and automations — by connecting to an OpenClaw Gateway you run yourself. This is not an official OpenClaw app.
+An unofficial Android client for your [OpenClaw](https://github.com/openclaw/openclaw) Gateway, built to make AI coding with OpenClaw comfortable on a phone. The UI is designed around the file tree, file viewer, terminal, and easy parallel development with worktrees.
 
-## 必要なもの / Requirements
+Note: It is not meant to be a companion app that covers all of OpenClaw's management features.
 
-- Android 13 以上 / Android 13 or later
-- 自分の OpenClaw Gateway と、そこへ届く経路（同じネットワーク、Tailscale など）/ Your own OpenClaw Gateway, reachable over your local network, Tailscale, or similar
+## Supported versions
 
-## プライバシーポリシー / Privacy Policy
+- OpenClaw Gateway: 2026.11.6
+- Android 13 or later
 
-[プライバシーポリシー](docs/privacy-policy.md)（日本語 / English）
+## Features
 
-## ライセンス / License
+- Native app with Material 3 Expressive design
+- Connect to your Gateway (Tailscale recommended)
+- Quick access to each agent from the side panel
+- Agent settings
+- Session view
+- Session shortcuts on your home screen
+- File tree (date / size) and viewer (view / create / delete / edit)
+- Terminal
+- Parallel development button (create a worktree in one tap)
+- Notifications
+
+## Privacy Policy
+
+[Privacy Policy](docs/privacy-policy.md) (Japanese / English)
+
+## License
 
 [MIT License](LICENSE)
-
-同梱しているライブラリ・フォント・アイコンの許諾は、アプリの「設定 → 情報 → オープンソースのライセンス」で読めます。`reference/openclaw/` は [OpenClaw](https://github.com/openclaw/openclaw)（MIT License）のソースと資料の写しで、OpenClaw の許諾（`reference/openclaw/LICENSE`）に従います。
 
 Licenses of the bundled libraries, fonts, and icons are available in the app under Settings → About → Open source licenses. `reference/openclaw/` is a copy of source and documentation from [OpenClaw](https://github.com/openclaw/openclaw), covered by its own MIT License (`reference/openclaw/LICENSE`).

@@ -15,6 +15,7 @@ import jp.miyavi.android.clawdroid.core.database.FileDraftEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -254,5 +255,78 @@ class FilesViewModelTest {
         files.failList = false
         vm.retry()
         waitFor { vm.rootListing is ListingState.Loaded }
+    }
+
+    private fun FilesViewModel.collectEvents(): MutableList<FilesEvent> {
+        val events = mutableListOf<FilesEvent>()
+        kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined).launch { this@collectEvents.events.collect { events += it } }
+        return events
+    }
+
+    @Test fun refresh_replacesChangedFile_inPlace_andKeepsTheView() {
+        val vm = viewModel()
+        val events = vm.collectEvents()
+        vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
+        waitFor { vm.state.value.opened is OpenedState.Ready }
+        vm.openSearch()
+        files.content = "val y = 2"
+        files.hash = "h9"
+        vm.refreshOpened()
+        // 読み直すあいだも読み込み中に替えず、今の中身を出したまま
+        waitFor { (vm.state.value.opened as? OpenedState.Ready)?.file?.text == "val y = 2" }
+        val ready = vm.state.value.opened as OpenedState.Ready
+        assertFalse(ready.refreshing)
+        assertEquals("h9", ready.file.hash)
+        assertTrue(ready.search != null)
+        // 変わっていたことを Snackbar で知らせる
+        waitFor { events.isNotEmpty() }
+        assertEquals(listOf<FilesEvent>(FilesEvent.Refreshed(changed = true)), events)
+    }
+
+    @Test fun refresh_tellsWhenNothingChanged() {
+        val vm = viewModel()
+        val events = vm.collectEvents()
+        vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
+        waitFor { vm.state.value.opened is OpenedState.Ready }
+        vm.refreshOpened()
+        waitFor { events.isNotEmpty() }
+        assertEquals(listOf<FilesEvent>(FilesEvent.Refreshed(changed = false)), events)
+    }
+
+    @Test fun unreadableFile_changesBySizeOrTime() {
+        val apk = OpenedFile(session, "a.apk", "a.apk", 10, "application/vnd.android.package-archive", PreviewKind.UNSUPPORTED, null, null, null, null, updatedAt = 1)
+        assertFalse(apk.differsFrom(apk.copy()))
+        assertTrue(apk.differsFrom(apk.copy(size = 11)))
+        assertTrue(apk.differsFrom(apk.copy(updatedAt = 2)))
+        // ハッシュがあれば、そちらを優先する
+        assertFalse(apk.copy(hash = "h").differsFrom(apk.copy(hash = "h", updatedAt = 2)))
+        assertTrue(apk.copy(hash = "h").differsFrom(apk.copy(hash = "g")))
+    }
+
+    @Test fun refresh_doesNothingWhileEditing() {
+        val vm = viewModel()
+        vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
+        waitFor { vm.state.value.opened is OpenedState.Ready }
+        vm.startEditing()
+        vm.edit("draft", 5)
+        files.content = "changed outside"
+        vm.refreshOpened()
+        val ready = vm.state.value.opened as OpenedState.Ready
+        assertFalse(ready.refreshing)
+        assertEquals("draft", ready.editText)
+        assertEquals("val x = 1", ready.file.text)
+    }
+
+    @Test fun refreshTree_keepsTheOldListing_whenItFails() {
+        val vm = viewModel()
+        waitFor { vm.rootListing is ListingState.Loaded }
+        files.failList = true
+        vm.refreshTree()
+        waitFor { !vm.state.value.treeRefreshing }
+        assertTrue(vm.rootListing is ListingState.Loaded)
+        files.failList = false
+        vm.refreshTree()
+        waitFor { !vm.state.value.treeRefreshing }
+        assertTrue(vm.rootListing is ListingState.Loaded)
     }
 }

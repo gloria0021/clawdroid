@@ -41,6 +41,8 @@ object Dimens {
     val avatar = 24.dp
     /** キャラクターの大きいアイコン（avatar の 2 倍）。サイドパネルのタブと会話の応答で使う。 */
     val avatarLarge = 48.dp
+    /** 細い線（作業中の顔を囲むアメーバの外周の枠）。 */
+    val hairline = 1.dp
     /** M3 の一覧の先頭の丸（40dp）。 */
     val listLeading = 40.dp
     /** 応答の下の操作（返信・コピー）の小さめのアイコン。 */

@@ -491,4 +491,4 @@ private fun thinkingOptions(state: AgentSettingsUiState): List<AgentChoice>? {
 }
 
 /** 段階が取れないときの並び（設定の決まり `agents.entries.*.thinkingDefault` の値）。 */
-private val THINKING_FALLBACK = listOf("off", "minimal", "low", "medium", "high")
+internal val THINKING_FALLBACK = listOf("off", "minimal", "low", "medium", "high")

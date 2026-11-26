@@ -19,6 +19,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
@@ -137,10 +138,17 @@ fun ComposerSessionSheet(
         opened = true
     }
     suspend fun awaitOpened() = snapshotFlow { opened }.first { it }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val providers by produceState(cache.providers) {
-        val loaded = loadUsage()
-        awaitOpened()
-        value = loaded
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            kotlinx.coroutines.coroutineScope {
+                launch { cache.providers = loadUsage() }
+                cache.providerUpdates.collect { loaded ->
+                    awaitOpened()
+                    value = loaded
+                }
+            }
+        }
     }
     val breakdown by produceState(cache.breakdown(session?.key)) {
         val loaded = loadContext()
@@ -149,7 +157,6 @@ fun ComposerSessionSheet(
     }
     // Gateway のホストのメモリとディスク。シートが前に出ているあいだだけ数秒おきに取り直す（モデルのトークンは使わない）。
     // 最初に取れなければ（古い Gateway など）出さない
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val host by produceState<HostLoad>(cache.host?.let(HostLoad::Ready) ?: HostLoad.Loading) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {

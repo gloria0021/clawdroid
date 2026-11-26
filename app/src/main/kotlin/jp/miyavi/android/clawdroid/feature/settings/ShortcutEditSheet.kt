@@ -48,7 +48,7 @@ import dev.chrisbanes.haze.HazeState
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.SessionListState
-import jp.miyavi.android.clawdroid.core.designsystem.AnimatedSegmentedRow
+import jp.miyavi.android.clawdroid.core.designsystem.ConnectedChoiceRow
 import jp.miyavi.android.clawdroid.core.designsystem.AppBottomSheet
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
@@ -151,10 +151,9 @@ internal fun ShortcutEditSheet(
                 }
             }
             FieldLabel(R.string.shortcut_field_destination)
-            AnimatedSegmentedRow(
+            ConnectedChoiceRow(
                 DestinationKind.entries, kind, { kind = it },
                 Modifier.fillMaxWidth().padding(horizontal = Spacing.l),
-                contentPadding = PaddingValues(horizontal = Spacing.xs),
             ) {
                 stringResource(
                     when (it) {

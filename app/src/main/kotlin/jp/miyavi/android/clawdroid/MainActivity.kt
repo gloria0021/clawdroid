@@ -5,12 +5,16 @@ import android.view.View
 import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.miyavi.android.clawdroid.core.designsystem.ClawdroidTheme
+import jp.miyavi.android.clawdroid.core.designsystem.isDark
 import jp.miyavi.android.clawdroid.core.designsystem.playSplashReveal
 import jp.miyavi.android.clawdroid.core.notify.OpenIntents
 import jp.miyavi.android.clawdroid.navigation.AppNavigation
@@ -55,6 +59,14 @@ class MainActivity : ComponentActivity() {
             val theme by container.settings.theme.collectAsStateWithLifecycle(initialValue = null)
             val ready = theme ?: return@setContent
             SideEffect { firstThemeDrawn = true }
+            // ステータスバーとナビゲーションバーのアイコンの明暗は、端末ではなくアプリの外観の設定に合わせる
+            // （既定の enableEdgeToEdge() は端末のダークモードに従うため、ライトの外観でも白いアイコンになっていた）
+            val dark = ready.appearance.isDark(isSystemInDarkTheme())
+            DisposableEffect(dark) {
+                val style = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose {}
+            }
             ClawdroidTheme(ready) {
                 AppNavigation(container)
             }

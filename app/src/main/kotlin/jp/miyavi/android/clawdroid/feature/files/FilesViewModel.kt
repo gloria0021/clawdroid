@@ -60,6 +60,8 @@ sealed interface OpenedState {
         val showCode: Boolean = preview == null,
         /** ファイル内の検索（null なら閉じている）。 */
         val search: FileSearch? = null,
+        /** 引き下げて読み直している（表示はそのまま、終わったら中身だけ入れ替える）。 */
+        val refreshing: Boolean = false,
     ) : OpenedState {
         override val path: String get() = file.path
         val editing: Boolean get() = editText != null
@@ -83,6 +85,8 @@ data class FilesUiState(
     val canModify: Boolean = false,
     /** 操作の途中のパス（その行に進み具合を出す）。 */
     val pendingOp: String? = null,
+    /** ツリーを引き下げて読み直している。 */
+    val treeRefreshing: Boolean = false,
 ) {
     /** 画面の中だけで済む「戻る」（確認・検索・編集）があるか。 */
     val handlesBackInPage: Boolean
@@ -95,6 +99,10 @@ sealed interface FilesEvent {
     data object Saved : FilesEvent
     data class SaveFailed(val message: String?) : FilesEvent
     data object FileGone : FilesEvent
+    /** 読み直しに失敗した（表示は前のまま）。[tree] ならツリー（引き下げ）、そうでなければ開いたファイル（読み直すボタン）。 */
+    data class RefreshFailed(val tree: Boolean) : FilesEvent
+    /** 開いたファイルを読み直せた。[changed] なら中身が変わっていた。 */
+    data class Refreshed(val changed: Boolean) : FilesEvent
     /** ファイルの操作の結果（spec 005 FR-067）。 */
     data class Operated(val op: FileOp, val result: FileOpResult) : FilesEvent
 }
@@ -152,6 +160,8 @@ class FilesViewModel(
     val events: SharedFlow<FilesEvent> = _events.asSharedFlow()
 
     private val listJobs = mutableMapOf<String, Job>()
+    /** 引き下げての読み直しで読めなかったフォルダ（前の一覧を残したもの）。 */
+    private val refreshFailures = mutableSetOf<String>()
 
     /** 開いたファイルの状態の移り変わり（004 と共有）。状態は [_state] の `opened` に同期して書く。 */
     private val opened = OpenedFileController(
@@ -204,6 +214,28 @@ class FilesViewModel(
         _state.value.tree.needsLoad().forEach(::load)
     }
 
+    /** 開いているファイルを読み直す（引き下げ。編集中は何もしない）。 */
+    fun refreshOpened() = opened.refresh()
+
+    /**
+     * ツリーを読み直す（引き下げ）。開いているフォルダは前の一覧を出したまま取り直し、
+     * 閉じているフォルダの覚えていた中身は捨てる（次に開いたときに読む）。
+     */
+    fun refreshTree() {
+        if (_state.value.treeRefreshing) return
+        val paths = listOf("") + _state.value.tree.expanded
+        _state.update { s -> s.copy(treeRefreshing = true, tree = s.tree.copy(children = s.tree.children.filterKeys { it in paths })) }
+        val jobs = paths.map { load(it, quiet = true) }
+        viewModelScope.launch {
+            jobs.forEach { it.join() }
+            _state.update { it.copy(treeRefreshing = false) }
+            // 読めなかったフォルダがあれば知らせる（前の一覧は残している。途中で取り消したときは黙る）
+            val failed = refreshFailures.isNotEmpty() && jobs.none { it.isCancelled }
+            refreshFailures.clear()
+            if (failed) _events.tryEmit(FilesEvent.RefreshFailed(tree = true))
+        }
+    }
+
     /** 戻る操作。true なら処理した（false なら画面を閉じてよい）。 */
     fun back(): Boolean {
         val s = _state.value
@@ -231,15 +263,21 @@ class FilesViewModel(
         store(KEY_OPENED, null)
     }
 
-    /** フォルダの中身を読む（読み込み中に同じフォルダを頼まれたら、前のものをやめて読み直す）。 */
-    private fun load(path: String) {
+    /**
+     * フォルダの中身を読む（読み込み中に同じフォルダを頼まれたら、前のものをやめて読み直す）。
+     * [quiet] なら読み込み中の行に替えず前の一覧を出したままにし、失敗しても前の一覧を残す（引き下げての読み直し）。
+     */
+    private fun load(path: String, quiet: Boolean = false): Job {
         listJobs.remove(path)?.cancel()
         val root = _state.value.root
-        _state.update { it.copy(tree = it.tree.loading(path)) }
-        listJobs[path] = viewModelScope.launch {
+        val keep = quiet && _state.value.tree.children[path] is ListingState.Loaded
+        if (!keep) _state.update { it.copy(tree = it.tree.loading(path)) }
+        val job = viewModelScope.launch {
             val result = runCatchingNonCancel { files.list(root, path) }
+            if (result == null && keep) refreshFailures += path
             _state.update { current ->
                 if (current.root != root) current
+                else if (result == null && keep) current
                 else current.copy(
                     tree = current.tree.loaded(path, result?.let(ListingState::Loaded) ?: ListingState.Failed),
                     rootPath = if (path.isEmpty()) result?.root ?: current.rootPath else current.rootPath,
@@ -247,6 +285,8 @@ class FilesViewModel(
             }
             if (path.isEmpty()) updateCanModify()
         }
+        listJobs[path] = job
+        return job
     }
 
     private fun store(key: String, value: Any?) {

@@ -47,7 +47,20 @@ class AppContainer(app: Application) {
     val database = ClawdroidDatabase.create(app)
     val sessions = SessionsRepository(gateway, appScope)
     val chats = ChatRepository(gateway, appScope)
+    val claudeUsage = jp.miyavi.android.clawdroid.core.data.ClaudeCliUsageRepository(
+        jp.miyavi.android.clawdroid.core.data.TerminalRepository(
+            gateway,
+            jp.miyavi.android.clawdroid.core.data.SharedPreferencesTerminalIdStore(
+                app.getSharedPreferences("terminal_ids", Application.MODE_PRIVATE),
+            ),
+        ),
+        secrets,
+    )
     val inboundImages = jp.miyavi.android.clawdroid.core.data.InboundImageLoader(gateway)
+    /** 会話のリンクのタイトルとファビコン（端末から読む）。 */
+    val linkPreviews = jp.miyavi.android.clawdroid.core.data.LinkPreviewLoader(httpClient)
+    /** 会話の添付ファイルを保存した先（「開く」を出し続けるため）。 */
+    val savedFiles = jp.miyavi.android.clawdroid.core.data.SavedFileStore(app.getSharedPreferences("saved_files", Application.MODE_PRIVATE))
     val gatewayControl = GatewayControlRepository(gateway)
     internal val approvals = jp.miyavi.android.clawdroid.core.data.ApprovalsRepository(gateway, appScope)
     internal val questions = jp.miyavi.android.clawdroid.core.data.QuestionsRepository(gateway, appScope)

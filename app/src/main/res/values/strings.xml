@@ -223,6 +223,13 @@
     <string name="chat_tool_failed">失敗</string>
     <string name="chat_tool_expand_label">ツールの実行を開く</string>
     <string name="chat_image_cd">画像</string>
+    <string name="chat_image_progress">%1$s / %2$s</string>
+    <string name="chat_image_failed">表示できません</string>
+    <string name="chat_file_open">開く</string>
+    <string name="chat_file_save_cd">ダウンロード</string>
+    <string name="chat_file_saved">保存しました</string>
+    <string name="chat_file_failed">保存できませんでした</string>
+    <string name="chat_file_kind">ファイル</string>
     <string name="chat_image_close_cd">画像を閉じる</string>
     <string name="chat_image_position">%1$d / %2$d</string>
     <string name="chat_image_save_cd">画像を保存</string>
@@ -367,7 +374,6 @@
     <string name="automation_notify_desc">実行が終わったら、結果を会話に届けます</string>
     <string name="automation_edit_cd">編集</string>
     <string name="automation_timeout_hint">空にすると既定の時間</string>
-    <string name="automation_default_hint">空にすると既定に戻ります</string>
     <string name="automation_run_no_output">出力はありません</string>
     <string name="preset_daily">毎日</string>
     <string name="preset_weekdays">平日</string>
@@ -537,6 +543,8 @@
     <string name="panel_archived">アーカイブ済み</string>
     <string name="settings_glass_refraction">ガラスの屈折</string>
     <string name="settings_glass_refraction_desc">縁で背景をどれだけ曲げて見せるか</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_language_system">システム</string>
     <string name="settings_blur_strength">ぼかしの強さ</string>
     <string name="settings_blur_strength_desc">浮いている面の後ろをどれだけぼかすか</string>
     <string name="session_menu_delete">削除</string>
@@ -597,6 +605,10 @@
     <string name="files_conflict_body">開いたあとに、このファイルが Gateway 側で変更されました。どうしますか？</string>
     <string name="files_conflict_overwrite">上書きする</string>
     <string name="files_conflict_reload">変更を捨てて読み直す</string>
+    <string name="files_refresh_failed">読み直せませんでした</string>
+    <string name="files_refresh_cd">読み直す</string>
+    <string name="files_refreshed">更新しました</string>
+    <string name="files_unchanged">変更はありません</string>
     <string name="files_discard_title">変更を捨てますか？</string>
     <string name="files_discard_body">保存していない変更は失われます。</string>
     <string name="files_discard_confirm">捨てる</string>

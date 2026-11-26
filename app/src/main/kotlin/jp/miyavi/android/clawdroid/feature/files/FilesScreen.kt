@@ -25,6 +25,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,14 +71,19 @@ import kotlinx.coroutines.launch
 
 /** ファイルビューアの ViewModel をつなぐ部分（spec 002・005）。 */
 @Composable
-fun FilesScreen(viewModel: FilesViewModel, onSwitchToTerminal: (() -> Unit)? = null, onBack: () -> Unit) {
+fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wrap by viewModel.wrap.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val saved = stringResource(R.string.files_saved)
     val saveFailed = stringResource(R.string.files_save_failed)
     val gone = stringResource(R.string.files_gone)
+    val refreshFailed = stringResource(R.string.files_refresh_failed)
+    val refreshed = stringResource(R.string.files_refreshed)
+    val unchanged = stringResource(R.string.files_unchanged)
+    val retry = stringResource(R.string.action_retry)
     val context = androidx.compose.ui.platform.LocalContext.current
+    val eventScope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -85,6 +91,14 @@ fun FilesScreen(viewModel: FilesViewModel, onSwitchToTerminal: (() -> Unit)? = n
                 is FilesEvent.SaveFailed -> snackbar.showSnackbar(event.message?.let { "$saveFailed: $it" } ?: saveFailed)
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
                 is FilesEvent.Operated -> snackbar.showSnackbar(context.operationMessage(event.op, event.result))
+                // 読み直した結果（中身が同じだと表示が変わらず、効いたか分からないため）
+                is FilesEvent.Refreshed -> snackbar.showSnackbar(if (event.changed) refreshed else unchanged)
+                // 次のお知らせを止めないよう、再試行の返事は別に待つ
+                is FilesEvent.RefreshFailed -> eventScope.launch {
+                    if (snackbar.showSnackbar(refreshFailed, actionLabel = retry, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
+                        if (event.tree) viewModel.refreshTree() else viewModel.refreshOpened()
+                    }
+                }
             }
         }
     }
@@ -113,7 +127,8 @@ fun FilesScreen(viewModel: FilesViewModel, onSwitchToTerminal: (() -> Unit)? = n
         onCloseSearch = viewModel::closeSearch,
         onToggleWrap = viewModel::toggleWrap,
         onOperate = viewModel::operate,
-        onSwitchToTerminal = onSwitchToTerminal,
+        onRefreshOpened = viewModel::refreshOpened,
+        onRefreshTree = viewModel::refreshTree,
     )
 }
 
@@ -164,8 +179,10 @@ internal fun FilesContent(
     wrap: Boolean = false,
     onToggleWrap: () -> Unit = {},
     onOperate: (FileOp) -> Unit = {},
-    /** パネルの中ではターミナルへの切り替え（編集中は出さない。TopAppBar のアイコンは 2 つまで）。 */
-    onSwitchToTerminal: (() -> Unit)? = null,
+    /** タイトルバーのボタンで、開いているファイルを読み直す。 */
+    onRefreshOpened: () -> Unit = {},
+    /** 引き下げて、ツリーを読み直す。 */
+    onRefreshTree: () -> Unit = {},
 ) {
     val hazeState = rememberHazeState()
     val htmlFind = remember { HtmlFindState() }
@@ -192,6 +209,7 @@ internal fun FilesContent(
     val editor = if (ready?.editing == true) rememberEditorState(ready, onEdit) else null
 
     val tree: @Composable (PaddingValues) -> Unit = { padding ->
+        RefreshBox(refreshing = state.treeRefreshing, onRefresh = onRefreshTree, topInset = padding.calculateTopPadding()) {
         FileTree(
             state = state,
             listState = treeListState,
@@ -206,6 +224,7 @@ internal fun FilesContent(
             onAction = { treeAction = it },
             onRetry = onRetry,
         )
+        }
     }
 
     val screen: @Composable () -> Unit = {
@@ -250,7 +269,8 @@ internal fun FilesContent(
                         }
                     },
                     actions = {
-                        // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: 保存（編集中）とダウンロード
+                        // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: 保存（編集中）とダウンロード、読むときはダウンロードと読み直し。
+                        // 読み直しは引き下げではなくボタン（スクロールしない APK などでも効かせる。マスター指定 2026-11-26）
                         if (ready != null) {
                             if (ready.editing) {
                                 IconButton(onClick = onSave, enabled = ready.dirty && !ready.saving) {
@@ -258,9 +278,11 @@ internal fun FilesContent(
                                 }
                             }
                             IconButton(onClick = onDownload) { Icon(painterResource(R.drawable.ic_huge_download), stringResource(R.string.files_download_cd)) }
-                        }
-                        if (onSwitchToTerminal != null && ready?.editing != true) {
-                            IconButton(onClick = onSwitchToTerminal) { Icon(painterResource(R.drawable.ic_huge_terminal), stringResource(R.string.menu_terminal)) }
+                            if (!ready.editing) {
+                                IconButton(onClick = onRefreshOpened, enabled = !ready.refreshing) {
+                                    Icon(painterResource(R.drawable.ic_huge_refresh), stringResource(R.string.files_refresh_cd))
+                                }
+                            }
                         }
                     },
                 )
@@ -474,6 +496,35 @@ internal fun FilePage(
             )
         }
     }
+}
+
+/**
+ * 引き下げて読み直す枠（ツリーだけ。M3 の PullToRefreshBox。印は Expressive の LoadingIndicator）。
+ * 中身はタイトルバーの下まで敷いているので、印はタイトルバーの下から出す。影は付けない（AGENTS.md 2.5）。
+ */
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RefreshBox(
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    topInset: androidx.compose.ui.unit.Dp,
+    content: @Composable () -> Unit,
+) {
+    val state = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.LoadingIndicator(
+                state = state,
+                isRefreshing = refreshing,
+                elevation = 0.dp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = topInset),
+            )
+        },
+    ) { content() }
 }
 
 /** [key] が変わったら、新しい中身だけを不透明度 0 から出す（古い中身と同時に組み立てない）。 */

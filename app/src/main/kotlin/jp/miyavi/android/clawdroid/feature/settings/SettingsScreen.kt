@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,7 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.clawdroid.R
-import jp.miyavi.android.clawdroid.core.designsystem.AnimatedSegmentedRow
+import jp.miyavi.android.clawdroid.core.designsystem.ConnectedChoiceRow
 import jp.miyavi.android.clawdroid.core.designsystem.AppTitleBar
 import jp.miyavi.android.clawdroid.core.designsystem.DefaultCustomSeed
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
@@ -87,6 +86,10 @@ data class SettingsState(
     val notifications: jp.miyavi.android.clawdroid.core.settings.NotificationSettings? = null,
     /** ランチャーのショートカットの数（spec 007）。 */
     val shortcuts: Int = 0,
+    /** 選べる言語のタグ（アプリ単位の言語）。 */
+    val languages: List<String> = emptyList(),
+    /** 選んでいる言語のタグ。null なら端末の言語。 */
+    val language: String? = null,
 )
 
 data class SettingsActions(
@@ -108,6 +111,8 @@ data class SettingsActions(
     val openNotificationSettings: () -> Unit = {},
     val openShortcuts: () -> Unit = {},
     val openLicenses: () -> Unit = {},
+    /** 言語を切り替える（null なら端末の言語）。 */
+    val setLanguage: (String?) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -178,12 +183,20 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                 // 表示
                 item(key = "display") {
                     Section(R.string.settings_section_appearance) {
+                        // アプリ単位の言語。節の先頭（既定は端末の言語。マスター指定 2026-11-26）
+                        if (state.languages.isNotEmpty()) {
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_language)) },
+                                supportingContent = { Text(languageLabel(state.language)) },
+                                colors = transparentItem(),
+                                modifier = Modifier.clickable(role = Role.Button) { dialog = "language" },
+                            )
+                        }
                         Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s)) {
                             Text(stringResource(R.string.settings_appearance_label), style = MaterialTheme.typography.bodyLarge)
-                            AnimatedSegmentedRow(
+                            ConnectedChoiceRow(
                                 Appearance.entries, state.theme.appearance, actions.setAppearance,
                                 Modifier.fillMaxWidth().padding(top = Spacing.s),
-                                contentPadding = PaddingValues(horizontal = Spacing.xs),
                             ) { stringResource(appearanceLabel(it)) }
                         }
                         ChoiceItem(
@@ -210,10 +223,9 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                         FontSizeSlider(state.theme.fontSizeSp, actions.setFontSize)
                         Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s)) {
                             Text(stringResource(R.string.settings_surface_style), style = MaterialTheme.typography.bodyLarge)
-                            AnimatedSegmentedRow(
+                            ConnectedChoiceRow(
                                 SurfaceStyle.entries, state.theme.surfaceStyle, actions.setSurfaceStyle,
                                 Modifier.fillMaxWidth().padding(top = Spacing.s),
-                                contentPadding = PaddingValues(horizontal = Spacing.xs),
                             ) { stringResource(if (it == SurfaceStyle.GLASS) R.string.settings_surface_glass else R.string.settings_surface_blur) }
                         }
                         // 選んでいる透過効果の強さ（10 段階。Gerbil と同じ）
@@ -320,6 +332,16 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
             dialog = if (theme == AppTheme.CUSTOM && state.theme.customSeedArgb == null) "custom" else null
             if (theme != AppTheme.CUSTOM || state.theme.customSeedArgb != null) actions.setTheme(theme)
         }
+        "language" -> ChoiceDialog(
+            title = stringResource(R.string.settings_language),
+            options = listOf<String?>(null) + state.languages,
+            selected = state.language?.takeIf { it in state.languages },
+            label = { languageLabel(it) },
+            onDismiss = { dialog = null },
+        ) { tag ->
+            dialog = null
+            if (tag != state.language) actions.setLanguage(tag)
+        }
         "font" -> ChoiceDialog(
             title = stringResource(R.string.settings_font),
             options = AppFont.entries,
@@ -399,6 +421,11 @@ private fun <T> ChoiceDialog(
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
     )
 }
+
+@Composable
+private fun languageLabel(tag: String?): String =
+    tag?.let { remember(it) { jp.miyavi.android.clawdroid.core.settings.AppLanguage.displayName(it) } }
+        ?: stringResource(R.string.settings_language_system)
 
 private fun fontLabel(font: AppFont) = when (font) {
     AppFont.LINE_SEED_JP -> R.string.settings_font_line_seed_jp

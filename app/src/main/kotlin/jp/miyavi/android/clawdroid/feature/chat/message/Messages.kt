@@ -90,6 +90,9 @@ fun UserMessage(
         val images = remember(message.parts) { message.parts.filterIsInstance<MessagePart.Image>() }
         // 画像は 1 行にまとめる（複数なら横にスクロール。マスター指定 2026-11-24）。画像と本文のあいだは 12dp
         if (images.isNotEmpty()) MessageImages(images, onOpenImage, alignEnd = true, modifier = Modifier.padding(bottom = Spacing.m))
+        // 画像でない添付ファイルも、本文の上に出す（Web 版と同じ。マスター指定 2026-11-26）
+        val files = remember(message.parts) { message.parts.filterIsInstance<MessagePart.File>() }
+        files.forEach { FileAttachment(it, Modifier.padding(bottom = Spacing.s)) }
         message.parts.filterIsInstance<MessagePart.Video>().forEach { MessageVideo(it.url, onOpenVideo) }
         val text = message.text
         if (text.isNotBlank()) {
@@ -104,7 +107,8 @@ fun UserMessage(
                 ) {
                     // Markdown の部品は横幅いっぱいに広がるので、利用者の文は素の文字で描く
                     SelectionContainer {
-                        Text(text, style = bodyTextStyle(), modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s))
+                        // リンクはファビコン＋ページのタイトル＋下の点線で出す（マスター指定 2026-11-26）
+                        LinkText(text, style = bodyTextStyle(), modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.s))
                     }
                 }
             }
@@ -181,6 +185,7 @@ fun AssistantMessage(
                 is PartBlock.Single -> when (val part = block.part) {
                     is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
                     is MessagePart.Video -> MessageVideo(part.url, onOpenVideo)
+                    is MessagePart.File -> FileAttachment(part)
                     is MessagePart.Image, is MessagePart.ToolCall -> Unit
                 }
             }
@@ -568,7 +573,7 @@ private fun MessageThumbnail(image: MessagePart.Image, onOpen: () -> Unit) {
     val url = remember(image.url) { image.url?.let(::webUri) }
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
-        isInboundMediaUrl(image.url) -> Box(thumbModifier)
+        isInboundMediaUrl(image.url) -> MediaLoadingBadge(image.url, thumbModifier)
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
         else -> Box(thumbModifier)
     }
@@ -594,7 +599,7 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
     val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
-        isInboundMediaUrl(image.url) -> Box(imageModifier.size(Dimens.imagePlaceholder))
+        isInboundMediaUrl(image.url) -> MediaLoadingBadge(image.url, imageModifier.size(Dimens.imagePlaceholder))
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
     }
 }

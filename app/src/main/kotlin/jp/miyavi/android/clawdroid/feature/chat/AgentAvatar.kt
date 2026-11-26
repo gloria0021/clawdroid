@@ -8,21 +8,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.height
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,69 +43,113 @@ import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
-import jp.miyavi.android.clawdroid.core.designsystem.accentContainer
 import jp.miyavi.android.clawdroid.feature.chat.message.webUri
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private const val FullTurn = 2 * PI
-private const val WaveSamples = 96
-private const val WaveTurnsPerLoop = 3
-/** 波の角（山）の数。 */
-private const val WaveCrests = 5
-/** 角が 1 周のあいだに進む位相（整数で繰り返しをつなぐ。角 8・位相 23 のときとほぼ同じ回転の速さ）。 */
-private const val WaveCrestPhase = 14
-private const val MillisPerSecond = 1_000
+/** アメーバの寸法（デザインの引き継ぎ資料の SVG 基準。顔の半径 72 に対する値）。 */
+private const val AmoebaFaceRadius = 72f
+private const val AmoebaThickness = 11f
+private const val AmoebaAmplitude = 8f
+private const val AmoebaSpeed = 0.9f
+/** 外周の枠の半径（72 + 11 + 8 × 1.1 + 1）。この円が [AgentAvatar] の箱に収まるように縮尺する。 */
+private const val AmoebaFrameRadius = AmoebaFaceRadius + AmoebaThickness + AmoebaAmplitude * 1.1f + 1f
+/** 輪郭の点の数（三次ベジェでつなぐ）。 */
+private const val AmoebaSamples = 72
+private const val AmoebaFrameStrokeAlpha = 0.18f
+private const val AmoebaFrameFillAlpha = 0.045f
+private const val NanosPerSecond = 1_000_000_000f
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/**
+ * エージェントの顔。[busy] のあいだは、顔と外周の枠のすきまをテーマの強い色（送信ボタンと同じ primary）の
+ * アメーバが囲み、輪郭がゆっくりうねる（デザインの引き継ぎ資料「Amoeba Avatar Progress」の 100% の状態。マスター指定 2026-11-26）。
+ * 枠は動かさない。端末の「アニメーションを削除」では止めた形で出す。
+ */
 @Composable
-internal fun AgentAvatar(agent: Agent?, label: String? = null, size: Dp = Dimens.avatar, busy: Boolean = false) {
-    val waveInset = Spacing.xs
+internal fun AgentAvatar(
+    agent: Agent?,
+    label: String? = null,
+    size: Dp = Dimens.avatar,
+    busy: Boolean = false,
+    /**
+     * アメーバを箱の外に描き、顔は [size] のまま縮めない（周りに余白のある所。サイドパネルのタブ。マスター指定 2026-11-26）。
+     * false なら箱の中に収め、そのぶん顔を縮める。
+     */
+    ringOutside: Boolean = false,
+) {
+    val faceSize by animateDpAsState(
+        if (busy && !ringOutside) size * (AmoebaFaceRadius / AmoebaFrameRadius) else size,
+        MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "avatarFaceSize",
+    )
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (busy) {
-            val wavelength = WavyProgressIndicatorDefaults.CircularWavelength
-            val loopMillis = (PI * size.value / wavelength.value * MillisPerSecond * WaveTurnsPerLoop)
-                .roundToInt().coerceAtLeast(1)
-            val cycle = rememberInfiniteTransition(label = "avatarWave").animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(tween(loopMillis, easing = LinearEasing)),
-                label = "clockwiseWaveCycle",
-            )
-            val waveColor = accentContainer().container
-            Box(Modifier.matchParentSize().drawWithCache {
-                val path = Path()
-                // Let the tallest crests extend beyond the layout box while the image stays put.
-                val crestRoom = Spacing.s.toPx()
-                val imageRadius = this.size.minDimension / 2f - waveInset.toPx()
-                onDrawBehind {
-                    val phase = FullTurn * cycle.value
-                    path.rewind()
-                    for (sample in 0 until WaveSamples) {
-                        val angle = FullTurn * sample / WaveSamples
-                        // Unequal clockwise speeds let crests overtake and merge rather than
-                        // spinning a fixed silhouette. Integer phases keep the loop seamless.
-                        val waterline = 0.45 +
-                            0.16 * cos(angle - WaveTurnsPerLoop * phase) +
-                            0.12 * cos(2 * angle - 5 * phase) +
-                            0.05 * cos(3 * angle - 10 * phase + PI / 3) +
-                            (0.15 + 0.04 * cos(angle - 2 * phase)) * cos(WaveCrests * angle - WaveCrestPhase * phase)
-                        // Keep even the deepest trough visible so the wave remains continuous.
-                        val waveHeight = 0.06 + 0.94 * waterline.coerceIn(0.0, 1.0)
-                        val radius = imageRadius + crestRoom * waveHeight.toFloat()
-                        val x = center.x + radius * cos(angle).toFloat()
-                        val y = center.y + radius * sin(angle).toFloat()
-                        if (sample == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                    }
-                    path.close()
-                    drawPath(path, waveColor)
-                }
-            })
+            // 外に描くときは、顔の大きさから枠の大きさを決めて箱からはみ出させる（重なり順は顔の後ろ）
+            val ringSize = if (ringOutside) size * (AmoebaFrameRadius / AmoebaFaceRadius) else size
+            // タブでは外周の薄い枠を描かない（アメーバだけ。マスター指定 2026-11-26）
+            AmoebaRing(MaterialTheme.colorScheme.primary, Modifier.requiredSize(ringSize), frame = !ringOutside)
         }
-        AgentAvatarImage(agent, label, if (busy) size - waveInset * 2 else size)
+        AgentAvatarImage(agent, label, faceSize)
     }
+}
+
+/** 顔を囲むアメーバと枠。時間は描画の段階で読み、再構成を起こさない（AGENTS.md 2.8）。 */
+@Composable
+private fun AmoebaRing(color: Color, modifier: Modifier, frame: Boolean = true) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val still = remember(context) {
+        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val time = remember { mutableFloatStateOf(0f) }
+    if (!still) {
+        LaunchedEffect(Unit) {
+            val start = withFrameNanos { it }
+            while (true) withFrameNanos { now -> time.floatValue = (now - start) / NanosPerSecond * AmoebaSpeed }
+        }
+    }
+    Box(modifier.drawWithCache {
+        val unit = this.size.minDimension / 2f / AmoebaFrameRadius
+        val middle = androidx.compose.ui.geometry.Offset(this.size.width / 2f, this.size.height / 2f)
+        val face = Path().apply {
+            addOval(androidx.compose.ui.geometry.Rect(middle, AmoebaFaceRadius * unit))
+        }
+        val path = Path()
+        val xs = FloatArray(AmoebaSamples)
+        val ys = FloatArray(AmoebaSamples)
+        onDrawBehind {
+            // 外周の枠（動かない）
+            if (frame) {
+                drawCircle(color.copy(alpha = AmoebaFrameFillAlpha), AmoebaFrameRadius * unit)
+                drawCircle(color.copy(alpha = AmoebaFrameStrokeAlpha), AmoebaFrameRadius * unit, style = Stroke(Dimens.hairline.toPx()))
+            }
+            val t = time.floatValue
+            for (i in 0 until AmoebaSamples) {
+                // 12 時を 0 とする時計回りの角度
+                val a = (2 * PI * i / AmoebaSamples).toFloat()
+                val wave = 0.52f * sin(4 * a - 2 * t) + 0.32f * sin(7 * a - 1.5f * t) + 0.24f * cos(3 * a - 0.9f * t)
+                val r = maxOf(AmoebaFaceRadius + 0.5f, AmoebaFaceRadius + AmoebaThickness + AmoebaAmplitude * wave) * unit
+                xs[i] = center.x + r * sin(a)
+                ys[i] = center.y - r * cos(a)
+            }
+            // Catmull-Rom を三次ベジェでつなぎ、全周を閉じる
+            path.rewind()
+            path.moveTo(xs[0], ys[0])
+            for (i in 0 until AmoebaSamples) {
+                val p0 = (i - 1 + AmoebaSamples) % AmoebaSamples
+                val p2 = (i + 1) % AmoebaSamples
+                val p3 = (i + 2) % AmoebaSamples
+                path.cubicTo(
+                    xs[i] + (xs[p2] - xs[p0]) / 6f, ys[i] + (ys[p2] - ys[p0]) / 6f,
+                    xs[p2] - (xs[p3] - xs[i]) / 6f, ys[p2] - (ys[p3] - ys[i]) / 6f,
+                    xs[p2], ys[p2],
+                )
+            }
+            path.close()
+            // 顔の円の内側は塗らない（透けた顔の画像の後ろに色が出ないように）
+            clipPath(face, ClipOp.Difference) { drawPath(path, color) }
+        }
+    })
 }
 
 @Composable

@@ -254,7 +254,7 @@ private fun CellView(cell: Cell, modifier: Modifier) {
 
 /** ポップアップの中身（会話の画面の設定の選択肢と同じ並び: 名前と補足、選んでいるものにチェック）。 */
 @Composable
-private fun AgentMenuItems(menu: AgentMenu, onSelect: (String?) -> Unit) {
+internal fun AgentMenuItems(menu: AgentMenu, onSelect: (String?) -> Unit) {
     val options = menu.options
     Column(Modifier.widthIn(max = Dimens.settingMenuMaxWidth).heightIn(max = Dimens.settingMenuMaxHeight).verticalScroll(rememberScrollState()).padding(vertical = Spacing.xs)) {
         if (options == null) {

@@ -280,35 +280,75 @@ class GatewayClient(
     }
 
     /**
-     * 会話に添付された画像（`media://inbound/<id>`）を、Gateway の HTTP の経路から取る（公式 Android アプリと同じ）。
+     * 会話の画像を、Gateway の HTTP の経路から取る（公式 Android アプリ・Control UI と同じ）。
+     * 利用者の添付（`media://inbound/<id>`）と、エージェントが `MEDIA:` で示したホストのパス（`/…`・`~/…`・`file:`）。
+     * パスを読めるかは Gateway がエージェントのワークスペースなどの許した場所で決める（許されなければ 404）。
      * `GET {http(s)://host:port}{path}/__openclaw__/assistant-media?source=…&sessionKey=…&agentId=…`、
      * 認証は端末のトークン → ゲートウェイトークンの順に Bearer で試す。
+     * [onProgress] に受け取ったバイト数と全体（分からなければ -1）を知らせる。
      */
-    suspend fun loadInboundMedia(source: String, sessionKey: String, agentId: String?, maxBytes: Long = MAX_INBOUND_MEDIA_BYTES): ByteArray? {
-        if (!INBOUND_MEDIA.matches(source.trim())) return null
+    suspend fun loadInboundMedia(
+        source: String,
+        sessionKey: String,
+        agentId: String?,
+        maxBytes: Long = MAX_INBOUND_MEDIA_BYTES,
+        onProgress: ((read: Long, total: Long) -> Unit)? = null,
+    ): ByteArray? = withAssistantMedia(source, sessionKey, agentId, accept = "image/*") { input, total ->
+        if (total > maxBytes) null else readWithProgress(input, total, maxBytes, onProgress)
+    }
+
+    /**
+     * 会話の添付ファイル（画像以外も）を同じ経路から受け取り、中身を [sink] に流す（メモリに載せない）。
+     * [sink] には全体の大きさ（分からなければ -1）も渡す。受け取れなければ null。
+     */
+    suspend fun <T> streamAssistantMedia(
+        source: String,
+        sessionKey: String,
+        agentId: String?,
+        sink: (input: java.io.InputStream, total: Long) -> T,
+    ): T? = withAssistantMedia(source, sessionKey, agentId, accept = "*/*", sink)
+
+    private suspend fun <T> withAssistantMedia(
+        source: String,
+        sessionKey: String,
+        agentId: String?,
+        accept: String,
+        sink: (java.io.InputStream, Long) -> T?,
+    ): T? {
+        if (!isGatewayMediaSource(source)) return null
         val connection = secrets.loadConnection() ?: return null
         val ws = connection.url.wsToHttpUrl() ?: return null
-        val url = ws.newBuilder()
-            .encodedPath(ws.encodedPath.trimEnd('/') + "/__openclaw__/assistant-media")
-            .query(null)
-            .addQueryParameter("source", source.trim())
-            .addQueryParameter("sessionKey", sessionKey)
-            .apply { agentId?.takeIf(String::isNotBlank)?.let { addQueryParameter("agentId", it) } }
-            .build()
+        val trimmed = source.trim()
+        val route = GATEWAY_MEDIA_ROUTES.firstOrNull { trimmed.startsWith(it) }
+        val url = if (route != null) {
+            // Gateway が返した自分の HTTP の経路（/api/chat/media/outgoing/... など）は、そのまま Gateway に取りに行く
+            ws.newBuilder()
+                .encodedPath(ws.encodedPath.trimEnd('/') + trimmed.substringBefore('?'))
+                .encodedQuery(trimmed.substringAfter('?', "").ifEmpty { null })
+                .build()
+        } else {
+            ws.newBuilder()
+                .encodedPath(ws.encodedPath.trimEnd('/') + "/__openclaw__/assistant-media")
+                .query(null)
+                .addQueryParameter("source", trimmed)
+                .addQueryParameter("sessionKey", sessionKey)
+                .apply { agentId?.takeIf(String::isNotBlank)?.let { addQueryParameter("agentId", it) } }
+                .build()
+        }
         val tokens = listOfNotNull(connection.deviceToken, connection.gatewayToken).map(String::trim).filter(String::isNotEmpty).distinct()
         return withContext(Dispatchers.IO) {
             for (token in tokens) {
-                val request = Request.Builder().url(url).header("Accept", "image/*").header("Authorization", "Bearer $token").build()
+                val request = Request.Builder().url(url).header("Accept", accept).header("Authorization", "Bearer $token").build()
                 val result = runCatching {
                     transport(url.isHttps).newCall(request).execute().use { response ->
                         if (response.code == 401 || response.code == 403) return@use null to true
+                        if (!response.isSuccessful) return@use null to false
                         val body = response.body
-                        if (!response.isSuccessful || body.contentLength() > maxBytes) return@use null to false
-                        body.byteStream().readNBytes((maxBytes + 1).toInt()).takeIf { it.size <= maxBytes } to false
+                        sink(body.byteStream(), body.contentLength()) to false
                     }
                 }.getOrNull() ?: return@withContext null
-                val (bytes, unauthorized) = result
-                if (!unauthorized) return@withContext bytes
+                val (value, unauthorized) = result
+                if (!unauthorized) return@withContext value
             }
             null
         }
@@ -699,6 +739,32 @@ class GatewayClient(
         const val PAIRING_POLL_MS = 3_000L
         const val MAX_INBOUND_MEDIA_BYTES = 20L * 1024 * 1024
         private val INBOUND_MEDIA = Regex("^media://inbound/[^/?#\\\\]+$", RegexOption.IGNORE_CASE)
+
+        /** Gateway 自身が配る画像・ファイルの HTTP の経路（Control UI と同じ一覧）。これで始まるものはホストのパスではない。 */
+        private val GATEWAY_MEDIA_ROUTES = listOf("/__openclaw__/assistant-media", "/__openclaw__/media/", "/api/chat/media/outgoing/", "/media/inbound/")
+
+        /** Gateway の assistant-media で取れる画像の場所か（添付の media://inbound/、ホストの絶対パス・~/・file:）。 */
+        fun isGatewayMediaSource(source: String?): Boolean {
+            val s = source?.trim() ?: return false
+            return INBOUND_MEDIA.matches(s) || (s.startsWith("/") && !s.startsWith("//")) || s.startsWith("~/") || s.startsWith("file:", ignoreCase = true)
+        }
+
+        /** 上限まで読み、進みを知らせる（上限を超えたら null）。 */
+        internal fun readWithProgress(input: java.io.InputStream, total: Long, maxBytes: Long, onProgress: ((Long, Long) -> Unit)?): ByteArray? {
+            val out = java.io.ByteArrayOutputStream(if (total in 1..maxBytes) total.toInt() else DEFAULT_BUFFER_SIZE)
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE * 8)
+            var read = 0L
+            onProgress?.invoke(0L, total)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                read += n
+                if (read > maxBytes) return null
+                out.write(buffer, 0, n)
+                onProgress?.invoke(read, total)
+            }
+            return out.toByteArray()
+        }
         const val FOREGROUND_PROBE_TIMEOUT_MS = 10_000L
         const val PROBE_SKIP_RECENT_MS = 10_000L
         /** ソケットを開いて connect.challenge が届くまでの上限。 */

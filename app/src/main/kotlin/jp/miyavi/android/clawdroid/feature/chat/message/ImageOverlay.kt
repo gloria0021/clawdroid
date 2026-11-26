@@ -255,6 +255,8 @@ private fun ZoomableImagePage(image: MessagePart.Image, isCurrentPage: Boolean, 
             bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
             image.url != null && !isInboundMediaUrl(image.url) ->
                 AsyncImage(model = webUri(image.url) ?: image.url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
+            // 受け取っているあいだは進みを出す
+            image.base64 == null && image.url != null -> MediaLoadingBadge(image.url)
         }
     }
 }

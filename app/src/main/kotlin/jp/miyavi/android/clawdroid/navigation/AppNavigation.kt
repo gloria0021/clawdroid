@@ -206,6 +206,7 @@ private fun MainNavigation(container: AppContainer) {
                                 gateway = container.gateway,
                                 sessions = container.sessions,
                                 chats = container.chats,
+                                claudeUsage = container.claudeUsage,
                                 settings = container.settings,
                                 drafts = container.database.drafts(),
                                 positions = container.database.readingPositions(),
@@ -244,8 +245,15 @@ private fun MainNavigation(container: AppContainer) {
                 val shown = remember(agentsState.agents, agentLayout) { agentLayout.visible(agentsState.agents).size }
                 val notifications by container.settings.notifications.collectAsStateWithLifecycle(null)
                 val shortcuts by container.settings.shortcuts.collectAsStateWithLifecycle(jp.miyavi.android.clawdroid.core.shortcut.ShortcutSettings())
+                // 言語を切り替えると端末が画面を作り直すので、開いたときに読めばよい
+                val languageContext = androidx.compose.ui.platform.LocalContext.current
+                val languages = remember { jp.miyavi.android.clawdroid.core.settings.AppLanguage.supported(languageContext) }
+                val language = remember { jp.miyavi.android.clawdroid.core.settings.AppLanguage.current(languageContext) }
                 SettingsContent(
-                    state = SettingsState(theme, connection, url, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, shown, agentsState.agents.size, notifications, shortcuts.slots.size),
+                    state = SettingsState(
+                        theme, connection, url, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, shown, agentsState.agents.size, notifications, shortcuts.slots.size,
+                        languages = languages, language = language,
+                    ),
                     snackbar = snackbar,
                     actions = SettingsActions(
                         onBack = { gate.run { backStack.pop() } },
@@ -266,6 +274,7 @@ private fun MainNavigation(container: AppContainer) {
                         openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
                         openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
                         openLicenses = { gate.run { backStack.push(LicensesRoute) } },
+                        setLanguage = { jp.miyavi.android.clawdroid.core.settings.AppLanguage.set(languageContext, it) },
                     ),
                 )
             }
@@ -344,7 +353,10 @@ private fun MainNavigation(container: AppContainer) {
                 val automations = remember { jp.miyavi.android.clawdroid.core.data.AutomationsRepository(container.gateway) }
                 val vm: jp.miyavi.android.clawdroid.feature.automation.AutomationDetailViewModel = viewModel(
                     factory = viewModelFactory {
-                        initializer { jp.miyavi.android.clawdroid.feature.automation.AutomationDetailViewModel(automations, route.jobId) }
+                        initializer {
+                            val configs = jp.miyavi.android.clawdroid.core.data.AgentConfigRepository(container.gateway)
+                            jp.miyavi.android.clawdroid.feature.automation.AutomationDetailViewModel(automations, route.jobId) { configs.modelCatalog(it) }
+                        }
                     },
                 )
                 jp.miyavi.android.clawdroid.feature.automation.AutomationDetailScreen(vm) { gate.run { backStack.pop() } }
@@ -423,10 +435,6 @@ private fun MainNavigation(container: AppContainer) {
                     )
                     jp.miyavi.android.clawdroid.feature.files.FilesScreen(
                         viewModel = vm,
-                        onSwitchToTerminal = {
-                            val cwd = container.sessions.find(route.sessionKey)?.cwd
-                            gate.run { backStack.replaceTop(TerminalRoute(route.sessionKey, route.agentId, cwd)) }
-                        },
                         onBack = { gate.run { backStack.pop() } },
                     )
                 }

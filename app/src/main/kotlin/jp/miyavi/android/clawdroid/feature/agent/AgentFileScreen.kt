@@ -65,6 +65,8 @@ fun AgentFileScreen(viewModel: AgentFileViewModel, onBack: () -> Unit) {
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
                 // エージェントのファイルでは作成・削除をしない
                 is FilesEvent.Operated -> Unit
+                // 読み直しは、ファイルビューアだけ
+                is FilesEvent.RefreshFailed, is FilesEvent.Refreshed -> Unit
             }
         }
     }

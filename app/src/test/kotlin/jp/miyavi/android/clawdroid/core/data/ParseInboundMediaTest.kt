@@ -18,7 +18,39 @@ class ParseInboundMediaTest {
         )!!
         val images = m.parts.filterIsInstance<MessagePart.Image>()
         assertEquals(listOf("media://inbound/a---1.png"), images.map { it.url })
+        // 画像でない添付はファイルとして出す（名前は保存名の ---<uuid> を除いたもの）
+        val file = m.parts.filterIsInstance<MessagePart.File>().single()
+        assertEquals("b.pdf", file.name)
         assertEquals("見て", m.text)
         assertTrue(isInboundMediaUrl(images.single().url))
+    }
+
+    @Test fun assistantMediaLines_becomeImages_andOtherFilesStayInText() {
+        val m = Parse.message(
+            Frames.json.parseToJsonElement(
+                """{"role":"assistant","content":[{"type":"text","text":"できた\n\nMEDIA:/home/a/out/icon.png\nMEDIA:/home/a/out/app.apk\n```\nMEDIA:/x/in-code.png\n```"}]}""",
+            ).jsonObject,
+            0,
+        )!!
+        val images = m.parts.filterIsInstance<MessagePart.Image>()
+        assertEquals(listOf("/home/a/out/icon.png"), images.map { it.url })
+        assertEquals("image/png", images.single().mimeType)
+        assertTrue(isInboundMediaUrl(images.single().url))
+        // 画像でないファイルは添付ファイルに、コードの中の行は本文に残る
+        val file = m.parts.filterIsInstance<MessagePart.File>().single()
+        assertEquals("/home/a/out/app.apk", file.url)
+        assertEquals("app.apk", file.name)
+        assertTrue("app.apk" !in m.text)
+        assertTrue("MEDIA:/x/in-code.png" in m.text)
+        assertTrue("icon.png" !in m.text)
+    }
+
+    @Test fun gatewayMediaSources() {
+        assertTrue(isInboundMediaUrl("media://inbound/a.png"))
+        assertTrue(isInboundMediaUrl("/home/mi/a.png"))
+        assertTrue(isInboundMediaUrl("~/a.png"))
+        assertTrue(isInboundMediaUrl("file:///home/mi/a.png"))
+        assertTrue(!isInboundMediaUrl("https://example.com/a.png"))
+        assertTrue(!isInboundMediaUrl("//example.com/a.png"))
     }
 }

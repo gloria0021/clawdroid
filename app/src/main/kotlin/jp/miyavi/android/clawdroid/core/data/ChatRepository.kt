@@ -214,11 +214,7 @@ class ChatSession(
                 val hasAttachments = message?.let { Parse.contentParts(it["content"]).any { part -> part is MessagePart.Image } ||
                     it.obj("__openclaw")?.array("media").orEmpty().isNotEmpty() } == true
                 val parts = message?.let { m ->
-                    val media = m.obj("__openclaw")?.array("media").orEmpty().mapNotNull { el ->
-                        val obj = el.asObject() ?: return@mapNotNull null
-                        val url = obj.string("url") ?: return@mapNotNull null
-                        if (obj.string("kind") == "image" || obj.string("contentType")?.startsWith("image/") == true) MessagePart.Image(url = url, base64 = null, mimeType = obj.string("contentType")) else null
-                    }
+                    val media = Parse.attachedMedia(m.obj("__openclaw")?.array("media").orEmpty())
                     media + Parse.contentParts(m["content"])
                 } ?: listOfNotNull(text?.takeIf(String::isNotBlank)?.let { MessagePart.Text(it) })
                 PendingInput(runId, text.orEmpty(), local = false, hasAttachments = hasAttachments, cancellable = item.bool("queued") == true, parts = parts)

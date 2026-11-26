@@ -442,7 +442,7 @@ fun ChatContent(
         }
     }
 
-    // 添付画像（media://inbound/...）は開いている会話の権限で取る
+    // 会話の画像（添付の media://inbound/...、エージェントの MEDIA: のパス）は開いている会話の権限で取る
     val imageSessionKey = state.currentSessionKey
     val imageAgentId = state.currentSession?.agentId ?: state.selectedAgentId
     val imageSource = remember(inboundImages, imageSessionKey, imageAgentId) {
@@ -450,6 +450,9 @@ fun ChatContent(
         else object : InboundImageSource {
             override suspend fun load(source: String) = inboundImages.load(source, imageSessionKey, imageAgentId)
             override suspend fun bytes(source: String) = inboundImages.loadBytes(source, imageSessionKey, imageAgentId)
+            override val progress get() = inboundImages.progress
+            override suspend fun saveFile(resolver: android.content.ContentResolver, file: jp.miyavi.android.clawdroid.core.data.MessagePart.File, onProgress: (Long, Long) -> Unit) =
+                inboundImages.saveFile(resolver, file, imageSessionKey, imageAgentId, onProgress)
         }
     }
     CompositionLocalProvider(LocalInboundImages provides imageSource) {

@@ -29,6 +29,7 @@ data class Agent(
     val createdVia: String? = null,
     val creatorAgentId: String? = null,
     val createdAt: Long? = null,
+    val runtimeId: String? = null,
 )
 
 data class SessionSummary(
@@ -62,6 +63,7 @@ data class SessionSummary(
     val worktreeBranch: String? = null,
     /** ワークツリーの元のリポジトリ（`worktree.canonicalWorkspaceDir` / `repoRoot`）。フォルダ別でここにまとめる。 */
     val worktreeRoot: String? = null,
+    val runtimeId: String? = null,
 ) {
     /** フォルダ別でまとめる先。ワークツリーは元のリポジトリにぶら下げる（マスター指摘 2026-11-24）。 */
     val projectFolder: String? get() = (worktreeRoot ?: cwd)?.trimEnd('/')
@@ -152,6 +154,11 @@ sealed interface MessagePart {
     data class Text(val markdown: String) : MessagePart
     data class Video(val url: String) : MessagePart
     data class Image(val url: String?, val base64: String?, val mimeType: String?) : MessagePart
+    /**
+     * 画像でない添付ファイル。利用者の添付（`media://inbound/...`）と、エージェントが `MEDIA:` で示したホストのパス。
+     * [name] は表示名（無ければパスの最後）、[size] は分かればバイト数。
+     */
+    data class File(val url: String, val name: String, val mimeType: String?, val size: Long?) : MessagePart
     data class ToolCall(
         val callId: String?,
         val name: String,
@@ -228,6 +235,7 @@ internal object Parse {
             createdVia = obj.string("createdVia"),
             creatorAgentId = obj.string("creatorAgentId"),
             createdAt = obj.long("createdAt"),
+            runtimeId = obj.obj("agentRuntime")?.string("id"),
         )
     }
 
@@ -262,6 +270,7 @@ internal object Parse {
             modelReference = obj.string("model")?.let { canonicalModel(it, obj.string("modelProvider")) },
             permissionMode = obj.string("permissionMode"),
             permissionModePending = obj.bool("permissionModePending") == true,
+            runtimeId = obj.obj("agentRuntime")?.string("id"),
         )
     }
 
@@ -371,20 +380,14 @@ internal object Parse {
             else -> return null
         }
         val meta = obj.obj("__openclaw")
-        val parts = if (role == ChatMessage.Role.TOOL_RESULT) {
-            listOfNotNull(toolPart(obj, isResult = true, topLevel = true))
-        } else {
-            contentParts(obj["content"])
+        val parts = when (role) {
+            ChatMessage.Role.TOOL_RESULT -> listOfNotNull(toolPart(obj, isResult = true, topLevel = true))
+            // エージェントが本文の `MEDIA:` の行で示した画像は、画像として出す（Control UI と同じ）
+            ChatMessage.Role.ASSISTANT -> mediaDirectives(contentParts(obj["content"]))
+            else -> contentParts(obj["content"])
         }
-        // 利用者が添付した画像は本文ではなく __openclaw.media に入る（media://inbound/...）
-        val attached = if (role == ChatMessage.Role.USER) {
-            meta?.array("media").orEmpty().mapNotNull { el ->
-                val media = el.asObject() ?: return@mapNotNull null
-                val url = media.string("url") ?: return@mapNotNull null
-                val image = media.string("kind") == "image" || media.string("contentType")?.startsWith("image/") == true
-                if (image) MessagePart.Image(url = url, base64 = null, mimeType = media.string("contentType")) else null
-            }
-        } else emptyList()
+        // 利用者が添付した画像・ファイルは本文ではなく __openclaw.media に入る（media://inbound/...）
+        val attached = if (role == ChatMessage.Role.USER) attachedMedia(meta?.array("media").orEmpty()) else emptyList()
         if (hidden(obj, meta, role, parts)) return null
         val entryId = meta?.string("id")
         val notice = notice(obj, meta, role, parts)
@@ -398,7 +401,7 @@ internal object Parse {
             id = entryId ?: "i$index-${obj.long("timestamp") ?: 0}",
             // 利用者の発言の形で届くお知らせは、利用者のメッセージとして扱わない（実行の始まりや返信の突き合わせに混ぜない）
             role = if (notice != null) ChatMessage.Role.SYSTEM else role,
-            parts = attached.filterNot { a -> parts.any { it is MessagePart.Image && it.url == a.url } } + parts,
+            parts = attached.filterNot { a -> a is MessagePart.Image && parts.any { it is MessagePart.Image && it.url == a.url } } + parts,
             timestamp = obj.long("timestamp"),
             // 利用者のメッセージは送信の idempotencyKey が run の識別（受け付け待ちとの突き合わせに使う）
             runId = (
@@ -495,6 +498,67 @@ internal object Parse {
         val model = obj.string("model")?.takeIf(String::isNotBlank) ?: return null
         return canonicalModel(model, provider)
     }
+
+    /**
+     * 本文の `MEDIA:<パス>` の行（OpenClaw の添付の書き方）のうち画像を、本文から外して画像の部品にする（本文の後ろに並べる）。
+     * コードの囲みの中はそのまま。画像でないファイルの行は本文に残す。
+     */
+    /** `__openclaw.media` の並びを画像とファイルの部品にする（利用者の添付・受け付け待ちの発言）。 */
+    internal fun attachedMedia(media: List<JsonElement>): List<MessagePart> = media.mapNotNull { el ->
+        val obj = el.asObject() ?: return@mapNotNull null
+        val url = obj.string("url") ?: return@mapNotNull null
+        val type = obj.string("contentType")
+        if (obj.string("kind") == "image" || type?.startsWith("image/") == true) {
+            MessagePart.Image(url = url, base64 = null, mimeType = type)
+        } else {
+            MessagePart.File(url, obj.string("fileName")?.takeIf(String::isNotBlank) ?: fileNameOf(url), type, obj.long("sizeBytes"))
+        }
+    }
+
+    /** パスの最後を表示名にする（添付の間に入る `---<uuid>` は外す。Control UI と同じ）。 */
+    internal fun fileNameOf(url: String): String =
+        url.substringBefore('?').trimEnd('/').substringAfterLast('/').replace(INBOUND_ID_SUFFIX, "").ifBlank { url }
+
+    private val INBOUND_ID_SUFFIX = Regex("---[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\\.[^./]*$|$)", RegexOption.IGNORE_CASE)
+
+    internal fun mediaDirectives(parts: List<MessagePart>): List<MessagePart> {
+        if (parts.none { it is MessagePart.Text && "MEDIA:" in it.markdown }) return parts
+        val images = mutableListOf<MessagePart>()
+        val kept = parts.mapNotNull { part ->
+            if (part !is MessagePart.Text || "MEDIA:" !in part.markdown) return@mapNotNull part
+            var fenced = false
+            val lines = part.markdown.lines().filter { line ->
+                if (line.trimStart().startsWith("```")) fenced = !fenced
+                val source = if (fenced) null else MEDIA_LINE.matchEntire(line)?.groupValues?.get(1)?.trim('`', '"', '\'', ' ')
+                    ?.takeIf(String::isNotEmpty)
+                when {
+                    source == null -> Unit
+                    mediaImageType(source) != null -> images += MessagePart.Image(url = source, base64 = null, mimeType = mediaImageType(source))
+                    // 画像でないファイルは添付ファイルとして出す（Gateway から取れる場所だけ。Web の URL は本文に残す）
+                    jp.miyavi.android.clawdroid.core.gateway.GatewayClient.isGatewayMediaSource(source) -> images += MessagePart.File(source, fileNameOf(source), null, null)
+                    else -> return@filter true
+                }
+                source == null
+            }
+            lines.joinToString("\n").trim().takeIf(String::isNotEmpty)?.let(MessagePart::Text)
+        }
+        return kept + images.distinctBy { (it as? MessagePart.Image)?.url ?: (it as MessagePart.File).url }
+    }
+
+    /** 画像の拡張子ならその種類（端末で復号できるものだけ）。 */
+    private fun mediaImageType(source: String): String? =
+        when (source.substringBefore('?').substringAfterLast('.', "").lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "bmp" -> "image/bmp"
+            "heic", "heif" -> "image/heic"
+            "avif" -> "image/avif"
+            else -> null
+        }
+
+    private val MEDIA_LINE = Regex("^\\s*MEDIA:\\s*(\\S.*?)\\s*$")
 
     fun contentParts(content: JsonElement?): List<MessagePart> = when (content) {
         is JsonPrimitive -> listOfNotNull(content.contentOrNull?.takeIf(String::isNotBlank)?.let(MessagePart::Text))

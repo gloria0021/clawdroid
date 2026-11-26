@@ -54,6 +54,61 @@ class OpenedFileController(
         }
     }
 
+    /**
+     * 読み直す（タイトルバーのボタン。編集中は何もしない）。読み直すあいだも今の表示を出したままにし、
+     * 中身が変わったときだけ入れ替える（読んでいる位置・プレビューとコードの切り替え・検索は引き継ぐ）。
+     * 読めたら、変わっていたかどうかを [FilesEvent.Refreshed] で知らせる。
+     */
+    fun refresh() {
+        val ready = read() as? OpenedState.Ready ?: return
+        if (ready.editing || ready.refreshing) return
+        val path = ready.path
+        updateReady { it.copy(refreshing = true) }
+        openJob?.cancel()
+        openJob = scope.launch {
+            val result = runCatchingNonCancel { files.open(ready.file.root, path) }
+            val next: OpenedState? = when (result) {
+                is OpenResult.Opened -> {
+                    val file = result.file
+                    if (file.text == ready.file.text && file.imageBase64 == ready.file.imageBase64) null
+                    else analyze(file, file.text)
+                }
+                OpenResult.Missing -> OpenedState.Failed(path, missing = true)
+                null -> null
+            }
+            // 変わっていないときは、更新日時などだけを新しくする
+            val unchanged = (result as? OpenResult.Opened)?.file
+            var applied = false
+            write { current ->
+                val now = current as? OpenedState.Ready
+                applied = now != null && now.path == path && !now.editing
+                when {
+                    now == null || now.path != path -> current
+                    // 読み直しのあいだに編集を始めたら、編集を優先する（入れ替えない）
+                    now.editing -> now.copy(refreshing = false)
+                    next is OpenedState.Ready -> next.copy(
+                        showCode = if (next.preview == null) true else now.showCode,
+                        search = now.search,
+                    )
+                    next != null -> next
+                    unchanged != null -> now.copy(file = unchanged, baseHash = unchanged.hash, refreshing = false)
+                    else -> now.copy(refreshing = false)
+                }
+            }
+            when {
+                result == null -> emit(FilesEvent.RefreshFailed(tree = false))
+                result == OpenResult.Missing -> emit(FilesEvent.FileGone)
+                // 別のファイルに移った・編集を始めたときは知らせない
+                !applied -> Unit
+                else -> {
+                    // 検索中なら、新しい中身で一致を取り直す
+                    if (next is OpenedState.Ready) rematch()
+                    emit(FilesEvent.Refreshed(changed = unchanged != null && ready.file.differsFrom(unchanged)))
+                }
+            }
+        }
+    }
+
     /** 閉じる（進行中の取得・下書きの保存・検索を止める）。 */
     fun close() {
         openJob?.cancel()
@@ -98,6 +153,22 @@ class OpenedFileController(
                 val search = r.search
                 if (search == null || search.query != query || r.path != ready.path) r
                 else r.copy(search = search.copy(matchedQuery = query, matches = matches, current = 0))
+            }
+        }
+    }
+
+    /** 中身が変わったあと、検索の一致を取り直す（今の一致の番号はできるだけ残し、読んでいる位置を飛ばさない）。 */
+    private fun rematch() {
+        val ready = read() as? OpenedState.Ready ?: return
+        val search = ready.search?.takeIf { it.matchedQuery.isNotEmpty() } ?: return
+        val text = ready.file.text ?: return
+        searchJob?.cancel()
+        searchJob = scope.launch {
+            val matches = withContext(Dispatchers.Default) { findMatches(text, search.matchedQuery) }
+            updateReady { r ->
+                val now = r.search
+                if (now == null || now.matchedQuery != search.matchedQuery || r.file.text != text) r
+                else r.copy(search = now.copy(matches = matches, current = now.current.coerceIn(0, (matches.size - 1).coerceAtLeast(0))))
             }
         }
     }
@@ -225,6 +296,17 @@ class OpenedFileController(
             is FileRoot.AgentFile -> "agent:${root.agentId}:${file.path}"
         }
     }
+}
+
+/**
+ * 読み直した中身が変わったか。文字・画像は中身とハッシュで比べる。
+ * 中身を読まないファイル（APK など）は、ハッシュが無ければ大きさと更新日時で比べる。
+ */
+internal fun OpenedFile.differsFrom(latest: OpenedFile): Boolean = when {
+    text != latest.text || imageBase64 != latest.imageBase64 -> true
+    hash != null && latest.hash != null -> hash != latest.hash
+    text == null && imageBase64 == null -> size != latest.size || updatedAt != latest.updatedAt
+    else -> false
 }
 
 internal inline fun <T> runCatchingNonCancel(block: () -> T): T? = try {

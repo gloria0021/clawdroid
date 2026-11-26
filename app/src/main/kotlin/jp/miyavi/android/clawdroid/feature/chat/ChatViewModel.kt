@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.data.AgentsState
 import jp.miyavi.android.clawdroid.core.data.ChatMessage
+import jp.miyavi.android.clawdroid.core.data.ClaudeCliUsageRepository
 import jp.miyavi.android.clawdroid.core.data.ChatRepository
 import jp.miyavi.android.clawdroid.core.data.ChatSession
 import jp.miyavi.android.clawdroid.core.data.ChatState
@@ -22,6 +23,7 @@ import jp.miyavi.android.clawdroid.core.data.ModelChange
 import jp.miyavi.android.clawdroid.core.data.OutgoingImage
 import jp.miyavi.android.clawdroid.core.data.Parse
 import jp.miyavi.android.clawdroid.core.data.ProviderUsage
+import jp.miyavi.android.clawdroid.core.data.usesClaudeCli
 import jp.miyavi.android.clawdroid.core.data.SessionListState
 import jp.miyavi.android.clawdroid.core.data.SessionSetting
 import jp.miyavi.android.clawdroid.core.data.SessionSummary
@@ -54,6 +56,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -84,7 +87,11 @@ data class MessageUi(
 
 /** セッションのシートの前回の値（プロバイダの使用枠・ホストの数字・セッションごとの内訳）。 */
 class SheetUsageCache {
-    @Volatile var providers: List<ProviderUsage>? = null
+    private val providerValues = MutableStateFlow<List<ProviderUsage>?>(null)
+    val providerUpdates = providerValues.asStateFlow()
+    var providers: List<ProviderUsage>?
+        get() = providerValues.value
+        set(value) { providerValues.value = value }
     @Volatile var host: HostStats? = null
     @Volatile private var breakdown: Pair<String, ContextBreakdown>? = null
 
@@ -183,6 +190,7 @@ class ChatViewModel(
     private val gateway: GatewayClient,
     private val sessions: SessionsRepository,
     private val chats: ChatRepository,
+    private val claudeUsage: ClaudeCliUsageRepository,
     private val settings: SettingsStore,
     private val drafts: DraftDao,
     private val positions: ReadingPositionDao,
@@ -254,8 +262,18 @@ class ChatViewModel(
     /** セッションを開くたびに増える。後から届いた古い切り替えで上書きしないため。 */
     private var sessionGeneration = 0
     private var settingsJob: Job? = null
+    val sheetCache = SheetUsageCache()
 
     init {
+        // プロバイダの使用枠をつながったら先に取っておく（Claude Code CLI は取るのに時間がかかるため）。
+        // 全エージェントのプロバイダを 1 つにまとめて出すので、セッションやモデルを切り替えても取り直さない
+        viewModelScope.launch {
+            visible.flatMapLatest { shown ->
+                if (!shown) flowOf(false) else state.map { it.connection is ConnectionState.Connected && it.agents.agents.isNotEmpty() }
+            }.distinctUntilChanged().collectLatest { ready ->
+                if (ready) runCatching { loadProviderUsage() }
+            }
+        }
         // 前回の選択を戻す（SC-008）。無ければ Gateway の既定のエージェント
         viewModelScope.launch {
             val saved = settings.selection.first()
@@ -402,20 +420,47 @@ class ChatViewModel(
     }
 
     /**
-     * プロバイダの使用枠。Control UI と同じく `models.authStatus` から取る（Claude Code CLI の枠もここに出る）。
-     * 使えない Gateway では `usage.status` に戻す。今のセッションのプロバイダを先頭にする。
+     * プロバイダの使用枠。全エージェントのプロバイダを 1 つにまとめて出し、今のモデルのプロバイダを先頭にする
+     * （別のプロバイダのエージェントに渡す前に、そちらの残りも確かめられるように。マスター指定 2026-11-26）。
+     * Gateway の分（`models.authStatus` / `usage.status`）を先に出し、Claude Code CLI の分はホストの CLI から取れ次第加える。
+     * Claude Code CLI は Gateway の値を使わない（取れなければ行を出さない）。
      */
-    /**
-     * セッションのシートが前回取れた値。次に開いたとき 1 フレーム目からこれで組み、届いた値で帯だけを動かす
-     * （開き切ったところで行が増えて高さが変わらないように）。
-     */
-    val sheetCache = SheetUsageCache()
+    suspend fun loadProviderUsage(): List<ProviderUsage> = withContext(Dispatchers.Default) {
+        val gatewayUsage = gatewayProviderUsage()
+        val current = state.value
+        val draftModel = _composer.value.sessionOptions[SessionSetting.MODEL]
+        val cliAgent = claudeCliAgent(current, draftModel, gatewayUsage)
+        val others = gatewayUsage.filterNot { "claude-cli" in it.ids }
+        if (cliAgent == null) return@withContext sortedForCurrent(others).also { sheetCache.providers = it }
+        // CLI を待つあいだも、ほかのプロバイダを先に出す（前回の Claude の行があれば残して、高さを変えない）
+        val previousClaude = sheetCache.providers?.firstOrNull { "claude-cli" in it.ids }
+        sheetCache.providers = sortedForCurrent(others + listOfNotNull(previousClaude))
+        sortedForCurrent(others + listOfNotNull(claudeUsage.load(cliAgent))).also { sheetCache.providers = it }
+    }
 
-    suspend fun loadProviderUsage(): List<ProviderUsage> =
-        withContext(Dispatchers.Default) { providerUsage() }.also { sheetCache.providers = it }
+    /** 今のモデルのプロバイダを先頭にする（ほかは Gateway の並びのまま）。 */
+    private fun sortedForCurrent(usage: List<ProviderUsage>): List<ProviderUsage> {
+        val current = state.value
+        val draftModel = _composer.value.sessionOptions[SessionSetting.MODEL]
+        val provider = if (usesClaudeCli(current.currentSession, current.selectedAgent, draftModel)) "claude-cli"
+        else usageModel(current, draftModel)?.substringBefore('/')?.lowercase()
+        if (provider.isNullOrEmpty()) return usage
+        return usage.sortedByDescending { p -> p.ids.any { it.equals(provider, ignoreCase = true) } }
+    }
+
+    /**
+     * Claude Code CLI の使用枠を取りに行くエージェント（そのエージェントのターミナルで CLI を動かす）。
+     * 今のエージェントが CLI ならそれ、でなければ CLI を使う最初のエージェント。
+     * どのエージェントも使わず Gateway にも CLI の認証が無ければ null（CLI を起動しない）。
+     */
+    private fun claudeCliAgent(current: ChatScreenState, draftModel: String?, gatewayUsage: List<ProviderUsage>): String? {
+        if (usesClaudeCli(current.currentSession, current.selectedAgent, draftModel)) current.selectedAgentId?.let { return it }
+        current.agents.agents.firstOrNull { usesClaudeCli(null, it, null) }?.let { return it.id }
+        return current.selectedAgentId.takeIf { gatewayUsage.any { "claude-cli" in it.ids } }
+    }
 
     // 解析はメインスレッドの外で（シートを開く動きと重ねない）
-    private suspend fun providerUsage(): List<ProviderUsage> {
+    private suspend fun gatewayProviderUsage(): List<ProviderUsage> {
         val usage = try {
             when {
                 gateway.supports("models.authStatus") -> Parse.authStatusUsage(
@@ -431,10 +476,11 @@ class ChatViewModel(
         } catch (_: GatewayRpcException) {
             if (gateway.supports("usage.status")) runCatching { loadUsageStatus() }.getOrDefault(emptyList()) else emptyList()
         }
-        val provider = state.value.currentSession?.model?.substringBefore('/', "")?.lowercase()
-            ?: state.value.selectedAgent?.defaultModel?.substringBefore('/', "")?.lowercase()
-        return usage.sortedByDescending { p -> provider != null && provider.isNotEmpty() && p.ids.any { it.equals(provider, ignoreCase = true) } }
+        return usage
     }
+
+    private fun usageModel(current: ChatScreenState, override: String?): String? =
+        override ?: current.currentSession?.modelReference ?: current.currentSession?.model ?: current.selectedAgent?.defaultModel
 
     /** 今のセッションのコンテキストの内訳（Control UI と同じ sessions.usage の contextWeight）。取れなければ null。 */
     suspend fun loadContextBreakdown(): ContextBreakdown? {

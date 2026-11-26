@@ -355,6 +355,10 @@ fun SidePanel(
                 }
                 // 下部に浮くエージェントのピル型タブ（AGENTS.md 2.7: 画面下部に浮くガラス風のピル型タブ）
                 if (agents.size > 1) {
+                    // 稼働中（ホームかどれかのセッションが実行中）のエージェントは、タブの顔をアメーバで囲む（マスター指定 2026-11-26）
+                    val busyAgents = remember(sessionsByAgent) {
+                        sessionsByAgent.filterValues { list -> list.home?.running == true || list.sessions.any { it.running } }.keys
+                    }
                     GlassPill(
                         hazeState = hazeState,
                         modifier = Modifier
@@ -371,7 +375,7 @@ fun SidePanel(
                                 tabHorizontalPadding = Spacing.m,
                             ) { id ->
                                 // サイドパネルのタブのアイコンは大きめ（ふつうのアイコンの 2 倍）
-                                AgentAvatar(agentsById.getValue(id), size = Dimens.avatarLarge)
+                                AgentAvatar(agentsById.getValue(id), size = Dimens.avatarLarge, busy = id in busyAgents, ringOutside = true)
                             }
                         }
                     }
@@ -397,7 +401,9 @@ private fun PanelActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        // ホーム・自動化の順（マスター指定 2026-11-24 に戻す）。残りの幅を使い、右のアイコンまでを埋める（重みを空白と分け合わない）
+        // ホーム・自動化の順（マスター指定 2026-11-24 に戻す）。残りの幅を使い、右のアイコンまでを埋める（重みを空白と分け合わない）。
+        // ホームは文字の幅だけ取り、自動化が残りをすべて使う（両方に重みを付けると半分ずつに切られ、
+        // 英語の「Automations」が空きがあっても省略されていた。マスター指摘 2026-11-26）
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (onHome != null) {
                 val accent = accentContainer()
@@ -406,7 +412,7 @@ private fun PanelActionRow(
                     container = if (homeSelected) accent.container else Color.Transparent,
                     // 文字とアイコンはふつうの文字色（テーマカラーにしない。マスター指定 2026-11-24）。開いているあいだは選択の面
                     content = if (homeSelected) accent.content else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f, fill = false).semantics { selected = homeSelected },
+                    modifier = Modifier.semantics { selected = homeSelected },
                 )
             }
             if (onAutomations != null) {

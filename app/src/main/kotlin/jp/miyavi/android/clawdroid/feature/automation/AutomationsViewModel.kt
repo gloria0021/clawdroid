@@ -110,13 +110,20 @@ data class AutomationDetailUi(
     val tab: AutomationTab = AutomationTab.SETTINGS,
     val runs: RunsUi = RunsUi(),
     val confirmDelete: Boolean = false,
+    /** 選べるモデル（モデル・思考のメニューを開いたときに読む。読んでいなければ null）。 */
+    val models: jp.miyavi.android.clawdroid.feature.agent.Load<jp.miyavi.android.clawdroid.core.data.ModelCatalog?>? = null,
 ) {
     val dirty: Boolean get() = draft != null && draft != original
     val canSave: Boolean get() = dirty && draft?.valid == true && !saving
 }
 
 /** 自動化の詳細（設定の編集・今すぐ実行・削除・実行履歴）。 */
-class AutomationDetailViewModel(private val source: AutomationSource, private val jobId: String) : ViewModel() {
+class AutomationDetailViewModel(
+    private val source: AutomationSource,
+    private val jobId: String,
+    /** エージェントの選べるモデル（`models.list`）。 */
+    private val loadModels: suspend (agentId: String) -> jp.miyavi.android.clawdroid.core.data.ModelCatalog? = { null },
+) : ViewModel() {
     private val _state = MutableStateFlow(AutomationDetailUi())
     val state: StateFlow<AutomationDetailUi> = _state.asStateFlow()
     private val _events = MutableSharedFlow<AutomationEvent>(extraBufferCapacity = 4)
@@ -145,6 +152,28 @@ class AutomationDetailViewModel(private val source: AutomationSource, private va
                     else -> s.copy(job = job, loading = false, original = AutomationDraft.of(job), draft = AutomationDraft.of(job))
                 }
             }
+        }
+    }
+
+    /** 選べるモデルを読む（まだ読んでいなければ。失敗したら次に開いたときに読み直す）。 */
+    fun loadModelCatalog() {
+        val s = _state.value
+        if (s.models is jp.miyavi.android.clawdroid.feature.agent.Load.Loaded || s.models == jp.miyavi.android.clawdroid.feature.agent.Load.Loading) return
+        val agentId = s.job?.agentId ?: run {
+            // エージェントが分からなければ選べるモデルも分からない（既定と今の値だけを出す）
+            _state.update { it.copy(models = jp.miyavi.android.clawdroid.feature.agent.Load.Failed(unsupported = false)) }
+            return
+        }
+        _state.update { it.copy(models = jp.miyavi.android.clawdroid.feature.agent.Load.Loading) }
+        viewModelScope.launch {
+            val result = try {
+                jp.miyavi.android.clawdroid.feature.agent.Load.Loaded(loadModels(agentId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                jp.miyavi.android.clawdroid.feature.agent.Load.Failed(unsupported = false)
+            }
+            _state.update { it.copy(models = result) }
         }
     }
 
