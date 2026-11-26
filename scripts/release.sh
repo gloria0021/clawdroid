@@ -69,7 +69,7 @@ AAB=$OUT/clawdroid-$VERSION.aab
 cp app/build/outputs/bundle/release/app-release.aab "$AAB"
 # 難読化の対応表は Play Console に登録する（異常終了の解析用）
 cp app/build/outputs/mapping/release/mapping.txt "$OUT/mapping-$VERSION.txt"
-keytool -printcert -jarfile "$AAB" | grep -m1 'Owner:' || fail "AAB が署名されていません"
+keytool -J-Duser.language=en -J-Duser.country=US -printcert -jarfile "$AAB" | grep -m1 'Owner:' || fail "AAB が署名されていません"
 echo "AAB（Google Play 用）: $AAB"
 echo "難読化の対応表: $OUT/mapping-$VERSION.txt"
 
