@@ -86,6 +86,7 @@ fun UserMessage(
     /** 文を入力欄へ写す（送り直し・手直し用）。送れないときは null。 */
     onReuse: ((String) -> Unit)? = null,
 ) {
+    androidx.compose.runtime.CompositionLocalProvider(jp.miyavi.android.clawdroid.core.data.LocalMessageScope provides message.id) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         val images = remember(message.parts) { message.parts.filterIsInstance<MessagePart.Image>() }
         // 画像は 1 行にまとめる（複数なら横にスクロール。マスター指定 2026-11-24）。画像と本文のあいだは 12dp
@@ -139,6 +140,7 @@ fun UserMessage(
             }
         }
     }
+    }
 }
 
 /** エージェントの応答。全幅の素の文字（Markdown）。下に操作行。 */
@@ -160,6 +162,7 @@ fun AssistantMessage(
 ) {
     val tools = remember(precedingTools, message.parts) { precedingTools + message.parts.filterIsInstance<MessagePart.ToolCall>() }
     var toolsOpen by rememberSaveable(message.id) { mutableStateOf(false) }
+    androidx.compose.runtime.CompositionLocalProvider(jp.miyavi.android.clawdroid.core.data.LocalMessageScope provides message.id) {
     ReplyLayout(
         agent,
         showAvatar = message.role == ChatMessage.Role.ASSISTANT,
@@ -180,7 +183,7 @@ fun AssistantMessage(
                 is PartBlock.Images -> MessageImages(block.images, { gallery ->
                     // 押した画像の、メッセージ全体の中での位置から開く
                     val image = gallery.images[gallery.initialIndex]
-                    onOpenImage(ImageGallery(allImages, allImages.indexOf(image).coerceAtLeast(0)))
+                    onOpenImage(ImageGallery(allImages, allImages.indexOf(image).coerceAtLeast(0), gallery.scope))
                 }, alignEnd = false)
                 is PartBlock.Single -> when (val part = block.part) {
                     is MessagePart.Text -> MarkdownText(part.markdown, markdown.getOrNull(textIndex++))
@@ -223,6 +226,7 @@ fun AssistantMessage(
                 }
             }
         }
+    }
     }
 }
 
@@ -541,8 +545,9 @@ private fun groupImageRuns(parts: List<MessagePart>): List<PartBlock> {
  */
 @Composable
 internal fun MessageImages(images: List<MessagePart.Image>, onOpen: (ImageGallery) -> Unit, alignEnd: Boolean, modifier: Modifier = Modifier) {
+    val scope = jp.miyavi.android.clawdroid.core.data.LocalMessageScope.current
     if (images.size == 1) {
-        MessageImage(images.first(), { onOpen(ImageGallery(images, 0)) }, modifier)
+        MessageImage(images.first(), { onOpen(ImageGallery(images, 0, scope)) }, modifier)
         return
     }
     androidx.compose.foundation.lazy.LazyRow(
@@ -552,7 +557,7 @@ internal fun MessageImages(images: List<MessagePart.Image>, onOpen: (ImageGaller
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Spacing.xs),
     ) {
         items(images.size, key = { index -> "${index}:${images[index].url ?: images[index].base64?.hashCode()}" }) { index ->
-            MessageThumbnail(images[index]) { onOpen(ImageGallery(images, index)) }
+            MessageThumbnail(images[index]) { onOpen(ImageGallery(images, index, scope)) }
         }
     }
 }
@@ -600,23 +605,30 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
     val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
+        // 復号を待つあいだも、同じ大きさの面を出しておく
+        image.base64 != null -> Box(imageModifier.size(Dimens.imagePlaceholder))
         isInboundMediaUrl(image.url) -> MediaLoadingBadge(image.url, imageModifier.size(Dimens.imagePlaceholder))
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
     }
 }
 
-/** Base64 の画像を一度だけ復号する。 */
+/**
+ * Base64 の画像を、表示に足りる大きさまで縮めて復号する。復号は画面のスレッドの外で行い（CJ レビュー 2026-11-26）、
+ * 一度復号した画像は覚えておく（スクロールで画面に入り直したときは、最初のフレームから出す）。
+ */
 @Composable
-fun rememberBase64Bitmap(base64: String?): ImageBitmap? = remember(base64) {
-    // その場で展開する（後から届くと高さが変わり、スクロール位置が飛ぶため）。一度展開した画像は覚えておき、
-    // スクロールで画面に入り直したときは展開し直さない
-    base64?.let { data ->
-        Base64BitmapCache.get(data) ?: runCatching {
-            val bytes = Base64.decode(data.substringAfter("base64,"), Base64.DEFAULT)
-            // 原寸のまま持たず、表示に足りる大きさまで縮める（CJ レビュー 2026-11-26）
-            jp.miyavi.android.clawdroid.core.data.decodeImageScaled(bytes)
-        }.getOrNull()?.also { Base64BitmapCache.put(data, it) }
+fun rememberBase64Bitmap(base64: String?): ImageBitmap? {
+    val cached = remember(base64) { base64?.let(Base64BitmapCache::get) }
+    val decoded by androidx.compose.runtime.produceState(cached, base64) {
+        if (value == null && base64 != null) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                runCatching {
+                    jp.miyavi.android.clawdroid.core.data.decodeImageScaled(Base64.decode(base64.substringAfter("base64,"), Base64.DEFAULT))
+                }.getOrNull()
+            }?.also { Base64BitmapCache.put(base64, it) }
+        }
     }
+    return decoded
 }
 
 /** 展開した base64 の画像（容量を限って覚えておく。枚数で数えると大きな画像でメモリが膨らむ）。 */

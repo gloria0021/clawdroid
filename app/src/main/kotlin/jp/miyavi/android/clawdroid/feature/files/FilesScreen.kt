@@ -431,7 +431,8 @@ internal fun FilesContent(
         )
     }
     }
-    ImageOverlay(overlayImage) { overlayImage = null }
+    // 全画面の保存は、縮めた表示ではなく元のファイルのダウンロードにする（CJ レビュー 2026-11-26）
+    ImageOverlay(overlayImage, onSave = onDownload) { overlayImage = null }
 
     treeAction?.let { action ->
         if (action is TreeAction.Upload) return@let

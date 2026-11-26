@@ -44,9 +44,9 @@ class InboundImageLoader(private val gateway: GatewayClient) {
     private val _progress = MutableStateFlow<Map<String, MediaProgress>>(emptyMap())
     val progress: StateFlow<Map<String, MediaProgress>> = _progress.asStateFlow()
 
-    suspend fun load(source: String, sessionKey: String, agentId: String?): ImageBitmap? {
-        // 同じパスでも会話が違えば別のもの（ホストのパスは作り直されることがある）
-        val key = "$sessionKey|$source"
+    suspend fun load(source: String, sessionKey: String, agentId: String?, messageScope: String = ""): ImageBitmap? {
+        // 同じパスでも、接続先・会話・メッセージが違えば別のもの（ホストのパスは作り直されることがある。CJ レビュー 2026-11-26）
+        val key = listOf(gateway.endpoint().orEmpty(), sessionKey, messageScope, source).joinToString("|")
         cache.get(key)?.let { return it }
         return locks.getOrPut(key) { Mutex() }.withLock {
             cache.get(key)?.let { return@withLock it }
@@ -147,14 +147,16 @@ const val MAX_IMAGE_SIDE_PX = 2048
 fun decodeImageScaled(bytes: ByteArray, maxSide: Int = MAX_IMAGE_SIDE_PX): ImageBitmap? = runCatching {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    // 今の倍率での長い辺が上限以下になるまで 2 の累乗で縮める（4032×3024 の写真は 1/2 の 2016×1512）
     var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > maxSide) sample *= 2
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
 }.getOrNull()
 
 /** 今開いている会話で、会話の画像を取る口。 */
 interface InboundImageSource {
-    suspend fun load(source: String): ImageBitmap?
+    /** [messageScope] は画像の載ったメッセージの ID（同じパスに作り直された画像を取り違えない）。 */
+    suspend fun load(source: String, messageScope: String = ""): ImageBitmap?
 
     /** 保存用の元のバイト列。取れなければ null。 */
     suspend fun bytes(source: String): ByteArray? = null
@@ -174,6 +176,9 @@ private val EMPTY_PROGRESS: StateFlow<Map<String, MediaProgress>> = MutableState
 
 val LocalInboundImages = staticCompositionLocalOf<InboundImageSource?> { null }
 
+/** いま組み立てているメッセージの ID（会話の画像・添付の鍵に使う。メッセージの外では空）。 */
+val LocalMessageScope = staticCompositionLocalOf { "" }
+
 /** Gateway から取る画像か（利用者の添付 `media://inbound/...`、エージェントが `MEDIA:` で示したホストのパス）。 */
 fun isInboundMediaUrl(url: String?): Boolean = GatewayClient.isGatewayMediaSource(url)
 
@@ -181,8 +186,9 @@ fun isInboundMediaUrl(url: String?): Boolean = GatewayClient.isGatewayMediaSourc
 @Composable
 fun rememberInboundImage(url: String?): ImageBitmap? {
     val loader = LocalInboundImages.current
-    val image by produceState<ImageBitmap?>(null, url, loader) {
-        value = if (url != null && loader != null && isInboundMediaUrl(url)) loader.load(url) else null
+    val scope = LocalMessageScope.current
+    val image by produceState<ImageBitmap?>(null, url, loader, scope) {
+        value = if (url != null && loader != null && isInboundMediaUrl(url)) loader.load(url, scope) else null
     }
     return image
 }

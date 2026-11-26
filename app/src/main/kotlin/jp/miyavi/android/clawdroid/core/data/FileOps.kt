@@ -133,11 +133,13 @@ case "${"$"}op" in
     tmp=${"$"}(mktemp "${"$"}dir/.clawdroid-upload.XXXXXXXX") || exit 1
     cat -- "${"$"}staged" > "${"$"}tmp" || { rm -f -- "${"$"}tmp"; exit 1; }
     chmod "${"$"}(printf '%o' ${"$"}((0666 & ~0${"$"}(umask))))" "${"$"}tmp" 2>/dev/null
+    # 置く先は 1 つの名前として確定する（-T。確かめたあとにフォルダやフォルダへのリンクに変わっても、その中に置かない）。
+    # -T の無い環境では安全に確定できないので、置かずに失敗にする（CJ レビュー 2026-11-26）
     if [ "${"$"}mode" = overwrite ]; then
-      mv -f -- "${"$"}tmp" "${"$"}target" || { rm -f -- "${"$"}tmp"; exit 1; }
+      mv -fT -- "${"$"}tmp" "${"$"}target" 2>/dev/null || { rm -f -- "${"$"}tmp"; exit 1; }
     else
       # 上書きしないときは、置く瞬間にも既にある名前を置き換えない（ln は同じ名前があると失敗する）
-      if ln -- "${"$"}tmp" "${"$"}target" 2>/dev/null; then rm -f -- "${"$"}tmp"
+      if ln -T -- "${"$"}tmp" "${"$"}target" 2>/dev/null; then rm -f -- "${"$"}tmp"
       else rm -f -- "${"$"}tmp"; { [ -e "${"$"}target" ] || [ -L "${"$"}target" ]; } && exit 2; exit 1; fi
     fi
     rm -f -- "${"$"}staged" ;;

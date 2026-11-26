@@ -33,6 +33,8 @@ class LinkPreviewLoader(client: OkHttpClient) {
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         // 名前を引いた結果に内側の宛先が混じっていたら、つなぐ前に断る
         .dns(PublicOnlyDns)
+        // プロキシは使わない（プロキシが選ばれる宛先は、そもそも取りに行かない。isDirect）
+        .proxy(java.net.Proxy.NO_PROXY)
         // 転送は 1 回ずつ自分で確かめて追う
         .followRedirects(false)
         .followSslRedirects(false)
@@ -51,7 +53,7 @@ class LinkPreviewLoader(client: OkHttpClient) {
 
     suspend fun load(url: String): LinkPreview? {
         cache.get(url)?.let { return it }
-        val http = url.toHttpUrlOrNull()?.takeIf { it.isWeb() && isPublicHost(it.host) } ?: return null
+        val http = url.toHttpUrlOrNull()?.takeIf { it.isWeb() && isPublicHost(it.host) && isDirect(it) } ?: return null
         return locks.getOrPut(url) { Mutex() }.withLock {
             cache.get(url)?.let { return@withLock it }
             val preview = fetch(http)
@@ -84,7 +86,7 @@ class LinkPreviewLoader(client: OkHttpClient) {
         // ファビコンも同じ決まりの接続で取り、中身を画面に渡す（画像の読み込みの仕組みに直接取りに行かせない）
         val icon = try {
             var bytes: ByteArray? = null
-            if (isPublicHost(iconUrl.host)) get(iconUrl, "image/*") { response ->
+            if (isPublicHost(iconUrl.host) && isDirect(iconUrl)) get(iconUrl, "image/*") { response ->
                 if (response.isSuccessful) bytes = response.body.byteStream().readNBytes(MAX_ICON_BYTES + 1).takeIf { it.size <= MAX_ICON_BYTES }
             }
             bytes
@@ -107,7 +109,7 @@ class LinkPreviewLoader(client: OkHttpClient) {
                     read(response)
                     return
                 }
-                if (!next.isWeb() || !isPublicHost(next.host)) return
+                if (!next.isWeb() || !isPublicHost(next.host) || !isDirect(next)) return
                 current = next
             }
         }
@@ -126,6 +128,15 @@ class LinkPreviewLoader(client: OkHttpClient) {
 }
 
 private fun HttpUrl.isWeb() = scheme == "http" || scheme == "https"
+
+/**
+ * 端末のプロキシを通らずに直接つながる宛先か。プロキシを通ると宛先の確認ができず、プロキシを外して直結すると
+ * 管理されたネットワークの決まりを迂回しかねないので、プロキシが選ばれる宛先は見出しを取らずドメインだけを出す（CJ レビュー 2026-11-26）。
+ */
+private fun isDirect(url: HttpUrl): Boolean = runCatching {
+    val proxies = java.net.ProxySelector.getDefault()?.select(url.toUri()).orEmpty()
+    proxies.all { it.type() == java.net.Proxy.Type.DIRECT }
+}.getOrDefault(false)
 
 private fun HttpUrl.faviconUrl(): HttpUrl = newBuilder().encodedPath("/favicon.ico").query(null).fragment(null).build()
 

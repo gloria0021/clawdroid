@@ -67,12 +67,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** 全画面で見る画像の並びと、最初に出す位置（同じメッセージの画像を横にめくれる）。 */
-data class ImageGallery(val images: List<MessagePart.Image>, val initialIndex: Int = 0)
+/** [scope] は画像の載ったメッセージの ID（会話の画像の鍵。メッセージの外から開くときは空）。 */
+data class ImageGallery(val images: List<MessagePart.Image>, val initialIndex: Int = 0, val scope: String = "")
 
 /** 1 枚だけを開く（ファイルビューアなど、並びの無いところ）。 */
 @Composable
-fun ImageOverlay(image: MessagePart.Image?, onDismiss: () -> Unit) {
-    ImageOverlay(gallery = image?.let { ImageGallery(listOf(it)) }, onDismiss = onDismiss)
+fun ImageOverlay(image: MessagePart.Image?, onSave: (() -> Unit)? = null, onDismiss: () -> Unit) {
+    ImageOverlay(gallery = image?.let { ImageGallery(listOf(it)) }, onSave = onSave, onDismiss = onDismiss)
 }
 
 /**
@@ -81,7 +82,12 @@ fun ImageOverlay(image: MessagePart.Image?, onDismiss: () -> Unit) {
  * 背景はフェード、画像は少し小さい状態からばねで広がって出る。消える動きを終えてから閉じる（AGENTS.md 2.8）。
  */
 @Composable
-fun ImageOverlay(gallery: ImageGallery?, onDismiss: () -> Unit) {
+fun ImageOverlay(
+    gallery: ImageGallery?,
+    /** 保存のボタンで、表示中の画像ではなく元のファイルを保存する（ファイルビューア。CJ レビュー 2026-11-26）。 */
+    onSave: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
     var shown by remember { mutableStateOf<ImageGallery?>(null) }
     val visible = remember { MutableTransitionState(false) }
     LaunchedEffect(gallery) {
@@ -97,11 +103,11 @@ fun ImageOverlay(gallery: ImageGallery?, onDismiss: () -> Unit) {
     }
     val current = shown ?: return
     // 開くたびに最初の位置からめくれるよう、並びごとに状態を作り直す
-    androidx.compose.runtime.key(current) { GalleryContent(current, visible, onDismiss) }
+    androidx.compose.runtime.key(current) { GalleryContent(current, visible, onSave, onDismiss) }
 }
 
 @Composable
-private fun GalleryContent(current: ImageGallery, visible: MutableTransitionState<Boolean>, onDismiss: () -> Unit) {
+private fun GalleryContent(current: ImageGallery, visible: MutableTransitionState<Boolean>, onSave: (() -> Unit)?, onDismiss: () -> Unit) {
     val images = current.images
     BackHandler(enabled = visible.targetState) { onDismiss() }
     val motion = MaterialTheme.motionScheme
@@ -137,11 +143,14 @@ private fun GalleryContent(current: ImageGallery, visible: MutableTransitionStat
                         )
                         .hazeSource(hazeState),
                 ) { page ->
-                    ZoomableImagePage(
-                        image = images[page],
-                        isCurrentPage = page == pagerState.currentPage,
-                        onScaledChange = { scaled -> if (page == pagerState.currentPage) currentScaled = scaled },
-                    )
+                    // 会話の画像は、載っていたメッセージの鍵で取る（一覧で取ったものをそのまま使う）
+                    androidx.compose.runtime.CompositionLocalProvider(jp.miyavi.android.clawdroid.core.data.LocalMessageScope provides current.scope) {
+                        ZoomableImagePage(
+                            image = images[page],
+                            isCurrentPage = page == pagerState.currentPage,
+                            onScaledChange = { scaled -> if (page == pagerState.currentPage) currentScaled = scaled },
+                        )
+                    }
                 }
                 // 下に浮くガラスのバー: 閉じる・何枚目か・ダウンロード
                 GlassPill(
@@ -163,6 +172,10 @@ private fun GalleryContent(current: ImageGallery, visible: MutableTransitionStat
                         IconButton(
                             enabled = !saving,
                             onClick = {
+                                if (onSave != null) {
+                                    onSave()
+                                    return@IconButton
+                                }
                                 val target = images[pagerState.currentPage]
                                 saving = true
                                 scope.launch {

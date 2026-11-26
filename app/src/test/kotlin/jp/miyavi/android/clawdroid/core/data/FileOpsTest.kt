@@ -95,6 +95,11 @@ class FileOpsTest {
             Files.createSymbolicLink(File(root, "trap.txt").toPath(), File(base, "outside/victim.txt").toPath())
             assertEquals(FileOpResult.AlreadyExists, run(FileOp.Place("", "trap.txt", staged("x"), overwrite = true)))
             assertTrue(!File(base, "outside/victim.txt").exists())
+            // 置く先がフォルダ（へのリンク）でも、その中には置かない
+            File(root, "adir").mkdirs()
+            Files.createSymbolicLink(File(root, "dirlink").toPath(), File(base, "outside").toPath())
+            assertEquals(FileOpResult.AlreadyExists, run(FileOp.Place("", "dirlink", staged("x"), overwrite = false)))
+            assertTrue(File(base, "outside").list()!!.none { it.startsWith(".clawdroid-upload") || it.startsWith("upload") })
             assertTrue(root.listFiles()!!.none { it.name.startsWith(".clawdroid-upload") })
         } finally {
             base.deleteRecursively()
