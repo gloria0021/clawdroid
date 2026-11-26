@@ -143,13 +143,25 @@ class InboundImageLoader(private val gateway: GatewayClient) {
 /** 表示に使う最大の辺。これより大きい画像は 2 の累乗で縮めて復号する（原寸のまま持たない。CJ レビュー 2026-11-26）。 */
 const val MAX_IMAGE_SIDE_PX = 2048
 
+/** [decodeImageScaled] で縮める倍率（2 の累乗。長い辺が [maxSide] 以下になるまで）。 */
+fun imageSampleSize(width: Int, height: Int, maxSide: Int = MAX_IMAGE_SIDE_PX): Int {
+    var sample = 1
+    while (maxOf(width, height) / sample > maxSide) sample *= 2
+    return sample
+}
+
+/** 縮めて復号したあとの大きさ（px）。BitmapFactory と同じく切り上げ。 */
+fun scaledImageSize(width: Int, height: Int, maxSide: Int = MAX_IMAGE_SIDE_PX): Pair<Int, Int> {
+    val sample = imageSampleSize(width, height, maxSide)
+    return (width + sample - 1) / sample to (height + sample - 1) / sample
+}
+
 /** 画像のバイト列を、表示に足りる大きさまで縮めて復号する（画面のスレッドの外で呼ぶ）。 */
 fun decodeImageScaled(bytes: ByteArray, maxSide: Int = MAX_IMAGE_SIDE_PX): ImageBitmap? = runCatching {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     // 今の倍率での長い辺が上限以下になるまで 2 の累乗で縮める（4032×3024 の写真は 1/2 の 2016×1512）
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > maxSide) sample *= 2
+    val sample = imageSampleSize(bounds.outWidth, bounds.outHeight, maxSide)
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
 }.getOrNull()
 

@@ -568,7 +568,10 @@ private fun MessageThumbnail(image: MessagePart.Image, onOpen: () -> Unit) {
     val cd = stringResource(R.string.chat_image_cd)
     val shape = MaterialTheme.shapes.large
     val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
-    val ratio = bitmap?.let { it.width.toFloat() / it.height.coerceAtLeast(1) }?.coerceIn(MIN_THUMB_RATIO, MAX_THUMB_RATIO) ?: 1f
+    // 縦横比は復号を待たずに頭の寸法から決める（並びの幅が後から変わらないように）
+    val known = rememberBase64ImageSize(image.base64)
+    val ratio = (bitmap?.let { it.width.toFloat() / it.height.coerceAtLeast(1) } ?: known?.let { it.width.toFloat() / it.height.coerceAtLeast(1) })
+        ?.coerceIn(MIN_THUMB_RATIO, MAX_THUMB_RATIO) ?: 1f
     val thumbModifier = Modifier
         .height(Dimens.messageImageRowHeight)
         .aspectRatio(ratio)
@@ -579,6 +582,7 @@ private fun MessageThumbnail(image: MessagePart.Image, onOpen: () -> Unit) {
     val url = remember(image.url) { image.url?.let(::webUri) }
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
+        image.base64 != null -> Box(thumbModifier)
         isInboundMediaUrl(image.url) -> MediaLoadingBadge(image.url, thumbModifier)
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Crop, modifier = thumbModifier)
         else -> Box(thumbModifier)
@@ -603,10 +607,21 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
         .clickable { onOpen(image) }
     val url = remember(image.url) { image.url?.let(::webUri) }
     val bitmap = rememberBase64Bitmap(image.base64) ?: rememberInboundImage(image.url)
+    // 復号後の画像は px の大きさを dp に直したものを上限の中で縦横比を保って縮めた大きさになる。待つあいだも同じ計算で決める
+    val pendingPx = if (bitmap == null) rememberBase64ImageSize(image.base64) else null
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val pendingSize = pendingPx?.let { px ->
+        with(density) {
+            val w = px.width.toDp()
+            val h = px.height.toDp()
+            val scale = minOf(1f, Dimens.messageImageMax / w, Dimens.messageImageMax / h)
+            androidx.compose.ui.unit.DpSize(w * scale, h * scale)
+        }
+    }
     when {
         bitmap != null -> Image(bitmap, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
-        // 復号を待つあいだも、同じ大きさの面を出しておく
-        image.base64 != null -> Box(imageModifier.size(Dimens.imagePlaceholder))
+        // 復号を待つあいだも、復号後と同じ大きさの面を出しておく（寸法が分からなければ仮の大きさ）
+        image.base64 != null -> Box(imageModifier.then(pendingSize?.let { Modifier.size(it) } ?: Modifier.size(Dimens.imagePlaceholder)))
         isInboundMediaUrl(image.url) -> MediaLoadingBadge(image.url, imageModifier.size(Dimens.imagePlaceholder))
         url != null -> AsyncImage(model = url, contentDescription = cd, contentScale = ContentScale.Fit, modifier = imageModifier)
     }
@@ -618,18 +633,41 @@ internal fun MessageImage(image: MessagePart.Image, onOpen: (MessagePart.Image) 
  */
 @Composable
 fun rememberBase64Bitmap(base64: String?): ImageBitmap? {
-    val cached = remember(base64) { base64?.let(Base64BitmapCache::get) }
-    val decoded by androidx.compose.runtime.produceState(cached, base64) {
-        if (value == null && base64 != null) {
-            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+    // 入力が変わったら、その場で新しい入力の値（覚えている画像か null）に切り替える（前の画像を残さない。CJ レビュー）
+    val state = remember(base64) { androidx.compose.runtime.mutableStateOf(base64?.let(Base64BitmapCache::get)) }
+    androidx.compose.runtime.LaunchedEffect(base64) {
+        if (state.value == null && base64 != null) {
+            state.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 runCatching {
                     jp.miyavi.android.clawdroid.core.data.decodeImageScaled(Base64.decode(base64.substringAfter("base64,"), Base64.DEFAULT))
                 }.getOrNull()
             }?.also { Base64BitmapCache.put(base64, it) }
         }
     }
-    return decoded
+    return state.value
 }
+
+/**
+ * base64 の画像の、復号したあとの大きさ（px）。頭の部分だけを読んで寸法を知る（復号を待つあいだの面を、
+ * 復号後と同じ大きさにするため。CJ レビュー 2026-11-27）。分からなければ null。
+ */
+@Composable
+private fun rememberBase64ImageSize(base64: String?): androidx.compose.ui.unit.IntSize? = remember(base64) {
+    base64 ?: return@remember null
+    runCatching {
+        val data = base64.substringAfter("base64,")
+        // 寸法はファイルの頭にある（JPEG は EXIF の後ろのこともあるので広めに読む）
+        val head = data.take(HEADER_BASE64_CHARS - HEADER_BASE64_CHARS % 4)
+        val bytes = Base64.decode(head, Base64.DEFAULT)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
+        else jp.miyavi.android.clawdroid.core.data.scaledImageSize(bounds.outWidth, bounds.outHeight).let { (w, h) -> androidx.compose.ui.unit.IntSize(w, h) }
+    }.getOrNull()
+}
+
+/** 寸法を読むために復号する頭の長さ（base64 の文字数。約 96 KB）。 */
+private const val HEADER_BASE64_CHARS = 128 * 1024
 
 /** 展開した base64 の画像（容量を限って覚えておく。枚数で数えると大きな画像でメモリが膨らむ）。 */
 private object Base64BitmapCache {
