@@ -4,7 +4,7 @@
 
 **Tests**: 憲章「ViewModel とデータ層には単体テストを書く」に従い、Repository・Controller・ViewModel のテストを含める。
 
-`M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`、`T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`、`R` = `app/src/main/res`
+`M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`、`T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`、`R` = `app/src/main/res`
 
 ## Phase 1: Setup
 

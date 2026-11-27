@@ -1,4 +1,4 @@
-# Implementation Plan: Clawdroid — OpenClaw Android コンパニオンアプリ
+# Implementation Plan: SumahoClaw — OpenClaw Android コンパニオンアプリ
 
 **Branch**: `001-android-companion-app` | **Date**: 2026-11-22 | **Spec**: [spec.md](./spec.md)
 
@@ -75,13 +75,13 @@ specs/001-android-companion-app/
 
 ### Source Code (repository root)
 
-パッケージは `jp.miyavi.android.clawdroid`（Gerbil の命名に合わせた仮。公開前に確定）。
+パッケージは `jp.miyavi.android.sumahoclaw`（Gerbil の命名に合わせた仮。公開前に確定）。
 1 つの `app` モジュールの中を、Gerbil と同じ `core/` ＋ `feature/` の構成で分ける。
 
 ```text
-app/src/main/kotlin/jp/miyavi/android/clawdroid/
+app/src/main/kotlin/jp/miyavi/android/sumahoclaw/
 ├── MainActivity.kt
-├── ClawdroidApp.kt                  # Application。接続・DB の初期化
+├── SumahoClawApp.kt                  # Application。接続・DB の初期化
 ├── navigation/                      # Navigation 3 の行き先、list-detail
 ├── core/
 │   ├── designsystem/                # Theme.kt（4 テーマ）、Spacing.kt、Motion.kt、Glass.kt（hazeSurface）、共通部品

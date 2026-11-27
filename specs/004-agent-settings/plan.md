@@ -71,7 +71,7 @@ specs/004-agent-settings/
 ### Source Code (repository root)
 
 ```text
-app/src/main/kotlin/jp/miyavi/android/clawdroid/
+app/src/main/kotlin/jp/miyavi/android/sumahoclaw/
 ├── core/data/
 │   ├── Models.kt                    # Agent に createdVia・creatorAgentId・createdAt
 │   ├── SessionsRepository.kt        # agents.list の解析に上の 3 項目
@@ -99,7 +99,7 @@ app/src/main/res/
 ├── drawable/ic_huge_skill.xml       # 新規（Hugeicons Stroke Rounded の puzzle 系。スキルのタブ）
 └── values/strings.xml               # agent_settings_*・agent_file_role_*・skill_*（日本語だけ）
 
-app/src/test/kotlin/jp/miyavi/android/clawdroid/
+app/src/test/kotlin/jp/miyavi/android/sumahoclaw/
 ├── core/data/FilesRepositoryTest.kt        # agents.files の往復・衝突・未作成の作成
 ├── core/data/SkillsTest.kt                 # 新規: 解析・状態・並び順・update
 ├── feature/files/OpenedFileControllerTest.kt   # 新規

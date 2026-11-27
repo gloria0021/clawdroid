@@ -21,15 +21,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 署名の鍵は ~/.gradle/gradle.properties の CLAWDROID_* から読む（レポジトリには置かない）。
+    // 署名の鍵は ~/.gradle/gradle.properties の SUMAHOCLAW_* から読む（レポジトリには置かない）。
     // 無ければ Release は未署名になり、scripts/release.sh が始める前に止める
-    val storeFilePath = providers.gradleProperty("CLAWDROID_STORE_FILE").orNull
+    val storeFilePath = providers.gradleProperty("SUMAHOCLAW_STORE_FILE").orNull
     signingConfigs {
         if (storeFilePath != null) create("release") {
             storeFile = file(storeFilePath)
-            storePassword = providers.gradleProperty("CLAWDROID_STORE_PASSWORD").get()
-            keyAlias = providers.gradleProperty("CLAWDROID_KEY_ALIAS").get()
-            keyPassword = providers.gradleProperty("CLAWDROID_KEY_PASSWORD").get()
+            storePassword = providers.gradleProperty("SUMAHOCLAW_STORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("SUMAHOCLAW_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("SUMAHOCLAW_KEY_PASSWORD").get()
         }
     }
 

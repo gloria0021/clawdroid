@@ -7,7 +7,7 @@
 - **Decision**: `LifecycleService` を継承した `ConnectionService` を、`foregroundServiceType="connectedDevice"` のフォアグラウンドサービスとして動かす。
   サービスは接続そのものを持たず、アプリの `GatewayClient`（`AppContainer` の 1 つ）が生きていられるようにプロセスを保つだけ。
   常駐の通知（低い重要度のチャンネル）に接続の状態を出し、`GatewayClient.state` に合わせて書き換える。
-- **始める・止める**: 常駐がオンで接続情報があれば、アプリの起動時（`ClawdroidApp.onCreate`）とアプリが裏に回ったとき（`ProcessLifecycleOwner` の ON_STOP）に始める。
+- **始める・止める**: 常駐がオンで接続情報があれば、アプリの起動時（`SumahoClawApp.onCreate`）とアプリが裏に回ったとき（`ProcessLifecycleOwner` の ON_STOP）に始める。
   オフにした・接続情報を消した・接続先を切り替えたら止める。Android 12 以降は裏からフォアグラウンドサービスを始められないので、前にいるうちに始めておく
   （ON_START で始め、ON_STOP では止めない）。
 - **端末の起動**: `BOOT_COMPLETED` の受け手から始める。connectedDevice は Android 15 の「起動時に始められない種類」に入っていない

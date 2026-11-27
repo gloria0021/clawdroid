@@ -67,12 +67,12 @@ specs/002-terminal-file-viewer/
 ### Source Code (repository root)
 
 ```text
-app/src/main/kotlin/jp/miyavi/android/clawdroid/
+app/src/main/kotlin/jp/miyavi/android/sumahoclaw/
 ├── core/data/
 │   ├── FilesRepository.kt          # sessions.files.* / agents.workspace.*（一覧・取得・保存・ダウンロードのリンク）
 │   ├── FileDownloader.kt           # 短命リンクを OkHttp で取り、MediaStore.Downloads に書く
 │   └── TerminalRepository.kt       # terminal.* とイベント（data / exit）、sessionId の保存
-├── core/database/ClawdroidDatabase.kt   # file_drafts を追加（版 2）
+├── core/database/SumahoClawDatabase.kt   # file_drafts を追加（版 2）
 ├── feature/files/
 │   ├── FilesViewModel.kt           # 一覧・開いたファイル・編集・保存・衝突・下書き
 │   ├── FilesScreen.kt              # ViewModel をつなぐ部分 ＋ FilesContent
@@ -86,7 +86,7 @@ app/src/main/kotlin/jp/miyavi/android/clawdroid/
 │   └── SpecialKeysRow.kt           # Esc・Tab・Ctrl・矢印（ガラスのピル）
 └── navigation/AppNavigation.kt     # FilesRoute / TerminalRoute を本物の画面に
 
-app/src/test/kotlin/jp/miyavi/android/clawdroid/
+app/src/test/kotlin/jp/miyavi/android/sumahoclaw/
 ├── core/data/FilesRepositoryTest.kt
 ├── core/data/TerminalRepositoryTest.kt
 └── feature/files/FilesViewModelTest.kt

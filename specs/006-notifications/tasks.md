@@ -4,7 +4,7 @@
 
 **Tests**: 判定（完了・文・失敗・承認の差分）は純粋な関数にして単体テストを書く（憲章）。
 
-`M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`、`T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`、`R` = `app/src/main/res`
+`M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`、`T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`、`R` = `app/src/main/res`
 
 ## Phase 1: Setup
 
@@ -17,7 +17,7 @@
 - [x] T004 `M/core/notify/NotificationCenter.kt`: チャンネル（常駐・応答のグループとエージェントごと・承認・自動化の失敗）、通知の id、`MainActivity` を開く `PendingIntent`（行き先の付加情報）、ロック画面の表示
 - [x] T005 `M/core/notify/OpenTarget.kt` と `M/AppContainer`: 通知から開く行き先（会話・承認・自動化）を流す `MutableSharedFlow`、アプリが前にあるか・開いている会話（`ForegroundState`）
 - [x] T006 `M/MainActivity.kt` と `M/navigation/AppNavigation.kt` と `M/feature/chat/ChatViewModel.kt`: 行き先を受けて会話を開く・自動化の詳細へ進む。開いている会話を `ForegroundState` に知らせる
-- [x] T007 `M/core/notify/ConnectionService.kt` と `M/ClawdroidApp.kt`: 常駐（connectedDevice）。接続の状態を常駐の通知に写す。設定（常駐・接続情報）と前後の切り替えで始める・止める
+- [x] T007 `M/core/notify/ConnectionService.kt` と `M/SumahoClawApp.kt`: 常駐（connectedDevice）。接続の状態を常駐の通知に写す。設定（常駐・接続情報）と前後の切り替えで始める・止める
 - [x] T008 `M/core/data/ChatRepository.kt`: 裏にあるあいだ開いている会話の購読を止め、戻ったら購読し直して取り直す。`M/core/gateway/GatewayClient.kt` の caps に `chat-only-assistant-text`
 
 ## Phase 3: US1 応答の完了 (P1) 🎯 MVP

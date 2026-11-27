@@ -25,13 +25,13 @@ import org.junit.Test
 
 /**
  * 実際の Gateway への読み取りだけの接続確認。環境変数があるときだけ動く（通常のテストでは飛ばす）。
- *   CLAWDROID_LIVE_URL=ws://127.0.0.1:18789 CLAWDROID_LIVE_TOKEN=... ./gradlew testDebugUnitTest --tests '*LiveGatewaySmokeTest*'
+ *   SUMAHOCLAW_LIVE_URL=ws://127.0.0.1:18789 SUMAHOCLAW_LIVE_TOKEN=... ./gradlew testDebugUnitTest --tests '*LiveGatewaySmokeTest*'
  * メッセージの送信など、Gateway の状態を変える操作はしない。
  */
 class LiveGatewaySmokeTest {
     @Test fun connect_and_readAgentsSessionsHistory() {
-        val url = System.getenv("CLAWDROID_LIVE_URL")
-        val token = System.getenv("CLAWDROID_LIVE_TOKEN")
+        val url = System.getenv("SUMAHOCLAW_LIVE_URL")
+        val token = System.getenv("SUMAHOCLAW_LIVE_TOKEN")
         assumeTrue(!url.isNullOrBlank() && !token.isNullOrBlank())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val secrets = InMemorySecretStore()

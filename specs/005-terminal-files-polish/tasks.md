@@ -4,7 +4,7 @@
 
 **Tests**: 憲章「ViewModel とデータ層には単体テストを書く」に従い、純粋な関数（看板・ツリー・行・名前の検証）と Repository（ファイル操作）のテストを含める。
 
-`M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`、`T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`、`R` = `app/src/main/res`
+`M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`、`T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`、`R` = `app/src/main/res`
 
 ストーリーの順は優先度順（US1 P1 → US2・US4・US5・US6 P2 → US3 P3）。
 

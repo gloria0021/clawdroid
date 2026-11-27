@@ -15,7 +15,7 @@
 ## 送る 1 行
 
 ```sh
-stty -echo; sh -c '<SCRIPT>' clawdroid-op '<OP>' '<ROOT>' '<ARG1>' '<ARG2>'; printf '\036%s:%s\036\n' '<NONCE>' "$?"
+stty -echo; sh -c '<SCRIPT>' sumahoclaw-op '<OP>' '<ROOT>' '<ARG1>' '<ARG2>'; printf '\036%s:%s\036\n' '<NONCE>' "$?"
 ```
 
 - `<SCRIPT>` は下のスクリプト（中の `'` は `'\''` に置き換える）。`<OP>` は `create-file` / `create-folder` / `rename` / `delete`

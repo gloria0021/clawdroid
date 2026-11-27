@@ -1,4 +1,4 @@
-# Research: Clawdroid — OpenClaw Android コンパニオンアプリ
+# Research: SumahoClaw — OpenClaw Android コンパニオンアプリ
 
 **Date**: 2026-11-22 | **Plan**: [plan.md](./plan.md)
 

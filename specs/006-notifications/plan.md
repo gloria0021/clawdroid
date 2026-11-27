@@ -74,8 +74,8 @@ specs/006-notifications/
 ```text
 app/src/main/
 ├── AndroidManifest.xml                         # ConnectionService（connectedDevice）・BOOT_COMPLETED・通知のボタンの受け手
-└── kotlin/jp/miyavi/android/clawdroid/
-    ├── ClawdroidApp.kt                         # 起動時と前後の切り替えで常駐を始める・止める
+└── kotlin/jp/miyavi/android/sumahoclaw/
+    ├── SumahoClawApp.kt                         # 起動時と前後の切り替えで常駐を始める・止める
     ├── core/notify/
     │   ├── ConnectionService.kt                # 新規: 常駐（フォアグラウンドサービス）と常駐の通知
     │   ├── NotificationCenter.kt               # 新規: チャンネル・各通知の組み立てと出し消し
@@ -88,7 +88,7 @@ app/src/main/
     ├── core/gateway/GatewayClient.kt           # caps に chat-only-assistant-text を足す（R3）
     ├── feature/settings/SettingsScreen.kt      # 通知のセクション
     └── MainActivity.kt                         # 通知から開く行き先（会話・承認・自動化）
-app/src/test/kotlin/jp/miyavi/android/clawdroid/core/notify/
+app/src/test/kotlin/jp/miyavi/android/sumahoclaw/core/notify/
     ├── ReplyCompletionTest.kt
     ├── NotificationTextTest.kt
     ├── AutomationFailureTest.kt

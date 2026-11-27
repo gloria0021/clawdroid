@@ -1,4 +1,4 @@
-# Data Model: Clawdroid
+# Data Model: SumahoClaw
 
 **Date**: 2026-11-22 | **Plan**: [plan.md](./plan.md)
 

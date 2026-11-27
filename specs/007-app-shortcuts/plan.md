@@ -73,8 +73,8 @@ specs/007-app-shortcuts/
 ```text
 app/src/main/
 ├── res/values/strings.xml                      # 設定の画面・シート・無効の理由の文言
-└── kotlin/jp/miyavi/android/clawdroid/
-    ├── ClawdroidApp.kt                         # AppContainer に ShortcutPublisher を足す
+└── kotlin/jp/miyavi/android/sumahoclaw/
+    ├── SumahoClawApp.kt                         # AppContainer に ShortcutPublisher を足す
     ├── MainActivity.kt                         # openFromNotification → openFromIntent。SHORTCUT_ID があれば reportShortcutUsed
     ├── core/shortcut/
     │   ├── ShortcutModels.kt                   # 新規: ShortcutSlot・ShortcutDestination・ShortcutSettings（@Serializable）
@@ -93,7 +93,7 @@ app/src/main/
     │   └── ShortcutEditSheet.kt                # 新規: エージェント・行き先・フォルダ / セッション・名前・外す
     ├── feature/chat/ChatViewModel.kt           # openRequests で NewChat を受ける（エージェントを選び、新しい会話にフォルダを入れる）
     └── navigation/AppNavigation.kt             # ShortcutSettingsRoute。openRequests の NewChat を Session と同じ扱いに
-app/src/test/kotlin/jp/miyavi/android/clawdroid/
+app/src/test/kotlin/jp/miyavi/android/sumahoclaw/
     ├── core/shortcut/ShortcutReconcileTest.kt
     ├── core/shortcut/ShortcutLabelTest.kt
     ├── core/shortcut/ShortcutSettingsJsonTest.kt

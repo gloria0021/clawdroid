@@ -4,7 +4,7 @@
 
 **Tests**: 判定（片付け・名前）と保存・Intent の書き読みは純粋な関数にして単体テストを書く（憲章）。
 
-`M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`、`T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`、`R` = `app/src/main/res`
+`M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`、`T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`、`R` = `app/src/main/res`
 
 ## Phase 1: Setup
 
@@ -28,7 +28,7 @@
 
 - [x] T010 [P] [US3] `M/core/shortcut/ShortcutReconcile.kt`: `reconcile(slots, lists, agents)` と名前の決め方（純粋な関数）
 - [x] T011 [P] [US3] `T/core/shortcut/ShortcutReconcileTest.kt`・`ShortcutLabelTest.kt`・`ShortcutSettingsJsonTest.kt`
-- [x] T012 [US1/US3] `M/core/shortcut/ShortcutPublisher.kt` と `M/ClawdroidApp.kt`: 枠・一覧・エージェント・接続の状態を見張る。登録（前回と違うときだけ）・外す・無効・有効に戻す・接続先の切り替えで全消去・前に戻ったときの並べ直し
+- [x] T012 [US1/US3] `M/core/shortcut/ShortcutPublisher.kt` と `M/SumahoClawApp.kt`: 枠・一覧・エージェント・接続の状態を見張る。登録（前回と違うときだけ）・外す・無効・有効に戻す・接続先の切り替えで全消去・前に戻ったときの並べ直し
 
 ## Phase 5: US2 設定 (P1)
 

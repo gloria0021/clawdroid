@@ -39,7 +39,7 @@
   - 行き先のキーが `sessions` にある → 有効。`archived` にある → アーカイブ済み。どちらにも無い → 削除済み
   - エージェントは、`agents` の読み込みが成功していて（`loading == false`・`error == null`・空でない）、その中に無いときだけ「消えた」とする
 - **削除が一覧に届くことの確認**: Gateway は削除のとき `sessions.changed` を `{ sessionKey, sessionId, agentId, reason: "delete" }` の形で送り、行（`session`）を含めない（`dist/sessions-delete-DsxOP-5p.mjs:243-249`）。
-  Clawdroid は行の無い通知で読み込み済みの一覧を取り直す（`SessionsRepository.kt:168-171`）ので、取り直した一覧から消えて削除と判定できる
+  SumahoClaw は行の無い通知で読み込み済みの一覧を取り直す（`SessionsRepository.kt:168-171`）ので、取り直した一覧から消えて削除と判定できる
 - **取りこぼし**: `sessions.changed` は遅い接続で捨てられることがある（`dropIfSlow`）。接続し直したときの取り直し（既存）で追いつく
 - **Rationale**: 一覧は既存の契機で読み込まれ・更新される。片付けはそれを見るだけにして、読み込みを足さない（FR-021）
 
@@ -47,7 +47,7 @@
 
 - **Decision**: `Notifier` にあるエージェントの顔の読み込み（Coil の `SingletonImageLoader`・`allowHardware(false)`・`data:` と http(s) の URL）を `core/data/AgentAvatarBitmaps.kt` に移し、通知とショートカットで使い回す
   - ショートカットには丸く切らない正方形を読み、108dp 相当の正方形いっぱいに敷いて `IconCompat.createWithAdaptiveBitmap` にする（ランチャーが丸などの形に切る。外周は切られるので顔は少し寄って見える）
-  - 読めなければ Clawdroid のアイコン（`IconCompat.createWithResource(R.mipmap.ic_launcher)`）
+  - 読めなければ SumahoClaw のアイコン（`IconCompat.createWithResource(R.mipmap.ic_launcher)`）
 - **見え方の確認**: 端末のランチャーで、顔が切れすぎないかを quickstart で見る。切れすぎるなら内側 72dp に縮めて周りを `surfaceContainerHigh` 相当の色で埋める（テーマの外で色を決めることになるので、そのときは相談する）
 
 ## R6. 名前

@@ -80,11 +80,11 @@ specs/005-terminal-files-polish/
 ### Source Code (repository root)
 
 ```text
-app/src/main/kotlin/jp/miyavi/android/clawdroid/
+app/src/main/kotlin/jp/miyavi/android/sumahoclaw/
 ├── core/data/
 │   ├── TerminalRepository.kt      # 使い捨てのシェルを開いて 1 回流す runOnce() を足す
 │   └── FileOpsRepository.kt       # 新規: 作成・削除・名前の変更（スクリプトの組み立てと結果の読み取り）
-├── core/database/ClawdroidDatabase.kt   # file_drafts に secret の印（R8）
+├── core/database/SumahoClawDatabase.kt   # file_drafts に secret の印（R8）
 ├── feature/terminal/
 │   ├── TerminalBanner.kt          # 新規: 看板の絵と、桁数での形の選択
 │   ├── TerminalScreen.kt          # Ctrl+Shift+C/V、看板の描画
@@ -102,7 +102,7 @@ app/src/main/kotlin/jp/miyavi/android/clawdroid/
     ├── FileViewer.kt              # CodeView・Editor を CodeEditor に置き換え
     └── FileList.kt                # 削除（ツリーに置き換え）
 
-app/src/test/kotlin/jp/miyavi/android/clawdroid/
+app/src/test/kotlin/jp/miyavi/android/sumahoclaw/
 ├── feature/terminal/TerminalBannerTest.kt
 ├── feature/files/FileTreeStateTest.kt
 ├── feature/files/EditHistoryTest.kt

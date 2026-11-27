@@ -7,9 +7,9 @@
 #   scripts/release.sh 1.0.0              # 外に出す前（Push の前）に一度確かめる
 #   scripts/release.sh 1.0.0 --yes        # 確かめずに最後まで進める
 #
-# 署名の鍵は ~/.gradle/gradle.properties の CLAWDROID_* から読む（レポジトリには置かない）:
-#   CLAWDROID_STORE_FILE=/path/to/upload-key.jks
-#   CLAWDROID_STORE_PASSWORD=...  CLAWDROID_KEY_ALIAS=...  CLAWDROID_KEY_PASSWORD=...
+# 署名の鍵は ~/.gradle/gradle.properties の SUMAHOCLAW_* から読む（レポジトリには置かない）:
+#   SUMAHOCLAW_STORE_FILE=/path/to/upload-key.jks
+#   SUMAHOCLAW_STORE_PASSWORD=...  SUMAHOCLAW_KEY_ALIAS=...  SUMAHOCLAW_KEY_PASSWORD=...
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -23,7 +23,7 @@ for arg in "$@"; do
   esac
 done
 
-OUT=${CLAWDROID_RELEASE_DIR:-$HOME/Dev/android/sumahoclaw-release}
+OUT=${SUMAHOCLAW_RELEASE_DIR:-$HOME/Dev/android/sumahoclaw-release}
 GRADLE_FILE=app/build.gradle.kts
 
 step() { printf '\n== %s\n' "$1"; }
@@ -34,7 +34,7 @@ fail() { echo "止めました: $1" >&2; exit 1; }
 [ "$(git branch --show-current)" = main ] || fail "main ブランチで実行してください"
 [ -z "$(git status --porcelain)" ] || fail "未コミットの変更があります"
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && fail "タグ v$VERSION はもうあります"
-grep -q '^CLAWDROID_STORE_FILE=' "$HOME/.gradle/gradle.properties" 2>/dev/null || fail "署名の設定（~/.gradle/gradle.properties の CLAWDROID_*）がありません"
+grep -q '^SUMAHOCLAW_STORE_FILE=' "$HOME/.gradle/gradle.properties" 2>/dev/null || fail "署名の設定（~/.gradle/gradle.properties の SUMAHOCLAW_*）がありません"
 command -v claude >/dev/null || fail "訳に使う claude（Claude Code）がありません"
 command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || fail "GitHub Release に使う gh がないか、ログインしていません（gh auth login）"
 gh release view "v$VERSION" >/dev/null 2>&1 && fail "GitHub Release v$VERSION はもうあります"

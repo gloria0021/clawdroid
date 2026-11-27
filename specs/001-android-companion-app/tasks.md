@@ -1,8 +1,8 @@
 ---
-description: "Clawdroid — OpenClaw Android コンパニオンアプリの実装タスク"
+description: "SumahoClaw — OpenClaw Android コンパニオンアプリの実装タスク"
 ---
 
-# Tasks: Clawdroid — OpenClaw Android コンパニオンアプリ
+# Tasks: SumahoClaw — OpenClaw Android コンパニオンアプリ
 
 **Input**: `specs/001-android-companion-app/` の plan.md・spec.md・research.md・data-model.md・contracts/・quickstart.md
 
@@ -18,8 +18,8 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 ## Path Conventions
 
-- `M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`
-- `T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`
+- `M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`
+- `T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`
 - `R` = `app/src/main/res`
 - 参考: `reference/openclaw/apps/android/app/src/main/java/ai/openclaw/app`（以下 `ref-android`）、
   `reference/openclaw/packages/gateway-protocol/src/schema`（以下 `ref-schema`）、Gerbil = `~/Dev/workspace/boards`
@@ -30,7 +30,7 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 - [x] T001 Gradle の土台を作る: `settings.gradle.kts`、`build.gradle.kts`、`gradle.properties`、Gradle Wrapper（Gerbil と同じ版）
 - [x] T002 `gradle/libs.versions.toml` を作る（research R15 の版。Gerbil の toml を出発点に、Tink・Termux terminal-view・highlights・multiplatform-markdown-renderer を追加）
-- [x] T003 `app/build.gradle.kts` を作る: `namespace = "jp.miyavi.android.clawdroid"`、minSdk 33、compile/targetSdk 37、JVM 21、Compose、kotlinx.serialization、KSP（Room）、Robolectric・Roborazzi
+- [x] T003 `app/build.gradle.kts` を作る: `namespace = "jp.miyavi.android.sumahoclaw"`、minSdk 33、compile/targetSdk 37、JVM 21、Compose、kotlinx.serialization、KSP（Room）、Robolectric・Roborazzi
 - [x] T004 `app/src/main/AndroidManifest.xml` を作る: `INTERNET`・`ACCESS_NETWORK_STATE`・`POST_NOTIFICATIONS`・`RECORD_AUDIO`・`FOREGROUND_SERVICE`・`FOREGROUND_SERVICE_CONNECTED_DEVICE`・`CHANGE_NETWORK_STATE`、`dataExtractionRules`（秘密情報をバックアップから外す）、`localeConfig`
 - [x] T005 [P] `R/xml/network_security_config.xml` と `R/xml/data_extraction_rules.xml`、`R/xml/locales_config.xml`（ja・en）を作る
 - [x] T006 [P] `R/values/strings.xml`（ja）と `R/values-en/strings.xml` の骨組みを作る（`*_cd` の命名規則を含む）
@@ -71,8 +71,8 @@ description: "Clawdroid — OpenClaw Android コンパニオンアプリの実�
 
 ### 土台の画面とデータ
 
-- [x] T026 `M/core/database/ClawdroidDatabase.kt` を作る（Room。エンティティは各ストーリーで追加）
-- [x] T027 `M/ClawdroidApp.kt` と `M/MainActivity.kt` を作る: `enableEdgeToEdge()`、テーマの適用、`GatewayClient` と DB の生成（手書きの依存の受け渡し）
+- [x] T026 `M/core/database/SumahoClawDatabase.kt` を作る（Room。エンティティは各ストーリーで追加）
+- [x] T027 `M/SumahoClawApp.kt` と `M/MainActivity.kt` を作る: `enableEdgeToEdge()`、テーマの適用、`GatewayClient` と DB の生成（手書きの依存の受け渡し）
 - [x] T028 `M/navigation/AppNavigation.kt` を作る: Navigation 3 の `NavDisplay`、行き先（contracts/ui-navigation.md）、画面遷移の `transitionSpec` / `popTransitionSpec` / `predictivePopTransitionSpec`（上の画面が右から重なり、下は暗くなる）、入り終わるまで次の遷移を待つ処理
 
 **Checkpoint**: テーマ・ガラス・Gateway への接続（偽の Gateway で）が動く

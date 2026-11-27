@@ -19,7 +19,7 @@
 - 16KB ページサイズ対応、ターゲット API 37、日本語・英語の文言は済んでいる
 - 001 の US2 通知（常駐の接続）は未実装
 - 設定の「このアプリについて」には、アプリ名と版の名前の 1 行だけがある
-- 文言は既定が日本語（`values/`）、英語（`values-en/`）は翻訳すべき 449 件がすべてそろっている。画面の文言を Kotlin に直書きした箇所は無い。例外は Gateway に送る再起動の理由「Clawdroid のワンボタン再起動」（日本語固定）だけ。アプリ単位の言語の一覧はビルドで自動生成している
+- 文言は既定が日本語（`values/`）、英語（`values-en/`）は翻訳すべき 449 件がすべてそろっている。画面の文言を Kotlin に直書きした箇所は無い。例外は Gateway に送る再起動の理由「SumahoClaw のワンボタン再起動」（日本語固定）だけ。アプリ単位の言語の一覧はビルドで自動生成している
 - 2026-11-24 に訳の仕組みを先に作った（下の「作ったもの」）。`values-en/` は消し、中身は Release 専用の英語の訳として引き継いだ
 
 ## 作ったもの（2026-11-24、マスターの依頼で plan より先に作成）
@@ -27,7 +27,7 @@
 - `scripts/translate-strings.py`: 日本語の文言から各言語の strings.xml を `app/src/release/res/` へ作る。前回訳したときの日本語を `app/src/release/translations.json` に残し、変わった文言だけを `claude -p` で訳す。置き場所（%1$s など）・複数形の数量・配列の数を確かめ、合わなければ 1 回だけ訳し直す。`--check` で訳が最新かだけを見る
 - Release だけが訳を使う（ビルドの種類の重ね合わせ）。Release の既定の言語は英語、Debug は日本語だけ。アプリ単位の言語の一覧は自動生成をやめ、`res/xml/locales_config.xml` を main（ja）と release（スクリプトが作る）に置く（AGP は main の resources.properties しか読まず、既定の言語をビルドの種類ごとに分けられないため）
 - 2026-11-25 追記: Release の日本語（`values-ja/`）は main の日本語の写しで、訳のスクリプトを流すまで古いまま残り、Release 版だけ古い文言が出ていた（サイドパネルの「更新順 ⇔ フォルダ順」・設定の「このアプリについて」）。Release のビルドのたびに Gradle の `syncReleaseJapanese` が `scripts/translate-strings.py --ja-only` で日本語の写しだけを作り直す（訳さない）
-- `scripts/release.sh`: 訳 → 版を上げる → Release の lint とテスト → コミットとタグ → 署名した AAB と難読化の対応表 →（確認）→ Push。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `CLAWDROID_*`
+- `scripts/release.sh`: 訳 → 版を上げる → Release の lint とテスト → コミットとタグ → 署名した AAB と難読化の対応表 →（確認）→ Push。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `SUMAHOCLAW_*`
 - ~~`scripts/publish-public.sh`~~: 2026-11-25 に削除。レポジトリをそのまま公開する方針に変えたため（下の Session 2026-11-25）。`release.sh` の公開用レポジトリへの送信の手順も外した
 - `docs/privacy-policy.md`（日本語・英語）と `README.md` の原稿
 - 2026-11-27 変更（マスター指定）: 訳はリリースのときだけでなく、文言を変えたときに作る。置き場所を `app/src/l10n/`（`res/` と `translations.json`）に移し、Debug・Release の両方が使う（ビルドの種類ごとの source set に足す）。日本語の写しは Gradle の `syncJapaneseCopy` がビルドのたびに作り直す。`release.sh` は訳を確かめ（足りなければ作り）、署名した APK と AAB を同じビルドで作り、Push のあと APK を GitHub Release に載せる（`gh release create --generate-notes`）。AAB は手元に残して Play Console に上げる
@@ -47,9 +47,9 @@
 
 ### Session 2026-11-25
 
-- Q: レポジトリの公開の仕方 → A: Gerbil のように README と docs だけを別の公開用レポジトリに出すのではなく、今の非公開レポジトリ（`clawdroid`）をそのまま公開して OSS にする（マスター指定 2026-11-25。FR-013・FR-036〜038）。プライバシーポリシーはこのレポジトリの `docs/privacy-policy.md` を指す。`scripts/publish-public.sh` は消した
+- Q: レポジトリの公開の仕方 → A: Gerbil のように README と docs だけを別の公開用レポジトリに出すのではなく、今の非公開レポジトリ（`sumahoclaw`）をそのまま公開して OSS にする（マスター指定 2026-11-25。FR-013・FR-036〜038）。プライバシーポリシーはこのレポジトリの `docs/privacy-policy.md` を指す。`scripts/publish-public.sh` は消した
 - 設定の「このアプリについて」は節の名前を「情報」にし、設定の並びを 通知・表示・エージェント・接続・情報 にする（マスター指定 2026-11-25）。US4（FR-030〜035）は 2026-11-25 に先に実装した（`feature/settings/AboutSection.kt`・`LicensesScreen.kt`・`core/licenses/OssLicenses.kt`。一覧は AboutLibraries の Gradle プラグインで依存関係から作り、実行時の依存は足していない）
-- 「情報」の行は プライバシーポリシー・オープンソースのライセンス・版（Clawdroid）の 3 つだけにする。Gateway の版は接続の行に出ているので出さず、端末の行と「情報をコピー」の行も外す。版の行を押すと、版・Gateway の版・端末・Android の版をまとめてコピーする（マスター指定 2026-11-25。FR-030・031 をこの形で満たす）
+- 「情報」の行は プライバシーポリシー・オープンソースのライセンス・版（SumahoClaw）の 3 つだけにする。Gateway の版は接続の行に出ているので出さず、端末の行と「情報をコピー」の行も外す。版の行を押すと、版・Gateway の版・端末・Android の版をまとめてコピーする（マスター指定 2026-11-25。FR-030・031 をこの形で満たす）
 - Q: 審査専用の Gateway の置き場所 → A: 自宅の常時稼働の PC の Docker で動かし、Cloudflare Tunnel で外へ出す。ルーターのポートは開けない。クラウドの無料枠は使わない（マスター承認 2026-11-25。FR-019）。審査は更新のたびに来るため、公開しているあいだ動かし続ける前提で選んだ
   - 自宅＋Tunnel を選んだ理由: 費用 0 円、TLS の証明書と名前の解決を Cloudflare に任せられ、自宅の IP を出さない。ホストは 24 時間動いており、`docker` と `cloudflared` が入っている
   - ポートを開けて直接出す案は採らない: 自宅の IP と開いたポートが外にさらされ続け、証明書の更新とダイナミック DNS も自前で回すことになる
@@ -160,7 +160,7 @@
 - ライブラリを足したのにライセンスの一覧に無い: 一覧は依存関係から自動で作り、手で書き足すのはフォント・アイコンなど依存関係に出ないものだけにする
 - 端末の言語が日本語・英語以外: 既定の言語で表示する（下の多言語対応を参照）
 - 文字 200% で、ライセンスの全文や情報の行が切れる: 折り返して全文を読めるようにする
-- 名前「Clawdroid」と OpenClaw の関係: 公式アプリと誤解される表現（公式のロゴ・「OpenClaw 公式」）を掲載ページとアイコンに使わない
+- 名前「SumahoClaw」と OpenClaw の関係: 公式アプリと誤解される表現（公式のロゴ・「OpenClaw 公式」）を掲載ページとアイコンに使わない
 
 ## Requirements *(mandatory)*
 
@@ -180,7 +180,7 @@
 - **FR-010**: 配布用パッケージ MUST、使っている機能に対応する権限だけを宣言する。使っていない `FOREGROUND_SERVICE_CONNECTED_DEVICE`・`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`・`CHANGE_NETWORK_STATE` は、対応する機能を今回の版に含めないなら外す
 - **FR-011**: フォアグラウンドサービス MUST、宣言した種類と Play Console の申告（用途の説明・動画）が一致する。初回はダウンロードの継続（`dataSync`）だけを申告する。常駐の接続（001 US2）は初回に含めず、後の更新で実装と申告を同時に足す
 - **FR-012**: データ セーフティの申告 MUST、実際の通信先と保存するデータに一致させる。plan で、アプリが通信する先（利用者の Gateway、音声認識）と端末内に保存するもの（接続情報・設定・下書き・キャッシュ）を一覧にして根拠にする
-- **FR-013**: プライバシーポリシー MUST、日本語と英語を 1 つの文書（`docs/privacy-policy.md`）に書き、公開したこのレポジトリ（`clawdroid`）の `main` のページとして公開する。ストアの掲載とアプリ内の両方からそのページを開ける。集めるもの・送る先・保存の場所・削除の方法（アプリの削除・接続情報の消去）を書く（2026-11-25 変更。以前は Gerbil と同じく公開用の別レポジトリに README と docs だけを送る案だった）
+- **FR-013**: プライバシーポリシー MUST、日本語と英語を 1 つの文書（`docs/privacy-policy.md`）に書き、公開したこのレポジトリ（`sumahoclaw`）の `main` のページとして公開する。ストアの掲載とアプリ内の両方からそのページを開ける。集めるもの・送る先・保存の場所・削除の方法（アプリの削除・接続情報の消去）を書く（2026-11-25 変更。以前は Gerbil と同じく公開用の別レポジトリに README と docs だけを送る案だった）
 - **FR-014**: 対象年齢 MUST、子ども向けではない（18 歳以上）として申告し、コンテンツのレーティングの質問票に答える
 - **FR-015**: 審査用のアクセスの説明 MUST、Play Console の「アプリへのアクセス」に、審査専用の Gateway の接続先・トークン・主要な画面までの手順を書く
 - **FR-018**: 審査専用の Gateway MUST、マスターの Gateway とは別の使い捨ての環境で動かし、暗号化した経路（wss://）で外から到達できるようにする。ターミナル・ファイルの操作・外部への送信は無効にし、見本のエージェント・会話・自動化を用意する。審査の期間中は動かし続け、審査が済んだらトークンを変える
@@ -257,12 +257,12 @@
 
 - 開発者アカウントはマスターが持ち、Play Console の操作（アプリの作成・申告・アップロード・公開）はマスターが行う。エージェントは原稿・手順・ビルドを用意し、外部への送信は行わない
 - 価格は無料、アプリ内の購入と広告は無し。配布する国は Play の既定（全地域）とする
-- アプリ名は「Clawdroid」、パッケージ名は現在の `jp.miyavi.android.clawdroid`（公開後は変えられない）
+- アプリ名は「SumahoClaw」、パッケージ名は現在の `jp.miyavi.android.sumahoclaw`（公開後は変えられない）
 - 障害の収集は Play Console の標準（Android Vitals）だけを使い、外部の解析・クラッシュ収集の SDK は入れない（憲章 VI・IV）
 - 開発者のサーバーへ送るデータは無い。アプリの通信先は利用者が指定した Gateway と、端末の音声認識（Android 組み込み）だけ
 - アカウントの作成機能が無いため、アカウント削除の導線の義務は対象外（接続情報の消去は設定から行える）
 - ターゲット API・16KB ページサイズなどの Play の技術要件は、現在の設定（API 37・16KB 対応済み）で満たす。最新の要件は plan で Play の公式資料を確かめる
-- レポジトリ（`gloria0021/sumahoclaw`（2026-11-27 に clawdroid から改名））は公開して OSS にする。アプリと掲載情報は `https://github.com/gloria0021/clawdroid/blob/main/docs/privacy-policy.md` を指す（日本語は `#日本語`、それ以外は `#english` の見出しへ）。公開の操作（GitHub の設定で Public にする）はマスターが行う（2026-11-25 変更）
+- レポジトリ（`gloria0021/sumahoclaw`（2026-11-27 に clawdroid から改名））は公開して OSS にする。アプリと掲載情報は `https://github.com/gloria0021/sumahoclaw/blob/main/docs/privacy-policy.md` を指す（日本語は `#日本語`、それ以外は `#english` の見出しへ）。公開の操作（GitHub の設定で Public にする）はマスターが行う（2026-11-25 変更）
 - 訳は Claude Code（`claude -p`、既定のモデルは sonnet）で作る。段階 1 の訳は、公開前にその言語が分かる人が主要な画面を見る
 - 大画面の 2 ペイン（001 FR-014）は未実装のまま公開してよい。タブレットのスクリーンショットは現在の画面で撮る
 - アプリ内の更新案内（In-App Updates）・ストアの評価の依頼は今回の範囲外

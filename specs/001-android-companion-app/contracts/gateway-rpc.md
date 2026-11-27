@@ -1,4 +1,4 @@
-# Contract: Gateway RPC（Clawdroid が使う範囲）
+# Contract: Gateway RPC（SumahoClaw が使う範囲）
 
 **Protocol**: OpenClaw Gateway WebSocket protocol v4（OpenClaw 2026.11.6）
 **正**: `reference/openclaw/packages/gateway-protocol/src/schema/` と `reference/openclaw/docs/gateway/protocol/`。

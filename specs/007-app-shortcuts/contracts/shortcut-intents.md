@@ -6,12 +6,12 @@
 
 | extra | 値 | 使うもの |
 |---|---|---|
-| `jp.miyavi.android.clawdroid.OPEN` | `session` / `new_chat` / `automation` / `approvals` | 行き先の種類（`new_chat` を足す） |
-| `jp.miyavi.android.clawdroid.AGENT` | エージェント ID | `session` / `new_chat` |
-| `jp.miyavi.android.clawdroid.SESSION` | セッションのキー | `session` |
-| `jp.miyavi.android.clawdroid.CWD` | 作業フォルダ（無ければ入れない） | `new_chat` |
-| `jp.miyavi.android.clawdroid.JOB` | 自動化の ID | `automation` |
-| `jp.miyavi.android.clawdroid.SHORTCUT_ID` | ショートカットの ID | ショートカットだけ。`reportShortcutUsed` に使う |
+| `jp.miyavi.android.sumahoclaw.OPEN` | `session` / `new_chat` / `automation` / `approvals` | 行き先の種類（`new_chat` を足す） |
+| `jp.miyavi.android.sumahoclaw.AGENT` | エージェント ID | `session` / `new_chat` |
+| `jp.miyavi.android.sumahoclaw.SESSION` | セッションのキー | `session` |
+| `jp.miyavi.android.sumahoclaw.CWD` | 作業フォルダ（無ければ入れない） | `new_chat` |
+| `jp.miyavi.android.sumahoclaw.JOB` | 自動化の ID | `automation` |
+| `jp.miyavi.android.sumahoclaw.SHORTCUT_ID` | ショートカットの ID | ショートカットだけ。`reportShortcutUsed` に使う |
 
 読めない組み合わせ（`session` なのに `SESSION` が無いなど）は `null`（アプリを開くだけ）。
 

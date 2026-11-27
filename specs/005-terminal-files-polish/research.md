@@ -97,7 +97,7 @@ termux terminal-view v0.118.3 の `classes.jar`（`javap`）、このリポジ�
 
 - **Decision**: `FileOpsRepository` が `TerminalRepository` の低い層を使い、1 操作ごとに:
   1. `terminal.open`（`agentId`、`sessionKey` は付けない。エージェントと共有しない）。`cols = 200, rows = 24`
-  2. `terminal.input` で 1 行のコマンドを送る: `stty -echo; sh -c '<スクリプト>' clawdroid-op <引数…>; printf '\036%s:%s\036\n' <nonce> $?`
+  2. `terminal.input` で 1 行のコマンドを送る: `stty -echo; sh -c '<スクリプト>' sumahoclaw-op <引数…>; printf '\036%s:%s\036\n' <nonce> $?`
      引数はすべてシングルクォートで囲み、中の `'` は `'\''` に置き換える。
   3. `terminal.data` を読み、`\036<nonce>:<終了コード>\036` が来るまで待つ（最大 15 秒）。nonce は毎回の乱数。
      エコーされたコマンド行は `%s` のままなので、本物の結果と見分けられる。標準エラーの最後の 1 行を理由として取る

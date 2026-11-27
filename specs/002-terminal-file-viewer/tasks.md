@@ -4,7 +4,7 @@
 
 **Tests**: 憲章「ViewModel とデータ層には単体テストを書く」に従い、Repository と ViewModel のテストを含める。
 
-`M` = `app/src/main/kotlin/jp/miyavi/android/clawdroid`、`T` = `app/src/test/kotlin/jp/miyavi/android/clawdroid`
+`M` = `app/src/main/kotlin/jp/miyavi/android/sumahoclaw`、`T` = `app/src/test/kotlin/jp/miyavi/android/sumahoclaw`
 
 ## Phase 1: Setup
 
@@ -14,7 +14,7 @@
 
 ## Phase 2: Foundational
 
-- [x] T004 `M/core/database/ClawdroidDatabase.kt`: `FileDraftEntity`（`key` PK、`content`、`baseHash`、`cursor`、`updatedAt`）と `FileDraftDao`（get / upsert / delete）を足し、DB 版を 2 に（テーブルの追加だけの移行。`app/schemas` に 2.json を出す）
+- [x] T004 `M/core/database/SumahoClawDatabase.kt`: `FileDraftEntity`（`key` PK、`content`、`baseHash`、`cursor`、`updatedAt`）と `FileDraftDao`（get / upsert / delete）を足し、DB 版を 2 に（テーブルの追加だけの移行。`app/schemas` に 2.json を出す）
 - [x] T005 [P] `M/core/data/FileModels.kt`: `FileRoot`（`Session(sessionKey, agentId)` / `Workspace(agentId)`）、`FileEntry`、`OpenedFile`（data-model の項目と `editable` の条件「`root is Session && hash != null && previewKind == text && encoding == utf8`」）と、一覧の並び（フォルダが先、名前の自然順・大文字小文字を区別しない）
 
 ## Phase 3: User Story 1 — 辿って読む (P1) 🎯 MVP
