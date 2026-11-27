@@ -522,13 +522,7 @@
     <string name="usage_window_week">週間</string>
     <string name="usage_window_day">1日</string>
     <string-array name="chat_thinking_phrases">
-        <item>爪を研いでいます…</item>
-        <item>潮の流れを読んでいます…</item>
-        <item>脱皮のタイミングを計っています…</item>
-        <item>ハサミでコードを切り揃えています…</item>
-        <item>甲羅の中で考え込んでいます…</item>
-        <item>横歩きで近道を探しています…</item>
-        <item>海底でドキュメントを拾っています…</item>
+        <!-- 開発者あるある -->
         <item>スタックトレースを遡上中…</item>
         <item>括弧の数を数え直しています…</item>
         <item>変数名をひねり出しています…</item>
@@ -537,11 +531,26 @@
         <item>仕様書の行間を読んでいます…</item>
         <item>未来の自分へコメントを書いています…</item>
         <item>TODO を見なかったことにしています…</item>
+        <item>StackOverflowに相談中…</item>
+        <item>Qiitaを見ています…</item>
+        <item>Yahoo知恵袋に相談中…</item>
+        <item>とりあえずキャッシュを消すか考え中…</item>
+        <item>再起動で直らないか試しています…</item>
+        <item>「手元では動く」の証拠を集めています…</item>
         <item>ラバーダックに相談中…</item>
         <item>キャッシュを温め直しています…</item>
-        <item>推論の網を引き上げています…</item>
-        <item>磯の香りでデバッグ中…</item>
+        <!-- その他 -->
         <item>あと少し…たぶん…</item>
+        <item>進捗は気持ちの上では 90% です…</item>
+        <item>残り時間を計算し直しています…</item>
+        <item>思ったより大きな話でした…</item>
+        <item>想定内です。たぶん…</item>
+        <item>いま、いいところです…</item>
+        <item>もう一回だけ考えさせてください…</item>
+        <item>終わりが見えてきました。遠くに…</item>
+        <item>「すぐ終わる」と言ったのは誰ですか…</item>
+        <item>急がば回れを実践中…</item>
+        <item>待っていてくれてありがとう…</item>
     </string-array>
     <string name="panel_home">ホーム</string>
     <string name="panel_archived">アーカイブ済み</string>
