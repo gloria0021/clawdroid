@@ -145,5 +145,7 @@ private fun rememberElapsedSeconds(startedAt: Long?): Long {
 private const val TICK_MS = 1_000L
 /** 言い回しの末尾で増える点の最大数。 */
 private const val DOT_COUNT = 3
-/** ネタを入れ替える間隔（秒）。 */
-private const val PHRASE_SECONDS = 12L
+/** ネタを入れ替えるまでに点が回る回数（1 周 = DOT_COUNT + 1 秒）。 */
+private const val PHRASE_DOT_LOOPS = 2
+/** ネタを入れ替える間隔（秒）。点の周回の切れ目にそろえるため、周回の長さの倍数にする。 */
+private const val PHRASE_SECONDS = (DOT_COUNT + 1) * PHRASE_DOT_LOOPS * 1L
