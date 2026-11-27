@@ -262,7 +262,7 @@
 - 開発者のサーバーへ送るデータは無い。アプリの通信先は利用者が指定した Gateway と、端末の音声認識（Android 組み込み）だけ
 - アカウントの作成機能が無いため、アカウント削除の導線の義務は対象外（接続情報の消去は設定から行える）
 - ターゲット API・16KB ページサイズなどの Play の技術要件は、現在の設定（API 37・16KB 対応済み）で満たす。最新の要件は plan で Play の公式資料を確かめる
-- レポジトリ（`gloria0021/clawdroid`）は公開して OSS にする。アプリと掲載情報は `https://github.com/gloria0021/clawdroid/blob/main/docs/privacy-policy.md` を指す（日本語は `#日本語`、それ以外は `#english` の見出しへ）。公開の操作（GitHub の設定で Public にする）はマスターが行う（2026-11-25 変更）
+- レポジトリ（`gloria0021/sumahoclaw`（2026-11-27 に clawdroid から改名））は公開して OSS にする。アプリと掲載情報は `https://github.com/gloria0021/clawdroid/blob/main/docs/privacy-policy.md` を指す（日本語は `#日本語`、それ以外は `#english` の見出しへ）。公開の操作（GitHub の設定で Public にする）はマスターが行う（2026-11-25 変更）
 - 訳は Claude Code（`claude -p`、既定のモデルは sonnet）で作る。段階 1 の訳は、公開前にその言語が分かる人が主要な画面を見る
 - 大画面の 2 ペイン（001 FR-014）は未実装のまま公開してよい。タブレットのスクリーンショットは現在の画面で撮る
 - アプリ内の更新案内（In-App Updates）・ストアの評価の依頼は今回の範囲外

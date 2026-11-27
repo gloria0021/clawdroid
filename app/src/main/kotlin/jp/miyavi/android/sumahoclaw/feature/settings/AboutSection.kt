@@ -88,4 +88,4 @@ private fun deviceName(): String {
 internal fun privacyPolicyUrl(language: String): String =
     PRIVACY_POLICY_URL + if (language == "ja") "#日本語" else "#english"
 
-private const val PRIVACY_POLICY_URL = "https://github.com/gloria0021/clawdroid/blob/main/docs/privacy-policy.md"
+private const val PRIVACY_POLICY_URL = "https://github.com/gloria0021/sumahoclaw/blob/main/docs/privacy-policy.md"
