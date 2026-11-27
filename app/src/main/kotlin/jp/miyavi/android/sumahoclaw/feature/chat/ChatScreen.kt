@@ -458,6 +458,8 @@ fun ChatContent(
             override suspend fun load(source: String, messageScope: String) = inboundImages.load(source, imageSessionKey, imageAgentId, messageScope)
             override suspend fun bytes(source: String) = inboundImages.loadBytes(source, imageSessionKey, imageAgentId)
             override val progress get() = inboundImages.progress
+            override suspend fun text(source: String, messageScope: String, maxBytes: Long) =
+                inboundImages.loadText(source, imageSessionKey, imageAgentId, messageScope, maxBytes)
             override suspend fun storageKey(source: String, messageId: String) =
                 listOf(inboundImages.endpoint().orEmpty(), imageSessionKey, messageId, source).joinToString("|")
             override suspend fun saveFile(resolver: android.content.ContentResolver, file: jp.miyavi.android.sumahoclaw.core.data.MessagePart.File, onProgress: (Long, Long) -> Unit) =

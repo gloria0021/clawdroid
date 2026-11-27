@@ -188,6 +188,7 @@
     <string name="chat_file_failed">Couldn\'t save</string>
     <string name="chat_file_kind">File</string>
     <string name="chat_file_open">Open</string>
+    <string name="chat_file_preview_failed">Couldn\'t show the contents. Download the file to open it.</string>
     <string name="chat_file_save_cd">Download</string>
     <string name="chat_file_saved">Saved</string>
     <string name="chat_image_cd">Image</string>

@@ -188,6 +188,7 @@
     <string name="chat_file_failed">无法保存</string>
     <string name="chat_file_kind">文件</string>
     <string name="chat_file_open">打开</string>
+    <string name="chat_file_preview_failed">无法显示内容。请下载文件后打开。</string>
     <string name="chat_file_save_cd">下载</string>
     <string name="chat_file_saved">已保存</string>
     <string name="chat_image_cd">图片</string>

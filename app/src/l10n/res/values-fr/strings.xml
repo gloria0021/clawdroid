@@ -188,6 +188,7 @@
     <string name="chat_file_failed">Enregistrement impossible</string>
     <string name="chat_file_kind">Fichier</string>
     <string name="chat_file_open">Ouvrir</string>
+    <string name="chat_file_preview_failed">Impossible d\'afficher le contenu. Téléchargez le fichier pour l\'ouvrir.</string>
     <string name="chat_file_save_cd">Télécharger</string>
     <string name="chat_file_saved">Enregistré</string>
     <string name="chat_image_cd">Image</string>

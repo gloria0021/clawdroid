@@ -54,6 +54,7 @@ private sealed interface FileState {
 /**
  * 会話の中の添付ファイル（Web 版と同じく、種類のアイコン・名前・種類と大きさ。マスター指定 2026-11-26）。
  * 押すと端末の「ダウンロード」に保存してから、そのファイルを開けるアプリで開く。右のボタンは保存だけ。
+ * 文字のファイル（txt・md など）は、押すと保存せずにその場で中身をシートで見せる（マスター指定 2026-11-28）。
  * 受け取っているあいだは、ボタンの場所に割合の輪を出す（もう一度押すと中止）。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -132,12 +133,28 @@ internal fun FileAttachment(
     }
 
     val meta = fileMeta(file, state)
+    val preview = remember(file) { textPreviewOf(file) }
+    var previewing by androidx.compose.runtime.saveable.rememberSaveable(file.url, messageId) { mutableStateOf(false) }
+    if (previewing && preview != null) {
+        FilePreviewSheet(
+            file = file,
+            format = preview,
+            messageId = messageId,
+            meta = meta,
+            saved = state is FileState.Saved,
+            onSave = { save(openAfter = false) },
+            onOpen = { (state as? FileState.Saved)?.let { open(it.uri) } },
+            onDismiss = { previewing = false },
+        )
+    }
     Row(
         modifier
             .widthIn(max = Dimens.messageImageMax)
             .clip(MaterialTheme.shapes.large)
             .background(bodyContainerColor())
-            .clickable(onClickLabel = stringResource(R.string.chat_file_open)) { save(openAfter = true) }
+            .clickable(onClickLabel = stringResource(if (preview != null) R.string.chat_text_preview_cd else R.string.chat_file_open)) {
+                if (preview != null) previewing = true else save(openAfter = true)
+            }
             .padding(start = Spacing.m, top = Spacing.xs, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),

@@ -65,6 +65,23 @@ class InboundImageLoader(private val gateway: GatewayClient) {
     /** 今つないでいる Gateway の住所（保存先の記録の鍵に使う）。 */
     suspend fun endpoint(): String? = gateway.endpoint()
 
+    private val texts = LruCache<String, String>(TEXT_CACHE_ENTRIES)
+
+    /**
+     * 添付の文字のファイル（txt・md など）の中身を UTF-8 で読む（会話の中で開いて見る用）。
+     * [maxBytes] を超える・文字でない（NUL を含む）・取れなければ null。開き直しても取り直さないよう手元に置く。
+     */
+    suspend fun loadText(source: String, sessionKey: String, agentId: String?, messageScope: String, maxBytes: Long): String? {
+        val key = listOf(gateway.endpoint().orEmpty(), sessionKey, messageScope, source).joinToString("|")
+        texts.get(key)?.let { return it }
+        val bytes = gateway.streamAssistantMedia(source, sessionKey, agentId) { input, total ->
+            if (total > maxBytes) null else GatewayClient.readWithProgress(input, total, maxBytes, null)
+        } ?: return null
+        val text = withContext(Dispatchers.Default) { decodeText(bytes) } ?: return null
+        texts.put(key, text)
+        return text
+    }
+
     /** 元のままのバイト列（保存用。縮めない）。 */
     suspend fun loadBytes(source: String, sessionKey: String, agentId: String?): ByteArray? =
         gateway.loadInboundMedia(source, sessionKey, agentId)
@@ -136,6 +153,7 @@ class InboundImageLoader(private val gateway: GatewayClient) {
 
     private companion object {
         const val CACHE_BYTES = 48 * 1024 * 1024
+        const val TEXT_CACHE_ENTRIES = 16
         const val UNKNOWN_SIZE_STEP = 64 * 1024L
     }
 }
@@ -165,6 +183,14 @@ fun decodeImageScaled(bytes: ByteArray, maxSide: Int = MAX_IMAGE_SIDE_PX): Image
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
 }.getOrNull()
 
+/** 文字のファイルのバイト列を UTF-8 の文字にする（先頭の BOM は外す）。NUL を含めば文字ではないとみなして null。 */
+fun decodeText(bytes: ByteArray): String? {
+    if (bytes.any { it == 0.toByte() }) return null
+    return String(bytes, Charsets.UTF_8).removePrefix(BYTE_ORDER_MARK)
+}
+
+private const val BYTE_ORDER_MARK = "\uFEFF"
+
 /** 今開いている会話で、会話の画像を取る口。 */
 interface InboundImageSource {
     /** [messageScope] は画像の載ったメッセージの ID（同じパスに作り直された画像を取り違えない）。 */
@@ -175,6 +201,9 @@ interface InboundImageSource {
 
     /** 画像ごとの受け取りの進み。 */
     val progress: StateFlow<Map<String, MediaProgress>> get() = EMPTY_PROGRESS
+
+    /** 添付の文字のファイルの中身（会話の中で開いて見る）。取れなければ null。 */
+    suspend fun text(source: String, messageScope: String, maxBytes: Long): String? = null
 
     /** 添付ファイルの保存先の記録の鍵（接続先・会話・メッセージ・場所で区別する）。 */
     suspend fun storageKey(source: String, messageId: String): String = "$messageId|$source"
