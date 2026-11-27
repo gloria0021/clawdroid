@@ -67,6 +67,7 @@ Enter your Gateway URL and token, then approve the connection. Tailscale is reco
   <img src="docs/media/file-editor.png" width="220" alt="File viewer and editor">
   <img src="docs/media/terminal.png" width="220" alt="Terminal">
   <img src="docs/media/parallel-work-create.png" width="220" alt="Create a worktree for parallel development">
+  <img src="docs/media/parallel-work-finish.png" width="220" alt="Finish parallel development: merge or discard">
 </p>
 
 ### Agent settings

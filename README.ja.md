@@ -68,6 +68,7 @@ Tailscale推奨です。
   <img src="docs/media/file-editor.png" width="220" alt="ファイルの表示・編集">
   <img src="docs/media/terminal.png" width="220" alt="ターミナル">
   <img src="docs/media/parallel-work-create.png" width="220" alt="並行開発用のワークツリー作成">
+  <img src="docs/media/parallel-work-finish.png" width="220" alt="並行開発を終える（マージを依頼・ボツ）">
 </p>
 
 ### エージェント設定
