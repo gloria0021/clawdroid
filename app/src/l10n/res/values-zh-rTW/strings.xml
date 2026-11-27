@@ -273,26 +273,31 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 個字元</string>
     <string-array name="chat_thinking_phrases">
-        <item>正在磨利蟹鉗…</item>
-        <item>正在解讀潮汐…</item>
-        <item>正在計算蛻殼的時機…</item>
-        <item>正在用鉗子修剪程式碼…</item>
-        <item>正在殼裡沉思…</item>
-        <item>正在橫著走尋找捷徑…</item>
-        <item>正在海底撿拾文件…</item>
-        <item>正在逆流而上追蹤堆疊…</item>
-        <item>正在重新數括號…</item>
+        <item>正在逆流而上追溯堆疊追蹤…</item>
+        <item>重新數括號的數量中…</item>
         <item>正在絞盡腦汁想變數名稱…</item>
         <item>正在把咖啡轉換成 token…</item>
-        <item>正在調查「為什麼會動」…</item>
-        <item>正在細讀規格書的字裡行間…</item>
+        <item>調查「不知為何就跑起來了」中…</item>
+        <item>正在解讀規格書的字裡行間…</item>
         <item>正在寫註解給未來的自己…</item>
-        <item>正在假裝沒看到 TODO…</item>
-        <item>正在請教橡皮鴨…</item>
-        <item>正在重新加熱快取…</item>
-        <item>正在拉起推理的漁網…</item>
-        <item>正在循著海潮的氣味除錯…</item>
+        <item>假裝沒看到 TODO 中…</item>
+        <item>正在請教 StackOverflow…</item>
+        <item>正在翻閱 Qiita…</item>
+        <item>正在請教 Yahoo 知惠袋…</item>
+        <item>考慮要不要先清除快取…</item>
+        <item>試試看重新啟動能不能解決…</item>
+        <item>正在蒐集「我這邊明明能跑」的證據…</item>
         <item>快好了…應該吧…</item>
+        <item>進度在心情上已經 90% 了…</item>
+        <item>正在重新計算剩餘時間…</item>
+        <item>事情比想像中還大條…</item>
+        <item>在預料之中。應該吧…</item>
+        <item>正在關鍵時刻…</item>
+        <item>請再讓我想一次就好…</item>
+        <item>終點已經看得到了。在好遠的地方…</item>
+        <item>是誰說「馬上就好」的…</item>
+        <item>正在實踐欲速則不達…</item>
+        <item>謝謝你願意等我…</item>
     </string-array>
     <string name="chat_tool_expand_label">展開工具執行</string>
     <string name="chat_tool_failed">失敗</string>
@@ -326,7 +331,7 @@
     <string name="connect_diag_app">應用程式：%1$s</string>
     <string name="connect_diag_code">錯誤碼：%1$s</string>
     <string name="connect_diag_gateway">Gateway：%1$s</string>
-    <string name="connect_diag_header">Clawdroid 連線詳細資料</string>
+    <string name="connect_diag_header">SumahoClaw 的連線詳細資訊</string>
     <string name="connect_diag_message">訊息：%1$s</string>
     <string name="connect_diag_reason">分類：%1$s</string>
     <string name="connect_diag_request">核准要求 ID：%1$s</string>
@@ -361,7 +366,7 @@
     <string name="connect_subtitle">請輸入你自行執行的 OpenClaw Gateway 的位址與權杖。</string>
     <string name="connect_title">連線到 Gateway</string>
     <string name="connect_token_hint">在 Gateway 主機的終端機執行以下指令，即可顯示權杖。</string>
-    <string name="connect_token_label">Gateway 權杖</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">留空則使用已儲存的權杖</string>
     <string name="connect_url_hint">同一網路的 IP 位址，或 Tailscale 位址</string>
     <string name="connect_url_label">Gateway URL</string>
@@ -549,7 +554,7 @@
     <string name="notify_reply_attachment">附件</string>
     <string name="notify_reply_hidden">新回覆</string>
     <string name="notify_reply_image">圖片</string>
-    <string name="notify_test_body">來自 Clawdroid 的通知會像這樣顯示</string>
+    <string name="notify_test_body">SumahoClaw 的通知會以這種方式顯示</string>
     <string name="notify_test_title">測試通知</string>
     <string name="offline_agents_failed">無法載入代理程式</string>
     <string name="offline_connecting">正在連線至 Gateway</string>
@@ -682,9 +687,6 @@
     <string name="settings_notify_channels_desc">開啟裝置的通知設定</string>
     <string name="settings_notify_details">持續連線與通知類型</string>
     <string name="settings_notify_enabled">通知設定</string>
-    <string name="settings_notify_permission">通知權限</string>
-    <string name="settings_notify_permission_missing">未允許</string>
-    <string name="settings_notify_permission_ok">已允許</string>
     <string name="settings_notify_replies">回覆完成</string>
     <string name="settings_notify_test">傳送測試通知</string>
     <string name="settings_reconnect">重新連線</string>
@@ -730,7 +732,7 @@
     <string name="shortcuts_add">新增</string>
     <string name="shortcuts_empty">尚無捷徑。可從下方「新增」建立。</string>
     <string name="shortcuts_full">捷徑最多 4 個</string>
-    <string name="shortcuts_hint">這些是在主畫面長按 Clawdroid 圖示時顯示的項目，最多可放 4 個。長按右側的把手並上下拖曳即可重新排序。目標工作階段若已封存或刪除，會自動移除。</string>
+    <string name="shortcuts_hint">這些項目會在長按主畫面上的 SumahoClaw 圖示時顯示，最多可放置 4 個。長按右側的握把並上下拖曳即可重新排序。若捷徑指向的工作階段被封存或刪除，該捷徑會自動移除。</string>
     <string name="sidebar_automations">自動化</string>
     <string name="sidebar_empty_body">從新對話開始吧</string>
     <string name="sidebar_empty_title">沒有工作階段</string>
@@ -906,12 +908,19 @@
     <string name="worktree_delete_confirm">刪除並清理工作樹</string>
     <string name="worktree_delete_snapshot">清理前 Gateway 會先儲存快照,之後可以還原。</string>
     <string name="worktree_delete_title">刪除工作樹工作階段</string>
-    <string name="worktree_finish_confirm">結束</string>
-    <string name="worktree_finish_desc">會封存工作階段並清理工作樹。你的工作內容會保留,30 天內取消封存即可還原。</string>
-    <string name="worktree_finish_pending">與 %1$s 之間有差異。請確認是否已合併。</string>
-    <string name="worktree_finish_title">要結束平行開發嗎?</string>
+    <string name="worktree_finish_confirm">捨棄並結束</string>
+    <string name="worktree_finish_desc">作業內容會保留，30 天內取消封存即可還原。</string>
+    <string name="worktree_finish_merge">請求合併並結束</string>
+    <string name="worktree_finish_merge_desc">請 Agent 合併至 %1$s 並 push，完成後自動結束。</string>
+    <string name="worktree_finish_pending">有尚未併入 %1$s 的變更。</string>
+    <string name="worktree_finish_plain">結束並行開發</string>
+    <string name="worktree_finish_plain_desc">與 %1$s 沒有差異。將清理 worktree。</string>
+    <string name="worktree_finish_title">要如何處理這項並行開發？</string>
     <string name="worktree_fork">延續對話</string>
     <string name="worktree_fork_desc">將這段對話的內容也帶入新的工作階段</string>
+    <string name="worktree_merge_request">請在主資料夾 %2$s 中，將此 worktree 的分支 %1$s 合併至 %3$s 並 push。%3$s 正被主資料夾使用，請勿在 worktree 內切換到 %3$s。若發生衝突或測試未通過，請不要合併也不要 push，直接停止並回報原因。</string>
+    <string name="worktree_merge_unfinished">合併尚未完成，並行開發會繼續進行</string>
+    <string name="worktree_merged">合併已完成，並行開發已結束</string>
     <string name="worktree_name">分支名稱</string>
     <string name="worktree_name_auto">留空則使用標題</string>
     <string name="worktree_name_hint">英文小寫字母、數字、連字號</string>

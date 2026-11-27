@@ -273,26 +273,31 @@
     <string name="chat_text_remove">Retirer</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caractères</string>
     <string-array name="chat_thinking_phrases">
-        <item>Aiguisage des pinces…</item>
-        <item>Lecture des courants marins…</item>
-        <item>Calcul du moment de la mue…</item>
-        <item>Coupe du code aux pinces…</item>
-        <item>Réflexion à l\'abri de la carapace…</item>
-        <item>Recherche d\'un raccourci en marchant de côté…</item>
-        <item>Récolte de documentation au fond de l\'océan…</item>
-        <item>Remontée de la stack trace à contre-courant…</item>
-        <item>Recomptage des parenthèses…</item>
-        <item>Recherche d\'un nom de variable…</item>
-        <item>Transformation du café en tokens…</item>
+        <item>Remontée du stack trace à contre-courant…</item>
+        <item>Je recompte les parenthèses…</item>
+        <item>J\'extrais un nom de variable des abysses…</item>
+        <item>Conversion du café en tokens…</item>
         <item>Enquête sur le « pourquoi ça marche »…</item>
         <item>Lecture entre les lignes du cahier des charges…</item>
-        <item>Rédaction de commentaires pour mon futur moi…</item>
-        <item>Je fais semblant de ne pas voir le TODO…</item>
-        <item>Consultation du canard en plastique…</item>
-        <item>Réchauffage du cache…</item>
-        <item>Remontée du filet de raisonnement…</item>
-        <item>Débogage à l\'odeur de l\'estran…</item>
+        <item>J\'écris un commentaire à mon moi du futur…</item>
+        <item>Je fais comme si je n\'avais pas vu le TODO…</item>
+        <item>Je consulte StackOverflow…</item>
+        <item>Je fouille les mares de Reddit…</item>
+        <item>Je demande aux anciens du forum…</item>
+        <item>Je me demande si je vide le cache, tout simplement…</item>
+        <item>Je teste si un redémarrage règle le problème…</item>
+        <item>Je rassemble les preuves que « ça marche chez moi »…</item>
         <item>Presque fini… sans doute…</item>
+        <item>Progression à 90 % dans l\'esprit…</item>
+        <item>Je recalcule le temps restant…</item>
+        <item>Finalement, c\'était plus gros que prévu…</item>
+        <item>Tout est sous contrôle. Probablement…</item>
+        <item>On est dans le vif du sujet…</item>
+        <item>Laissez-moi réfléchir encore une fois…</item>
+        <item>La fin est en vue. Tout au fond de l\'océan…</item>
+        <item>Qui a dit que ce serait rapide…</item>
+        <item>Je prends le chemin des écoliers autour du récif…</item>
+        <item>Merci d\'avoir patienté…</item>
     </string-array>
     <string name="chat_tool_expand_label">Ouvrir l\'exécution de l\'outil</string>
     <string name="chat_tool_failed">Échec</string>
@@ -328,7 +333,7 @@
     <string name="connect_diag_app">Application : %1$s</string>
     <string name="connect_diag_code">Code d\'erreur : %1$s</string>
     <string name="connect_diag_gateway">Gateway : %1$s</string>
-    <string name="connect_diag_header">Détails de connexion de Clawdroid</string>
+    <string name="connect_diag_header">Détails de connexion de SumahoClaw</string>
     <string name="connect_diag_message">Message : %1$s</string>
     <string name="connect_diag_reason">Catégorie : %1$s</string>
     <string name="connect_diag_request">ID de la demande d\'approbation : %1$s</string>
@@ -363,7 +368,7 @@
     <string name="connect_subtitle">Saisissez l\'adresse et le jeton de l\'OpenClaw Gateway que vous exécutez vous-même.</string>
     <string name="connect_title">Se connecter à Gateway</string>
     <string name="connect_token_hint">Pour obtenir le jeton, exécutez la commande suivante dans un terminal sur l\'hôte Gateway.</string>
-    <string name="connect_token_label">Jeton Gateway</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">Laissez vide pour utiliser le jeton enregistré</string>
     <string name="connect_url_hint">Une adresse IP du même réseau ou une adresse Tailscale</string>
     <string name="connect_url_label">URL de Gateway</string>
@@ -555,7 +560,7 @@
     <string name="notify_reply_attachment">Pièce jointe</string>
     <string name="notify_reply_hidden">Nouvelle réponse</string>
     <string name="notify_reply_image">Image</string>
-    <string name="notify_test_body">Voici à quoi ressembleront les notifications de Clawdroid</string>
+    <string name="notify_test_body">Voici à quoi ressembleront les notifications de SumahoClaw</string>
     <string name="notify_test_title">Notification de test</string>
     <string name="offline_agents_failed">Impossible de charger les agents</string>
     <string name="offline_connecting">Connexion au Gateway…</string>
@@ -688,9 +693,6 @@
     <string name="settings_notify_channels_desc">Ouvre les paramètres de notification de l\'appareil</string>
     <string name="settings_notify_details">Connexion permanente et types de notifications</string>
     <string name="settings_notify_enabled">Paramètres de notification</string>
-    <string name="settings_notify_permission">Autorisation de notification</string>
-    <string name="settings_notify_permission_missing">Non autorisée</string>
-    <string name="settings_notify_permission_ok">Autorisée</string>
     <string name="settings_notify_replies">Réponse terminée</string>
     <string name="settings_notify_test">Envoyer une notification de test</string>
     <string name="settings_reconnect">Se reconnecter</string>
@@ -736,7 +738,7 @@
     <string name="shortcuts_add">Ajouter</string>
     <string name="shortcuts_empty">Aucun pour l\'instant. Créez-en un avec « Ajouter » ci-dessous.</string>
     <string name="shortcuts_full">4 raccourcis maximum</string>
-    <string name="shortcuts_hint">Ces éléments s\'affichent lorsque vous appuyez longuement sur l\'icône Clawdroid sur l\'écran d\'accueil. Vous pouvez en ajouter jusqu\'à 4. Appuyez longuement sur la poignée à droite, puis faites glisser vers le haut ou le bas pour les réorganiser. Si la session de destination est archivée ou supprimée, l\'élément est retiré automatiquement.</string>
+    <string name="shortcuts_hint">Ces éléments s\'affichent lorsque vous appuyez longuement sur l\'icône SumahoClaw sur l\'écran d\'accueil. Vous pouvez en ajouter jusqu\'à 4. Appuyez longuement sur la poignée à droite et faites glisser vers le haut ou le bas pour les réorganiser. Si une session ciblée est archivée ou supprimée, le raccourci est retiré automatiquement.</string>
     <string name="sidebar_automations">Automatisations</string>
     <string name="sidebar_empty_body">Commencez par un nouveau chat</string>
     <string name="sidebar_empty_title">Aucune session</string>
@@ -912,12 +914,19 @@
     <string name="worktree_delete_confirm">Supprimer et nettoyer le worktree</string>
     <string name="worktree_delete_snapshot">Le Gateway enregistre un instantané avant le nettoyage, vous pourrez donc le restaurer plus tard.</string>
     <string name="worktree_delete_title">Supprimer la session worktree</string>
-    <string name="worktree_finish_confirm">Terminer</string>
-    <string name="worktree_finish_desc">Archive la session et nettoie le worktree. Votre travail est enregistré et vous pouvez le restaurer en désarchivant sous 30 jours.</string>
-    <string name="worktree_finish_pending">Il y a des différences avec %1$s. Vérifiez que la fusion a bien été faite.</string>
-    <string name="worktree_finish_title">Terminer le développement parallèle ?</string>
+    <string name="worktree_finish_confirm">Abandonner et terminer</string>
+    <string name="worktree_finish_desc">Votre travail est enregistré. Désarchivez dans les 30 jours pour le restaurer.</string>
+    <string name="worktree_finish_merge">Demander la fusion et terminer</string>
+    <string name="worktree_finish_merge_desc">Demande à l\'agent de fusionner dans %1$s et de faire un push, puis termine automatiquement une fois fait.</string>
+    <string name="worktree_finish_pending">Des modifications ne sont pas encore dans %1$s.</string>
+    <string name="worktree_finish_plain">Terminer le travail en parallèle</string>
+    <string name="worktree_finish_plain_desc">Aucune différence avec %1$s. Le worktree sera nettoyé.</string>
+    <string name="worktree_finish_title">Que faire de ce travail en parallèle ?</string>
     <string name="worktree_fork">Reprendre la conversation</string>
     <string name="worktree_fork_desc">Le contenu de cette conversation est repris dans la nouvelle session</string>
+    <string name="worktree_merge_request">Fusionne la branche %1$s de ce worktree dans %3$s depuis le dossier principal %2$s, puis fais un push. %3$s est utilisée par le dossier principal : ne bascule pas sur %3$s dans le worktree. En cas de conflit ou si les tests échouent, ne fusionne pas et ne fais pas de push. Arrête-toi et signale la raison.</string>
+    <string name="worktree_merge_unfinished">La fusion n\'est pas terminée, le travail en parallèle continue</string>
+    <string name="worktree_merged">La fusion est terminée, le travail en parallèle est fini</string>
     <string name="worktree_name">Nom de la branche</string>
     <string name="worktree_name_auto">Si vide, utilise le titre</string>
     <string name="worktree_name_hint">Lettres minuscules, chiffres et tirets</string>

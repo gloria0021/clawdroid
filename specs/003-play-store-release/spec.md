@@ -30,6 +30,7 @@
 - `scripts/release.sh`: 訳 → 版を上げる → Release の lint とテスト → コミットとタグ → 署名した AAB と難読化の対応表 →（確認）→ Push。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `CLAWDROID_*`
 - ~~`scripts/publish-public.sh`~~: 2026-11-25 に削除。レポジトリをそのまま公開する方針に変えたため（下の Session 2026-11-25）。`release.sh` の公開用レポジトリへの送信の手順も外した
 - `docs/privacy-policy.md`（日本語・英語）と `README.md` の原稿
+- 2026-11-27 変更（マスター指定）: 訳はリリースのときだけでなく、文言を変えたときに作る。置き場所を `app/src/l10n/`（`res/` と `translations.json`）に移し、Debug・Release の両方が使う（ビルドの種類ごとの source set に足す）。日本語の写しは Gradle の `syncJapaneseCopy` がビルドのたびに作り直す。`release.sh` は訳を確かめ（足りなければ作り）、署名した APK と AAB を同じビルドで作り、Push のあと APK を GitHub Release に載せる（`gh release create --generate-notes`）。AAB は手元に残して Play Console に上げる
 
 ## Clarifications
 

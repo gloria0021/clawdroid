@@ -273,13 +273,6 @@
     <string name="chat_text_remove">外す</string>
     <string name="chat_text_tile_cd">%1$s、%2$d文字</string>
     <string-array name="chat_thinking_phrases">
-        <item>爪を研いでいます…</item>
-        <item>潮の流れを読んでいます…</item>
-        <item>脱皮のタイミングを計っています…</item>
-        <item>ハサミでコードを切り揃えています…</item>
-        <item>甲羅の中で考え込んでいます…</item>
-        <item>横歩きで近道を探しています…</item>
-        <item>海底でドキュメントを拾っています…</item>
         <item>スタックトレースを遡上中…</item>
         <item>括弧の数を数え直しています…</item>
         <item>変数名をひねり出しています…</item>
@@ -288,11 +281,23 @@
         <item>仕様書の行間を読んでいます…</item>
         <item>未来の自分へコメントを書いています…</item>
         <item>TODO を見なかったことにしています…</item>
-        <item>ラバーダックに相談中…</item>
-        <item>キャッシュを温め直しています…</item>
-        <item>推論の網を引き上げています…</item>
-        <item>磯の香りでデバッグ中…</item>
+        <item>StackOverflowに相談中…</item>
+        <item>Qiitaを見ています…</item>
+        <item>Yahoo知恵袋に相談中…</item>
+        <item>とりあえずキャッシュを消すか考え中…</item>
+        <item>再起動で直らないか試しています…</item>
+        <item>「手元では動く」の証拠を集めています…</item>
         <item>あと少し…たぶん…</item>
+        <item>進捗は気持ちの上では 90% です…</item>
+        <item>残り時間を計算し直しています…</item>
+        <item>思ったより大きな話でした…</item>
+        <item>想定内です。たぶん…</item>
+        <item>今いいところです…</item>
+        <item>もう一回だけ考えさせてください…</item>
+        <item>終わりが見えてきました。遠くに…</item>
+        <item>「すぐ終わる」と言ったのは誰ですか…</item>
+        <item>急がば回れを実践中…</item>
+        <item>待っていてくれてありがとう…</item>
     </string-array>
     <string name="chat_tool_expand_label">ツールの実行を開く</string>
     <string name="chat_tool_failed">失敗</string>
@@ -326,7 +331,7 @@
     <string name="connect_diag_app">アプリ: %1$s</string>
     <string name="connect_diag_code">エラーコード: %1$s</string>
     <string name="connect_diag_gateway">Gateway: %1$s</string>
-    <string name="connect_diag_header">Clawdroid の接続の詳細</string>
+    <string name="connect_diag_header">SumahoClaw の接続の詳細</string>
     <string name="connect_diag_message">メッセージ: %1$s</string>
     <string name="connect_diag_reason">分類: %1$s</string>
     <string name="connect_diag_request">承認リクエスト ID: %1$s</string>
@@ -361,7 +366,7 @@
     <string name="connect_subtitle">自分で動かしている OpenClaw Gateway のアドレスとトークンを入れてください。</string>
     <string name="connect_title">Gateway に接続</string>
     <string name="connect_token_hint">トークンは、Gateway ホストのターミナルで次のコマンドを実行すると表示されます。</string>
-    <string name="connect_token_label">ゲートウェイトークン</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">空欄なら保存済みのトークンを使います</string>
     <string name="connect_url_hint">同じネットワークの IP アドレスか、Tailscale のアドレス</string>
     <string name="connect_url_label">Gateway URL</string>
@@ -549,7 +554,7 @@
     <string name="notify_reply_attachment">添付</string>
     <string name="notify_reply_hidden">新しい応答</string>
     <string name="notify_reply_image">画像</string>
-    <string name="notify_test_body">Clawdroid からの通知はこのように届きます</string>
+    <string name="notify_test_body">SumahoClaw からの通知はこのように届きます</string>
     <string name="notify_test_title">通知のテスト</string>
     <string name="offline_agents_failed">エージェントを読み込めませんでした</string>
     <string name="offline_connecting">Gateway に接続しています</string>
@@ -682,9 +687,6 @@
     <string name="settings_notify_channels_desc">端末の通知の設定を開きます</string>
     <string name="settings_notify_details">常時接続と通知の種類</string>
     <string name="settings_notify_enabled">通知設定</string>
-    <string name="settings_notify_permission">通知の許可</string>
-    <string name="settings_notify_permission_missing">許可されていません</string>
-    <string name="settings_notify_permission_ok">許可されています</string>
     <string name="settings_notify_replies">応答の完了</string>
     <string name="settings_notify_test">テスト通知を送る</string>
     <string name="settings_reconnect">接続し直す</string>
@@ -730,7 +732,7 @@
     <string name="shortcuts_add">追加</string>
     <string name="shortcuts_empty">まだありません。下の「追加」から作れます。</string>
     <string name="shortcuts_full">ショートカットは 4 つまでです</string>
-    <string name="shortcuts_hint">ホーム画面で Clawdroid のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先のセッションがアーカイブ・削除されると、自動で外れます。</string>
+    <string name="shortcuts_hint">ホーム画面で SumahoClaw のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先のセッションがアーカイブ・削除されると、自動で外れます。</string>
     <string name="sidebar_automations">自動化</string>
     <string name="sidebar_empty_body">新規チャットから始めましょう</string>
     <string name="sidebar_empty_title">セッションがありません</string>
@@ -906,12 +908,19 @@
     <string name="worktree_delete_confirm">削除してワークツリーを片付ける</string>
     <string name="worktree_delete_snapshot">片付ける前に Gateway がスナップショットに保存するので、あとで復元できます。</string>
     <string name="worktree_delete_title">ワークツリーのセッションを削除</string>
-    <string name="worktree_finish_confirm">終える</string>
-    <string name="worktree_finish_desc">セッションをアーカイブし、ワークツリーを片付けます。作業内容は保存され、30 日以内ならアーカイブを解除すると戻せます。</string>
-    <string name="worktree_finish_pending">%1$s との差分があります。マージが済んでいるか確かめてください。</string>
-    <string name="worktree_finish_title">並行開発を終えますか？</string>
+    <string name="worktree_finish_confirm">ボツにして終える</string>
+    <string name="worktree_finish_desc">作業内容は保存され、30 日以内ならアーカイブを解除すると戻せます。</string>
+    <string name="worktree_finish_merge">マージを依頼して終える</string>
+    <string name="worktree_finish_merge_desc">エージェントに %1$s へのマージと push を頼み、済んだら自動で終えます。</string>
+    <string name="worktree_finish_pending">%1$s にまだ入っていない変更があります。</string>
+    <string name="worktree_finish_plain">並行開発を終える</string>
+    <string name="worktree_finish_plain_desc">%1$s との差分はありません。ワークツリーを片付けます。</string>
+    <string name="worktree_finish_title">この並行開発をどうしますか？</string>
     <string name="worktree_fork">会話を引き継ぐ</string>
     <string name="worktree_fork_desc">この会話の内容を、新しいセッションにも持っていきます</string>
+    <string name="worktree_merge_request">このワークツリーのブランチ %1$s を、本体のフォルダ %2$s で %3$s にマージして push してください。%3$s は本体のフォルダが使っているので、ワークツリーの中で %3$s に切り替えないでください。衝突したときやテストが通らないときは、マージも push もせずに止めて、理由を報告してください。</string>
+    <string name="worktree_merge_unfinished">マージが済んでいないので、並行開発を続けています</string>
+    <string name="worktree_merged">マージが済んだので、並行開発を終えました</string>
     <string name="worktree_name">ブランチ名</string>
     <string name="worktree_name_auto">空ならタイトルから</string>
     <string name="worktree_name_hint">英小文字・数字・ハイフン</string>

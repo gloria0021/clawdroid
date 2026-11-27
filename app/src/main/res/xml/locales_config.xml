@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug は日本語だけ。Release は app/src/release/res/xml/locales_config.xml（scripts/translate-strings.py が作る）で置き換わる -->
+<!-- ビルドの種類ごとに app/src/l10n/res/xml/locales_config.xml（scripts/translate-strings.py が作る）で置き換わる。これは単体テストなど l10n を使わないときの控え -->
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="ja" />
 </locale-config>

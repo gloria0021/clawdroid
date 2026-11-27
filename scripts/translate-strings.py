@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""リリースのときだけ、日本語の文言（app/src/main/res/values）から各言語の strings.xml を作る。
+"""日本語の文言（app/src/main/res/values）から各言語の strings.xml を作る。
 
-ふだんの開発では日本語だけを書く。訳はここで作り、app/src/release/res に置く（Release のビルドだけが使う）。
+開発では日本語だけを書き、文言を変えたら同じ変更でこのスクリプトを流して訳もコミットする。訳は app/src/l10n/res に置く（Debug・Release とも使う）。
 既定の言語（端末の言語に訳が無いとき）は英語にするため、英語は values/、日本語は values-ja/ に書く。
 
-前回訳したときの日本語を app/src/release/translations.json に残し、変わった・増えた文言だけを訳し直す。
+前回訳したときの日本語を app/src/l10n/translations.json に残し、変わった・増えた文言だけを訳し直す。
 訳は Claude Code（claude -p）に頼む。プロジェクトの指示を読ませないよう、空のフォルダで動かす。
 
   scripts/translate-strings.py            # 足りない訳を作る
@@ -28,8 +28,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_FILES = [ROOT / "app/src/main/res/values/strings.xml", ROOT / "app/src/main/res/values/strings_slash.xml"]
-OUT_RES = ROOT / "app/src/release/res"
-RECORD = ROOT / "app/src/release/translations.json"
+OUT_RES = ROOT / "app/src/l10n/res"
+RECORD = ROOT / "app/src/l10n/translations.json"
 
 # 対応する言語（Android の修飾子 → 訳す先の言語の名前）。en は values/（既定）、ja は values-ja/ に書く。
 # 段階 2・3 の言語はここに足す（specs/003-play-store-release/spec.md FR-051）。
@@ -265,7 +265,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="訳が最新か確かめるだけ")
     ap.add_argument("--dry-run", action="store_true", help="訳す件数を数えるだけ")
-    ap.add_argument("--ja-only", action="store_true", help="日本語の写し（values-ja）だけを作り直す。訳さない（Release のビルドのたびに Gradle が呼ぶ）")
+    ap.add_argument("--ja-only", action="store_true", help="日本語の写し（values-ja）だけを作り直す。訳さない（ビルドのたびに Gradle が呼ぶ）")
     ap.add_argument("--locales", help="対象の言語（カンマ区切り。既定はすべて）")
     ap.add_argument("--model", default=os.environ.get("TRANSLATE_MODEL", "sonnet"))
     ap.add_argument("--batch", type=int, default=60)
@@ -292,7 +292,7 @@ def main() -> int:
         empties[l] = [k for k in plan[l] if empty_by_design(l, k)]
         plan[l] = [k for k in plan[l] if k not in empties[l]]
 
-    # 日本語は訳さずに写す（Release では values/ が英語になるため、日本語を values-ja/ に置く）
+    # 日本語は訳さずに写す（l10n では values/ が英語になるため、日本語を values-ja/ に置く）
     ja_text = render(source, "scripts/translate-strings.py が app/src/main/res/values から写したもの。手で直さない")
     ja_path = OUT_RES / "values-ja" / "strings.xml"
     ja_stale = not ja_path.exists() or ja_path.read_text(encoding="utf-8") != ja_text

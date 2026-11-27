@@ -273,26 +273,31 @@
     <string name="chat_text_remove">Entfernen</string>
     <string name="chat_text_tile_cd">%1$s, %2$d Zeichen</string>
     <string-array name="chat_thinking_phrases">
-        <item>Die Scheren werden geschärft…</item>
-        <item>Die Gezeiten werden gelesen…</item>
-        <item>Der nächste Häutungszeitpunkt wird abgepasst…</item>
-        <item>Code wird mit den Scheren zurechtgestutzt…</item>
-        <item>Im Panzer wird nachgedacht…</item>
-        <item>Seitwärts geht\'s zur Abkürzung…</item>
-        <item>Dokumente werden vom Meeresboden gesammelt…</item>
-        <item>Den Stacktrace hinaufgeschwommen…</item>
-        <item>Die Klammern werden nachgezählt…</item>
-        <item>Ein Variablenname wird ausgebrütet…</item>
-        <item>Kaffee wird in Tokens umgewandelt…</item>
-        <item>Es wird untersucht, warum es funktioniert…</item>
-        <item>Zwischen den Zeilen der Spezifikation wird gelesen…</item>
-        <item>Kommentare für mein zukünftiges Ich werden verfasst…</item>
-        <item>Das TODO wird gekonnt übersehen…</item>
-        <item>Die Quietscheente wird um Rat gefragt…</item>
-        <item>Der Cache wird wieder aufgewärmt…</item>
-        <item>Das Netz der Schlussfolgerungen wird eingeholt…</item>
-        <item>Debugging nach Meeresduft…</item>
-        <item>Gleich geschafft… wahrscheinlich…</item>
+        <item>Kämpfe mich den Stacktrace hinauf…</item>
+        <item>Zähle die Klammern nochmal nach…</item>
+        <item>Quetsche einen Variablennamen heraus…</item>
+        <item>Verwandle Kaffee in Tokens…</item>
+        <item>Untersuche, warum es einfach so lief…</item>
+        <item>Lese zwischen den Zeilen der Spezifikation…</item>
+        <item>Schreibe einen Kommentar an mein zukünftiges Ich…</item>
+        <item>Tue so, als hätte ich das TODO nicht gesehen…</item>
+        <item>Frage StackOverflow um Rat…</item>
+        <item>Stöbere in den Gezeitentümpeln von Reddit…</item>
+        <item>Frage die alten Forumsveteranen…</item>
+        <item>Überlege, ob ich einfach den Cache leere…</item>
+        <item>Probiere, ob ein Neustart hilft…</item>
+        <item>Sammle Beweise, dass es bei mir läuft…</item>
+        <item>Fast geschafft… wahrscheinlich…</item>
+        <item>Der Fortschritt liegt gefühlt bei 90 %…</item>
+        <item>Berechne die Restzeit neu…</item>
+        <item>Das war größer als gedacht…</item>
+        <item>Alles nach Plan. Wahrscheinlich…</item>
+        <item>Gerade bei der spannenden Stelle…</item>
+        <item>Lass mich noch ein einziges Mal nachdenken…</item>
+        <item>Das Ende ist in Sicht. Ganz weit weg…</item>
+        <item>Wer hat noch mal „geht ganz schnell“ gesagt…</item>
+        <item>Nehme die Panoramaroute ums Riff…</item>
+        <item>Danke fürs Warten…</item>
     </string-array>
     <string name="chat_tool_expand_label">Tool-Aufruf öffnen</string>
     <string name="chat_tool_failed">Fehlgeschlagen</string>
@@ -327,7 +332,7 @@
     <string name="connect_diag_app">App: %1$s</string>
     <string name="connect_diag_code">Fehlercode: %1$s</string>
     <string name="connect_diag_gateway">Gateway: %1$s</string>
-    <string name="connect_diag_header">Clawdroid-Verbindungsdetails</string>
+    <string name="connect_diag_header">Verbindungsdetails zu SumahoClaw</string>
     <string name="connect_diag_message">Nachricht: %1$s</string>
     <string name="connect_diag_reason">Kategorie: %1$s</string>
     <string name="connect_diag_request">Genehmigungsanfrage-ID: %1$s</string>
@@ -552,7 +557,7 @@
     <string name="notify_reply_attachment">Anhang</string>
     <string name="notify_reply_hidden">Neue Antwort</string>
     <string name="notify_reply_image">Bild</string>
-    <string name="notify_test_body">So sehen Benachrichtigungen von Clawdroid aus</string>
+    <string name="notify_test_body">So sehen Benachrichtigungen von SumahoClaw aus</string>
     <string name="notify_test_title">Testbenachrichtigung</string>
     <string name="offline_agents_failed">Agents konnten nicht geladen werden</string>
     <string name="offline_connecting">Verbindung zu Gateway wird hergestellt</string>
@@ -685,9 +690,6 @@
     <string name="settings_notify_channels_desc">Öffnet die Benachrichtigungseinstellungen des Geräts</string>
     <string name="settings_notify_details">Dauerhafte Verbindung und Benachrichtigungsarten</string>
     <string name="settings_notify_enabled">Benachrichtigungseinstellungen</string>
-    <string name="settings_notify_permission">Benachrichtigungsberechtigung</string>
-    <string name="settings_notify_permission_missing">Nicht erlaubt</string>
-    <string name="settings_notify_permission_ok">Erlaubt</string>
     <string name="settings_notify_replies">Antwort abgeschlossen</string>
     <string name="settings_notify_test">Testbenachrichtigung senden</string>
     <string name="settings_reconnect">Neu verbinden</string>
@@ -733,7 +735,7 @@
     <string name="shortcuts_add">Hinzufügen</string>
     <string name="shortcuts_empty">Noch keine vorhanden. Mit „Hinzufügen“ unten erstellst du eine.</string>
     <string name="shortcuts_full">Bis zu 4 Verknüpfungen</string>
-    <string name="shortcuts_hint">Diese Einträge erscheinen, wenn du auf dem Startbildschirm lange auf das Clawdroid-Symbol tippst. Du kannst bis zu 4 hinzufügen. Zum Umsortieren den Griff rechts gedrückt halten und nach oben oder unten ziehen. Wird die Ziel-Sitzung archiviert oder gelöscht, wird der Eintrag automatisch entfernt.</string>
+    <string name="shortcuts_hint">Diese Einträge erscheinen, wenn du auf dem Startbildschirm das SumahoClaw-Symbol gedrückt hältst. Du kannst bis zu 4 hinzufügen. Halte den Griff rechts gedrückt und ziehe ihn nach oben oder unten, um die Reihenfolge zu ändern. Wird eine Sitzung, auf die ein Shortcut verweist, archiviert oder gelöscht, wird der Shortcut automatisch entfernt.</string>
     <string name="sidebar_automations">Automatisierungen</string>
     <string name="sidebar_empty_body">Starte mit einem neuen Chat</string>
     <string name="sidebar_empty_title">Keine Sitzungen</string>
@@ -909,12 +911,19 @@
     <string name="worktree_delete_confirm">Löschen und Worktree aufräumen</string>
     <string name="worktree_delete_snapshot">Der Gateway speichert vor dem Aufräumen einen Snapshot, sodass du ihn später wiederherstellen kannst.</string>
     <string name="worktree_delete_title">Worktree-Sitzung löschen</string>
-    <string name="worktree_finish_confirm">Beenden</string>
-    <string name="worktree_finish_desc">Archiviert die Sitzung und räumt den Worktree auf. Deine Arbeit bleibt gespeichert und lässt sich innerhalb von 30 Tagen durch Aufheben der Archivierung wiederherstellen.</string>
-    <string name="worktree_finish_pending">Es gibt Unterschiede zu %1$s. Prüfe, ob bereits zusammengeführt wurde.</string>
-    <string name="worktree_finish_title">Parallelentwicklung beenden?</string>
+    <string name="worktree_finish_confirm">Verwerfen und beenden</string>
+    <string name="worktree_finish_desc">Deine Arbeit wird gespeichert. Innerhalb von 30 Tagen kannst du sie durch Wiederherstellen aus dem Archiv zurückholen.</string>
+    <string name="worktree_finish_merge">Merge anfordern und beenden</string>
+    <string name="worktree_finish_merge_desc">Bittet den Agenten, in %1$s zu mergen und zu pushen, und beendet automatisch, sobald das erledigt ist.</string>
+    <string name="worktree_finish_pending">Es gibt Änderungen, die noch nicht in %1$s enthalten sind.</string>
+    <string name="worktree_finish_plain">Parallele Arbeit beenden</string>
+    <string name="worktree_finish_plain_desc">Keine Unterschiede zu %1$s. Der Worktree wird aufgeräumt.</string>
+    <string name="worktree_finish_title">Was soll mit dieser parallelen Arbeit geschehen?</string>
     <string name="worktree_fork">Unterhaltung übernehmen</string>
     <string name="worktree_fork_desc">Die neue Sitzung startet mit dem Inhalt dieser Unterhaltung</string>
+    <string name="worktree_merge_request">Merge den Branch %1$s dieses Worktrees im Hauptordner %2$s in %3$s und pushe anschließend. %3$s wird vom Hauptordner verwendet, wechsle also im Worktree nicht zu %3$s. Bei einem Konflikt oder fehlschlagenden Tests nicht mergen und nicht pushen, sondern anhalten und den Grund melden.</string>
+    <string name="worktree_merge_unfinished">Der Merge ist noch nicht abgeschlossen, daher läuft die parallele Arbeit weiter</string>
+    <string name="worktree_merged">Der Merge ist abgeschlossen, daher wurde die parallele Arbeit beendet</string>
     <string name="worktree_name">Branch-Name</string>
     <string name="worktree_name_auto">Leer: Titel wird verwendet</string>
     <string name="worktree_name_hint">Kleinbuchstaben, Ziffern und Bindestriche</string>

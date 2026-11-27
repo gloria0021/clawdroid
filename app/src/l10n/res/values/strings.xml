@@ -273,26 +273,31 @@
     <string name="chat_text_remove">Remove</string>
     <string name="chat_text_tile_cd">%1$s, %2$d characters</string>
     <string-array name="chat_thinking_phrases">
-        <item>Sharpening claws…</item>
-        <item>Reading the tide…</item>
-        <item>Timing the next molt…</item>
-        <item>Trimming code with pincers…</item>
-        <item>Thinking inside the shell…</item>
-        <item>Sidestepping to a shortcut…</item>
-        <item>Collecting docs from the seabed…</item>
-        <item>Swimming up the stack trace…</item>
-        <item>Recounting the brackets…</item>
-        <item>Agonizing over a variable name…</item>
+        <item>Wading upstream through the stack trace…</item>
+        <item>Recounting the parentheses…</item>
+        <item>Squeezing out a variable name…</item>
         <item>Converting coffee into tokens…</item>
-        <item>Investigating why it works…</item>
-        <item>Reading between the spec lines…</item>
-        <item>Leaving comments for future me…</item>
-        <item>Pretending not to see the TODO…</item>
-        <item>Consulting the rubber duck…</item>
-        <item>Rewarming the cache…</item>
-        <item>Hauling in the reasoning net…</item>
-        <item>Debugging by the smell of the sea…</item>
+        <item>Investigating why it just worked…</item>
+        <item>Reading between the lines of the spec…</item>
+        <item>Writing a comment to future me…</item>
+        <item>Pretending I didn\'t see the TODO…</item>
+        <item>Consulting StackOverflow…</item>
+        <item>Browsing the tide pools of Reddit…</item>
+        <item>Asking the old forum elders…</item>
+        <item>Wondering whether to just clear the cache…</item>
+        <item>Checking if a restart fixes it…</item>
+        <item>Gathering proof that it works on my machine…</item>
         <item>Almost there… probably…</item>
+        <item>Progress is 90% in spirit…</item>
+        <item>Recalculating the time left…</item>
+        <item>This turned out bigger than expected…</item>
+        <item>All according to plan. Probably…</item>
+        <item>Right in the good part…</item>
+        <item>Let me think one more time…</item>
+        <item>The end is in sight. Way out there…</item>
+        <item>Who said it would be quick…</item>
+        <item>Taking the scenic route around the reef…</item>
+        <item>Thanks for waiting…</item>
     </string-array>
     <string name="chat_tool_expand_label">Open tool call</string>
     <string name="chat_tool_failed">Failed</string>
@@ -327,7 +332,7 @@
     <string name="connect_diag_app">App: %1$s</string>
     <string name="connect_diag_code">Error code: %1$s</string>
     <string name="connect_diag_gateway">Gateway: %1$s</string>
-    <string name="connect_diag_header">Clawdroid connection details</string>
+    <string name="connect_diag_header">SumahoClaw connection details</string>
     <string name="connect_diag_message">Message: %1$s</string>
     <string name="connect_diag_reason">Category: %1$s</string>
     <string name="connect_diag_request">Approval request ID: %1$s</string>
@@ -362,7 +367,7 @@
     <string name="connect_subtitle">Enter the address and token of the OpenClaw Gateway you run yourself.</string>
     <string name="connect_title">Connect to Gateway</string>
     <string name="connect_token_hint">To get the token, run the following command in a terminal on the Gateway host.</string>
-    <string name="connect_token_label">Gateway token</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">Leave empty to use the saved token</string>
     <string name="connect_url_hint">An IP address on the same network, or a Tailscale address</string>
     <string name="connect_url_label">Gateway URL</string>
@@ -552,7 +557,7 @@
     <string name="notify_reply_attachment">Attachment</string>
     <string name="notify_reply_hidden">New reply</string>
     <string name="notify_reply_image">Image</string>
-    <string name="notify_test_body">This is how notifications from Clawdroid will look</string>
+    <string name="notify_test_body">This is how notifications from SumahoClaw will look</string>
     <string name="notify_test_title">Test notification</string>
     <string name="offline_agents_failed">Couldn\'t load agents</string>
     <string name="offline_connecting">Connecting to Gateway</string>
@@ -685,9 +690,6 @@
     <string name="settings_notify_channels_desc">Opens your device\'s notification settings</string>
     <string name="settings_notify_details">Always connected and notification types</string>
     <string name="settings_notify_enabled">Notification settings</string>
-    <string name="settings_notify_permission">Notification permission</string>
-    <string name="settings_notify_permission_missing">Not allowed</string>
-    <string name="settings_notify_permission_ok">Allowed</string>
     <string name="settings_notify_replies">Reply completed</string>
     <string name="settings_notify_test">Send test notification</string>
     <string name="settings_reconnect">Reconnect</string>
@@ -733,7 +735,7 @@
     <string name="shortcuts_add">Add</string>
     <string name="shortcuts_empty">None yet. Create one with \"Add\" below.</string>
     <string name="shortcuts_full">Up to 4 shortcuts</string>
-    <string name="shortcuts_hint">These are the items shown when you long-press the Clawdroid icon on the home screen. You can add up to 4. Long-press the handle on the right and drag up or down to reorder. If a destination session is archived or deleted, it is removed automatically.</string>
+    <string name="shortcuts_hint">These items appear when you long-press the SumahoClaw icon on the home screen. You can add up to 4. Long-press the handle on the right and drag up or down to reorder. If a session a shortcut points to is archived or deleted, the shortcut is removed automatically.</string>
     <string name="sidebar_automations">Automations</string>
     <string name="sidebar_empty_body">Start with a new chat</string>
     <string name="sidebar_empty_title">No sessions</string>
@@ -909,12 +911,19 @@
     <string name="worktree_delete_confirm">Delete and clean up worktree</string>
     <string name="worktree_delete_snapshot">The Gateway saves a snapshot before cleaning up, so you can restore it later.</string>
     <string name="worktree_delete_title">Delete worktree session</string>
-    <string name="worktree_finish_confirm">Finish</string>
-    <string name="worktree_finish_desc">Archives the session and cleans up the worktree. Your work is saved, and you can restore it by unarchiving within 30 days.</string>
-    <string name="worktree_finish_pending">There are differences from %1$s. Check that it has been merged.</string>
-    <string name="worktree_finish_title">Finish parallel development?</string>
+    <string name="worktree_finish_confirm">Discard and finish</string>
+    <string name="worktree_finish_desc">Your work is saved. Unarchive within 30 days to restore it.</string>
+    <string name="worktree_finish_merge">Ask to merge and finish</string>
+    <string name="worktree_finish_merge_desc">Asks the agent to merge into %1$s and push, then finishes automatically when done.</string>
+    <string name="worktree_finish_pending">There are changes not yet in %1$s.</string>
+    <string name="worktree_finish_plain">Finish parallel work</string>
+    <string name="worktree_finish_plain_desc">No differences from %1$s. The worktree will be cleaned up.</string>
+    <string name="worktree_finish_title">What do you want to do with this parallel work?</string>
     <string name="worktree_fork">Carry over the conversation</string>
     <string name="worktree_fork_desc">The new session starts with this conversation</string>
+    <string name="worktree_merge_request">Merge this worktree\'s branch %1$s into %3$s in the main folder %2$s, then push. %3$s is in use by the main folder, so don\'t switch to %3$s inside the worktree. If there\'s a conflict or the tests fail, don\'t merge or push. Stop and report the reason.</string>
+    <string name="worktree_merge_unfinished">The merge isn\'t done, so parallel work continues</string>
+    <string name="worktree_merged">The merge is done, so parallel work has finished</string>
     <string name="worktree_name">Branch name</string>
     <string name="worktree_name_auto">If empty, uses the title</string>
     <string name="worktree_name_hint">Lowercase letters, numbers and hyphens</string>

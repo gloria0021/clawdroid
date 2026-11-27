@@ -226,7 +226,7 @@
 ## 3. 禁止事項
 
 - 色・文字の大きさ・余白の直書き
-- 利用者向け文言の直書き（`strings.xml` に置く）。書くのは日本語（`app/src/main/res/values/`）だけ。ほかの言語はリリースのときに `scripts/translate-strings.py` が `app/src/release/res/` に作る（手で直さない）
+- 利用者向け文言の直書き（`strings.xml` に置く）。書くのは日本語（`app/src/main/res/values/`）だけ。文言を足す・変える・消すときは、同じ変更で `scripts/translate-strings.py` を流し、`app/src/l10n/` の訳も一緒にコミットする（Debug でも訳を使う。訳は手で直さない）
 - `Card`、純黒の背景、ガラス風の面以外の影・グラデーション（画面ごとの例外は `docs/design/screens.md` に書いたものだけ）
 - ガラス風の面ごとに別の色味を付けること
 - 別のスタイルのアイコンを混ぜること、TopAppBar に ⋮ 以外のアイコンを 3 つ以上置くこと
@@ -241,6 +241,6 @@
 
 ## 5. リリースとストア申請
 
-- 手順は `scripts/release.sh`、方針は `specs/003-play-store-release/spec.md`
+- 手順は `scripts/release.sh`（署名した APK を GitHub Release に、AAB を手元に作る。AAB は Play Console に上げる）、方針は `specs/003-play-store-release/spec.md`
 - 公開しない申請用の情報の案内は、リポジトリ直下の `store-release.md`（`.gitignore` で除外。手元にだけある）。リリース・ストア申請の作業では最初に読む。無ければ作業を止めて聞く
 - `store-release.md` とその案内先の中身を、このリポジトリのファイル・コミット・Issue・PR に写さない

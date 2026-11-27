@@ -273,26 +273,31 @@
     <string name="chat_text_remove">제거</string>
     <string name="chat_text_tile_cd">%1$s, %2$d자</string>
     <string-array name="chat_thinking_phrases">
-        <item>집게발을 갈고 있어요…</item>
-        <item>조류의 흐름을 읽고 있어요…</item>
-        <item>탈피 타이밍을 재고 있어요…</item>
-        <item>집게로 코드를 다듬고 있어요…</item>
-        <item>껍데기 속에서 고민 중이에요…</item>
-        <item>옆걸음으로 지름길을 찾고 있어요…</item>
-        <item>해저에서 문서를 줍고 있어요…</item>
-        <item>스택 트레이스를 거슬러 오르는 중…</item>
-        <item>괄호 개수를 다시 세고 있어요…</item>
+        <item>스택 트레이스를 거슬러 헤엄치는 중…</item>
+        <item>괄호 개수를 다시 세는 중…</item>
         <item>변수 이름을 쥐어짜는 중…</item>
-        <item>커피를 토큰으로 변환 중…</item>
-        <item>\'왜 되는지 모르겠지만 됨\'을 조사 중…</item>
-        <item>명세서의 행간을 읽고 있어요…</item>
+        <item>커피를 토큰으로 변환하는 중…</item>
+        <item>\'왜 그런지 됐다\'를 조사하는 중…</item>
+        <item>명세서의 행간을 읽는 중…</item>
         <item>미래의 나에게 주석을 남기는 중…</item>
-        <item>TODO를 못 본 척하는 중…</item>
-        <item>러버덕에게 상담 중…</item>
-        <item>캐시를 다시 데우고 있어요…</item>
-        <item>추론의 그물을 끌어올리는 중…</item>
-        <item>갯내음으로 디버깅 중…</item>
-        <item>거의 다 됐어요… 아마도…</item>
+        <item>TODO는 못 본 척하는 중…</item>
+        <item>StackOverflow에 물어보는 중…</item>
+        <item>Qiita를 구경하는 중…</item>
+        <item>네이버 지식인에 물어보는 중…</item>
+        <item>일단 캐시부터 지워볼까 고민 중…</item>
+        <item>재부팅하면 낫는지 시험하는 중…</item>
+        <item>\'내 컴퓨터에선 되는데\' 증거를 모으는 중…</item>
+        <item>조금만 더… 아마도…</item>
+        <item>진행률은 마음속으론 90%예요…</item>
+        <item>남은 시간을 다시 계산하는 중…</item>
+        <item>생각보다 큰 일이었네요…</item>
+        <item>예상 범위 안이에요. 아마도…</item>
+        <item>지금 한창 좋은 부분이에요…</item>
+        <item>딱 한 번만 더 생각해 볼게요…</item>
+        <item>끝이 보이기 시작했어요. 저 멀리서…</item>
+        <item>\'금방 끝난다\'고 한 사람이 누구죠…</item>
+        <item>급할수록 산호초를 돌아가는 중…</item>
+        <item>기다려 주셔서 고마워요…</item>
     </string-array>
     <string name="chat_tool_expand_label">도구 실행 열기</string>
     <string name="chat_tool_failed">실패</string>
@@ -326,7 +331,7 @@
     <string name="connect_diag_app">앱: %1$s</string>
     <string name="connect_diag_code">오류 코드: %1$s</string>
     <string name="connect_diag_gateway">Gateway: %1$s</string>
-    <string name="connect_diag_header">Clawdroid 연결 상세 정보</string>
+    <string name="connect_diag_header">SumahoClaw 연결 상세 정보</string>
     <string name="connect_diag_message">메시지: %1$s</string>
     <string name="connect_diag_reason">분류: %1$s</string>
     <string name="connect_diag_request">승인 요청 ID: %1$s</string>
@@ -361,7 +366,7 @@
     <string name="connect_subtitle">직접 운영 중인 OpenClaw Gateway의 주소와 토큰을 입력하세요.</string>
     <string name="connect_title">Gateway에 연결</string>
     <string name="connect_token_hint">토큰은 Gateway 호스트의 터미널에서 다음 명령어를 실행하면 표시됩니다.</string>
-    <string name="connect_token_label">Gateway 토큰</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">비워 두면 저장된 토큰을 사용합니다</string>
     <string name="connect_url_hint">같은 네트워크의 IP 주소 또는 Tailscale 주소</string>
     <string name="connect_url_label">Gateway URL</string>
@@ -549,7 +554,7 @@
     <string name="notify_reply_attachment">첨부 파일</string>
     <string name="notify_reply_hidden">새 응답</string>
     <string name="notify_reply_image">이미지</string>
-    <string name="notify_test_body">Clawdroid 알림은 이렇게 표시됩니다</string>
+    <string name="notify_test_body">SumahoClaw의 알림은 이렇게 표시됩니다</string>
     <string name="notify_test_title">알림 테스트</string>
     <string name="offline_agents_failed">에이전트를 불러오지 못했습니다</string>
     <string name="offline_connecting">Gateway에 연결하는 중입니다</string>
@@ -682,9 +687,6 @@
     <string name="settings_notify_channels_desc">기기의 알림 설정을 엽니다</string>
     <string name="settings_notify_details">상시 연결 및 알림 종류</string>
     <string name="settings_notify_enabled">알림 설정</string>
-    <string name="settings_notify_permission">알림 권한</string>
-    <string name="settings_notify_permission_missing">허용되지 않았습니다</string>
-    <string name="settings_notify_permission_ok">허용되었습니다</string>
     <string name="settings_notify_replies">응답 완료</string>
     <string name="settings_notify_test">테스트 알림 보내기</string>
     <string name="settings_reconnect">다시 연결</string>
@@ -730,7 +732,7 @@
     <string name="shortcuts_add">추가</string>
     <string name="shortcuts_empty">아직 없습니다. 아래 \"추가\"로 만들 수 있습니다.</string>
     <string name="shortcuts_full">바로가기는 최대 4개입니다</string>
-    <string name="shortcuts_hint">홈 화면에서 Clawdroid 아이콘을 길게 눌렀을 때 표시되는 항목입니다. 최대 4개까지 둘 수 있습니다. 오른쪽 핸들을 길게 누른 채 위아래로 움직이면 순서를 바꿀 수 있습니다. 대상 세션이 보관되거나 삭제되면 자동으로 제거됩니다.</string>
+    <string name="shortcuts_hint">홈 화면에서 SumahoClaw 아이콘을 길게 눌렀을 때 나타나는 항목입니다. 최대 4개까지 둘 수 있습니다. 오른쪽 핸들을 길게 누르고 위아래로 움직이면 순서를 바꿀 수 있습니다. 바로가기가 가리키는 세션이 보관되거나 삭제되면 자동으로 제거됩니다.</string>
     <string name="sidebar_automations">자동화</string>
     <string name="sidebar_empty_body">새 채팅으로 시작하세요</string>
     <string name="sidebar_empty_title">세션이 없습니다</string>
@@ -906,12 +908,19 @@
     <string name="worktree_delete_confirm">삭제하고 워크트리 정리</string>
     <string name="worktree_delete_snapshot">정리하기 전에 Gateway가 스냅샷을 저장하므로 나중에 복원할 수 있습니다.</string>
     <string name="worktree_delete_title">워크트리 세션 삭제</string>
-    <string name="worktree_finish_confirm">종료</string>
-    <string name="worktree_finish_desc">세션을 보관하고 워크트리를 정리합니다. 작업 내용은 저장되며, 30일 이내에 보관을 해제하면 복원할 수 있습니다.</string>
-    <string name="worktree_finish_pending">%1$s와(과) 차이가 있습니다. 병합되었는지 확인하세요.</string>
-    <string name="worktree_finish_title">병렬 개발을 종료할까요?</string>
+    <string name="worktree_finish_confirm">폐기하고 끝내기</string>
+    <string name="worktree_finish_desc">작업 내용은 저장되며, 30일 이내에 보관 해제하면 복원할 수 있습니다.</string>
+    <string name="worktree_finish_merge">병합을 요청하고 끝내기</string>
+    <string name="worktree_finish_merge_desc">에이전트에게 %1$s(으)로 병합하고 push하도록 요청하며, 완료되면 자동으로 끝냅니다.</string>
+    <string name="worktree_finish_pending">%1$s에 아직 반영되지 않은 변경 사항이 있습니다.</string>
+    <string name="worktree_finish_plain">병렬 작업 끝내기</string>
+    <string name="worktree_finish_plain_desc">%1$s과(와) 차이가 없습니다. 워크트리를 정리합니다.</string>
+    <string name="worktree_finish_title">이 병렬 작업을 어떻게 할까요?</string>
     <string name="worktree_fork">대화 이어받기</string>
     <string name="worktree_fork_desc">이 대화 내용을 새 세션에도 가져갑니다</string>
+    <string name="worktree_merge_request">이 워크트리의 브랜치 %1$s을(를) 메인 폴더 %2$s에서 %3$s에 병합하고 push해 주세요. %3$s은(는) 메인 폴더에서 사용 중이므로 워크트리 안에서 %3$s(으)로 전환하지 마세요. 충돌이 나거나 테스트가 통과하지 않으면 병합도 push도 하지 말고 멈춘 뒤 이유를 보고해 주세요.</string>
+    <string name="worktree_merge_unfinished">병합이 끝나지 않아 병렬 작업을 계속합니다</string>
+    <string name="worktree_merged">병합이 완료되어 병렬 작업을 끝냈습니다</string>
     <string name="worktree_name">브랜치 이름</string>
     <string name="worktree_name_auto">비워 두면 제목으로 만듭니다</string>
     <string name="worktree_name_hint">영문 소문자, 숫자, 하이픈</string>

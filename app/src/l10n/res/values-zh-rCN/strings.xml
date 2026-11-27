@@ -273,26 +273,31 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 个字符</string>
     <string-array name="chat_thinking_phrases">
-        <item>正在磨爪子…</item>
-        <item>正在观察潮汐走向…</item>
-        <item>正在计算蜕壳时机…</item>
-        <item>正在用大钳子修剪代码…</item>
-        <item>正在壳里苦思冥想…</item>
-        <item>正在横着走找捷径…</item>
-        <item>正在海底捡文档…</item>
-        <item>正在逆流而上追溯堆栈…</item>
+        <item>正在逆流而上追溯堆栈跟踪…</item>
         <item>正在重新数括号…</item>
-        <item>正在绞尽脑汁想变量名…</item>
+        <item>正在苦思冥想变量名…</item>
         <item>正在把咖啡转换成 token…</item>
-        <item>正在调查「为什么居然能跑」…</item>
-        <item>正在读规格说明的字里行间…</item>
+        <item>正在调查“为什么莫名其妙就跑通了”…</item>
+        <item>正在字里行间解读规格书…</item>
         <item>正在给未来的自己写注释…</item>
         <item>正在假装没看见 TODO…</item>
-        <item>正在请教橡皮鸭…</item>
-        <item>正在给缓存回温…</item>
-        <item>正在拉起推理渔网…</item>
-        <item>正在闻着海味调试…</item>
+        <item>正在请教 StackOverflow…</item>
+        <item>正在潜入 CSDN 的浅滩…</item>
+        <item>正在请教论坛里的老前辈…</item>
+        <item>正在考虑要不要先清一下缓存…</item>
+        <item>正在试试重启能不能解决…</item>
+        <item>正在收集“我这儿是好的”的证据…</item>
         <item>马上就好…大概…</item>
+        <item>进度在心里已经 90% 了…</item>
+        <item>正在重新计算剩余时间…</item>
+        <item>事情比想象中的大…</item>
+        <item>在预料之内。大概…</item>
+        <item>正在关键时刻…</item>
+        <item>让我再想一遍…</item>
+        <item>终点在望了。在很远的地方…</item>
+        <item>说“马上就好”的是谁…</item>
+        <item>正在绕着珊瑚礁走远路…</item>
+        <item>谢谢你的耐心等待…</item>
     </string-array>
     <string name="chat_tool_expand_label">展开工具调用</string>
     <string name="chat_tool_failed">失败</string>
@@ -326,7 +331,7 @@
     <string name="connect_diag_app">应用：%1$s</string>
     <string name="connect_diag_code">错误代码：%1$s</string>
     <string name="connect_diag_gateway">Gateway：%1$s</string>
-    <string name="connect_diag_header">Clawdroid 连接详情</string>
+    <string name="connect_diag_header">SumahoClaw 连接详情</string>
     <string name="connect_diag_message">消息：%1$s</string>
     <string name="connect_diag_reason">分类：%1$s</string>
     <string name="connect_diag_request">批准请求 ID：%1$s</string>
@@ -361,7 +366,7 @@
     <string name="connect_subtitle">请输入你自行运行的 OpenClaw Gateway 的地址和令牌。</string>
     <string name="connect_title">连接到 Gateway</string>
     <string name="connect_token_hint">在 Gateway 主机的终端中运行以下命令即可获取令牌。</string>
-    <string name="connect_token_label">Gateway 令牌</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_token_saved_placeholder">留空则使用已保存的令牌</string>
     <string name="connect_url_hint">同一网络中的 IP 地址，或 Tailscale 地址</string>
     <string name="connect_url_label">Gateway URL</string>
@@ -549,7 +554,7 @@
     <string name="notify_reply_attachment">附件</string>
     <string name="notify_reply_hidden">新回复</string>
     <string name="notify_reply_image">图片</string>
-    <string name="notify_test_body">来自 Clawdroid 的通知将以这样的方式显示</string>
+    <string name="notify_test_body">SumahoClaw 的通知将以这样的形式送达</string>
     <string name="notify_test_title">测试通知</string>
     <string name="offline_agents_failed">无法加载智能体</string>
     <string name="offline_connecting">正在连接 Gateway</string>
@@ -682,9 +687,6 @@
     <string name="settings_notify_channels_desc">打开设备的通知设置</string>
     <string name="settings_notify_details">保持连接和通知类型</string>
     <string name="settings_notify_enabled">通知设置</string>
-    <string name="settings_notify_permission">通知权限</string>
-    <string name="settings_notify_permission_missing">未允许</string>
-    <string name="settings_notify_permission_ok">已允许</string>
     <string name="settings_notify_replies">回复完成</string>
     <string name="settings_notify_test">发送测试通知</string>
     <string name="settings_reconnect">重新连接</string>
@@ -730,7 +732,7 @@
     <string name="shortcuts_add">添加</string>
     <string name="shortcuts_empty">暂无。可通过下方的“添加”创建。</string>
     <string name="shortcuts_full">快捷方式最多 4 个</string>
-    <string name="shortcuts_hint">长按主屏幕上的 Clawdroid 图标时显示的项目，最多可添加 4 个。长按右侧的拖动手柄并上下移动，即可调整顺序。目标会话被归档或删除后，会自动移除。</string>
+    <string name="shortcuts_hint">在主屏幕上长按 SumahoClaw 图标时显示的项目。最多可添加 4 个。长按右侧的手柄并上下拖动即可重新排序。快捷方式指向的会话被归档或删除后，会自动移除。</string>
     <string name="sidebar_automations">自动化</string>
     <string name="sidebar_empty_body">从新建聊天开始吧</string>
     <string name="sidebar_empty_title">暂无会话</string>
@@ -906,12 +908,19 @@
     <string name="worktree_delete_confirm">删除并清理工作树</string>
     <string name="worktree_delete_snapshot">清理前 Gateway 会保存快照，之后可以恢复。</string>
     <string name="worktree_delete_title">删除工作树会话</string>
-    <string name="worktree_finish_confirm">结束</string>
-    <string name="worktree_finish_desc">归档会话并清理工作树。你的工作会被保存，30 天内取消归档即可恢复。</string>
-    <string name="worktree_finish_pending">与 %1$s 存在差异。请确认已完成合并。</string>
-    <string name="worktree_finish_title">结束并行开发？</string>
+    <string name="worktree_finish_confirm">弃用并结束</string>
+    <string name="worktree_finish_desc">你的工作内容已保存，30 天内取消归档即可恢复。</string>
+    <string name="worktree_finish_merge">请求合并并结束</string>
+    <string name="worktree_finish_merge_desc">让智能体合并到 %1$s 并 push，完成后自动结束。</string>
+    <string name="worktree_finish_pending">有尚未并入 %1$s 的更改。</string>
+    <string name="worktree_finish_plain">结束并行开发</string>
+    <string name="worktree_finish_plain_desc">与 %1$s 没有差异。将清理工作树。</string>
+    <string name="worktree_finish_title">要如何处理这个并行开发？</string>
     <string name="worktree_fork">沿用对话</string>
     <string name="worktree_fork_desc">新会话将带上当前对话的内容</string>
+    <string name="worktree_merge_request">请在主文件夹 %2$s 中，将此工作树的分支 %1$s 合并到 %3$s，然后 push。%3$s 正被主文件夹使用，所以不要在工作树中切换到 %3$s。如果出现冲突或测试未通过，请不要合并也不要 push，停下来并报告原因。</string>
+    <string name="worktree_merge_unfinished">合并尚未完成，因此继续并行开发</string>
+    <string name="worktree_merged">合并已完成，并行开发已结束</string>
     <string name="worktree_name">分支名称</string>
     <string name="worktree_name_auto">留空则使用标题</string>
     <string name="worktree_name_hint">小写字母、数字和连字符</string>

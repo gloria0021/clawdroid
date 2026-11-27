@@ -58,10 +58,11 @@ android {
         buildConfig = true
     }
 
-    // 文言はふだん日本語（src/main/res/values）だけを書く。ほかの言語は scripts/translate-strings.py が
-    // リリースのときに src/release/res へ作り、Release だけが使う（既定の言語は英語）。言語を足すときは両方に足す。
-    // アプリ単位の言語の一覧は自動生成しない（AGP は main の resources.properties しか読まず、Debug と Release で既定の言語を分けられない）。
-    // main と release の res/xml/locales_config.xml でそれぞれ持つ
+    // 文言は日本語（src/main/res/values）だけを書く。ほかの言語は scripts/translate-strings.py が src/l10n/res へ作り、
+    // Debug・Release とも使う（既定の言語は英語。日本語は values-ja の写し）。文言を変えたら同じ変更で訳も作る（AGENTS.md 3）。
+    // main の values（日本語）と l10n の values（英語）は同じ名前なので、main には足せない。ビルドの種類ごとの source set に足して上書きさせる。
+    // アプリ単位の言語の一覧は l10n の res/xml/locales_config.xml（スクリプトが作る）。言語を足すときはスクリプトの LOCALES と下の一覧に足す
+    buildTypes.configureEach { sourceSets.maybeCreate(name).res.srcDir("src/l10n/res") }
     androidResources {
         localeFilters += listOf("ja", "en", "zh-rCN", "zh-rTW", "ko", "es", "fr", "de", "pt-rBR")
     }
@@ -158,15 +159,12 @@ dependencies {
     testImplementation(libs.roborazzi.junit.rule)
 }
 
-// Release の日本語（app/src/release/res/values-ja）は main の日本語の写し。訳はリリースのときだけ作るが、
-// 日本語の写しはビルドのたびに作り直し、Release の画面の日本語が古いまま残らないようにする（訳さないのでトークンは使わない）
-val syncReleaseJapanese by tasks.registering(Exec::class) {
+// 日本語の写し（app/src/l10n/res/values-ja）は main の日本語から作る。訳（ほかの言語）は文言を変えたときにスクリプトで作るが、
+// 日本語の写しはビルドのたびに作り直し、画面の日本語が古いまま残らないようにする（訳さないのでトークンは使わない）
+val syncJapaneseCopy by tasks.registering(Exec::class) {
     workingDir = rootDir
     commandLine("python3", "scripts/translate-strings.py", "--ja-only")
     inputs.dir("src/main/res/values")
-    outputs.file("src/release/res/values-ja/strings.xml")
+    outputs.file("src/l10n/res/values-ja/strings.xml")
 }
-// Release のリソースを読むタスクはいくつもあるので、Release のタスクすべての前に作り直す（写すだけなので一瞬）
-tasks.matching { it.name.contains("Release") && it.name != "syncReleaseJapanese" }.configureEach {
-    dependsOn(syncReleaseJapanese)
-}
+tasks.named("preBuild") { dependsOn(syncJapaneseCopy) }
