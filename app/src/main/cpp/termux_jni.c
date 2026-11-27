@@ -2,7 +2,7 @@
  * Termux の com.termux.terminal.JNI の代わり。
  *
  * Termux の AAR（v0.118.3）に入っている libtermux.so は LOAD セグメントが 4KB 境界のため、
- * 16KB ページの端末で互換性の警告が出る。Clawdroid は端末内でシェルを起動せず、Gateway の PTY に
+ * 16KB ページの端末で互換性の警告が出る。SumahoClaw は端末内でシェルを起動せず、Gateway の PTY に
  * つなぐ（RemoteTerminalBridge）ので、PTY を扱うネイティブの処理は使わない。それでも TerminalSession は
  * 大きさが変わるたびに JNI.setPtyWindowSize を呼ぶため、同じ名前のライブラリを 16KB 境界で作り、
  * 何もしない関数で置き換える。大きさは Gateway へ別に伝えている。
@@ -16,7 +16,7 @@ JNIEXPORT jint JNICALL Java_com_termux_terminal_JNI_createSubprocess(
     (void) rows; (void) columns; (void) cell_width; (void) cell_height;
     jclass error = (*env)->FindClass(env, "java/lang/UnsupportedOperationException");
     if (error != NULL) {
-        (*env)->ThrowNew(env, error, "Clawdroid does not start local processes");
+        (*env)->ThrowNew(env, error, "SumahoClaw does not start local processes");
     }
     return -1;
 }

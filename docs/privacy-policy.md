@@ -1,4 +1,4 @@
-# Clawdroid プライバシーポリシー / Privacy Policy
+# SumahoClaw プライバシーポリシー / Privacy Policy
 
 最終更新日 / Last updated: 2026-11-24
 
@@ -8,7 +8,7 @@
 
 ## 日本語
 
-Clawdroid（以下「本アプリ」）は、利用者が自分で運用している OpenClaw Gateway に接続して、AI エージェントとの会話・ファイル・ターミナル・自動化を操作するための Android アプリです。本アプリは OpenClaw の公式アプリではありません。本アプリの作者（miyavi）は、利用者の個人情報を集めません。
+SumahoClaw（以下「本アプリ」）は、利用者が自分で運用している OpenClaw Gateway に接続して、AI エージェントとの会話・ファイル・ターミナル・自動化を操作するための Android アプリです。本アプリは OpenClaw の公式アプリではありません。本アプリの作者（miyavi）は、利用者の個人情報を集めません。
 
 ### 集める情報
 
@@ -59,7 +59,7 @@ Clawdroid（以下「本アプリ」）は、利用者が自分で運用して�
 
 ## English
 
-Clawdroid ("the app") is an Android app for connecting to an OpenClaw Gateway that you run yourself, so you can work with your AI agents' conversations, files, terminal, and automations. The app is not an official OpenClaw app. The app's author (miyavi) does not collect your personal information.
+SumahoClaw ("the app") is an Android app for connecting to an OpenClaw Gateway that you run yourself, so you can work with your AI agents' conversations, files, terminal, and automations. The app is not an official OpenClaw app. The app's author (miyavi) does not collect your personal information.
 
 ### Information we collect
 

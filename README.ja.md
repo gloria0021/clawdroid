@@ -1,4 +1,4 @@
-# Clawdroid
+# SumahoClaw
 
 [English](README.md) | 日本語
 

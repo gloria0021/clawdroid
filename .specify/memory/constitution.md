@@ -21,9 +21,9 @@ Sync Impact Report
 - Follow-up TODOs: なし
 -->
 
-# Clawdroid Constitution
+# SumahoClaw Constitution
 
-Clawdroid は OpenClaw Gateway を操作する Android 向けコンパニオンアプリである。
+SumahoClaw は OpenClaw Gateway を操作する Android 向けコンパニオンアプリである。
 ただし、Gateway のすべてを扱う窓口ではなく、持ち歩いて使うための道具である（原則 VII）。
 本憲章は開発判断の優先順位と、譲れない規則を定める。見た目の細則は `AGENTS.md` を正とする。
 
@@ -73,7 +73,7 @@ Clawdroid は OpenClaw Gateway を操作する Android 向けコンパニオン�
 
 ### VII. 持ち歩くための道具であり、全機能の窓口ではない
 
-- Clawdroid は、PC から離れているとき（外出先・移動中・手元にスマホだけがあるとき）に OpenClaw を使うためのアプリとする。
+- SumahoClaw は、PC から離れているとき（外出先・移動中・手元にスマホだけがあるとき）に OpenClaw を使うためのアプリとする。
   Gateway の全機能を扱うコンパニオンアプリ（Web UI・CLI の代わり）にはしない。
 - 機能を入れるかは「持ち歩いているときに必要になるか」で決める。対象は、会話する・状態を確かめる・承認する・
   小さく直す・止めると戸す、のようにその場で済む操作。PC の前で腰を据えて行う作業（初期設定・大きな構成の変更・

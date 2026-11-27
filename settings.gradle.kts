@@ -16,5 +16,5 @@ dependencyResolutionManagement {
         }
     }
 }
-rootProject.name = "Clawdroid"
+rootProject.name = "SumahoClaw"
 include(":app")

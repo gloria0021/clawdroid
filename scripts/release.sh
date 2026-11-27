@@ -23,7 +23,7 @@ for arg in "$@"; do
   esac
 done
 
-OUT=${CLAWDROID_RELEASE_DIR:-$HOME/Dev/android/clawdroid-release}
+OUT=${CLAWDROID_RELEASE_DIR:-$HOME/Dev/android/sumahoclaw-release}
 GRADLE_FILE=app/build.gradle.kts
 
 step() { printf '\n== %s\n' "$1"; }
@@ -74,8 +74,8 @@ step "署名した APK と App Bundle を作る"
 # 同じビルドで両方を作る（難読化の対応表も共通）
 ./gradlew :app:assembleRelease :app:bundleRelease -q
 mkdir -p "$OUT"
-APK=$OUT/clawdroid-$VERSION.apk
-AAB=$OUT/clawdroid-$VERSION.aab
+APK=$OUT/sumahoclaw-$VERSION.apk
+AAB=$OUT/sumahoclaw-$VERSION.aab
 cp app/build/outputs/apk/release/app-release.apk "$APK"
 cp app/build/outputs/bundle/release/app-release.aab "$AAB"
 # 難読化の対応表は Play Console に登録する（異常終了の解析用）
@@ -96,8 +96,8 @@ step "Push"
 git push origin main "v$VERSION"
 
 step "GitHub Release に APK を載せる"
-gh release create "v$VERSION" "$APK" --title "Clawdroid $VERSION" --generate-notes --verify-tag \
+gh release create "v$VERSION" "$APK" --title "SumahoClaw $VERSION" --generate-notes --verify-tag \
   || fail "GitHub Release を作れませんでした（Push は済んでいます。gh release create v$VERSION $APK --generate-notes で作り直せます）"
 
-step "完了: Clawdroid $VERSION"
+step "完了: SumahoClaw $VERSION"
 echo "次: Play Console で $AAB をアップロードし、mapping-$VERSION.txt を登録して、新機能の文を添える"

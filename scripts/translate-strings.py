@@ -55,7 +55,7 @@ PLURAL_QUANTITIES: dict[str, list[str]] = {
     "ar": ["zero", "one", "two", "few", "many", "other"],
 }
 
-SYSTEM_PROMPT = """You translate Android app UI strings for Clawdroid, a companion app for the OpenClaw AI agent Gateway.
+SYSTEM_PROMPT = """You translate Android app UI strings for SumahoClaw, a companion app for the OpenClaw AI agent Gateway.
 The source language is Japanese. An English reference is given when it exists; keep its meaning and length class.
 
 Rules:
@@ -63,7 +63,7 @@ Rules:
 - Keys are the resource names you were given. Values keep the same shape as the input: a string, an object of plural quantities, or an array with the same number of items.
 - Keep every format placeholder exactly as written (%1$s, %2$d, %d, %s, %%). Do not add or drop any. You may reorder them in the sentence.
 - Keep the two-character sequence \\n where it appears. Do not escape anything else; write plain text.
-- Do not translate: OpenClaw, Clawdroid, Gateway, Tailscale, Claude, Codex, Markdown, HTML, URL, PTY, ANSI, cron, exec, sp, slash commands such as /loop, and text inside backticks.
+- Do not translate: OpenClaw, SumahoClaw, Gateway, Tailscale, Claude, Codex, Markdown, HTML, URL, PTY, ANSI, cron, exec, sp, slash commands such as /loop, and text inside backticks.
 - Use the standard platform terms of Android and Material Design in the target language (Settings, Cancel, Retry, Copy, Share...).
 - UI text is short and plain. Buttons are verbs. Keep sentences concise. Match the register of a modern developer tool.
 - Keys ending in _cd are accessibility labels for screen readers.
@@ -330,7 +330,7 @@ def main() -> int:
     note = "scripts/translate-strings.py が作ったもの。手で直さず、元の日本語を直して作り直す"
 
     def run(locale: str):
-        with tempfile.TemporaryDirectory(prefix="clawdroid-translate-") as workdir:
+        with tempfile.TemporaryDirectory(prefix="sumahoclaw-translate-") as workdir:
             return locale, *translate_locale(locale, plan[locale], source, english, args, workdir)
 
     # 英語を先に作り、ほかの言語の参考にする

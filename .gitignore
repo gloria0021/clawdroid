@@ -35,3 +35,6 @@ build/
 
 # ストア申請の手元の案内（公開しない値の置き場所を指す）
 /store-release.md
+
+# Python のキャッシュ
+__pycache__/

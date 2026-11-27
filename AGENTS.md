@@ -1,4 +1,4 @@
-# AGENTS.md — Clawdroid
+# AGENTS.md — SumahoClaw
 
 このリポジトリで作業するすべてのエージェント・開発者向けの指示。
 

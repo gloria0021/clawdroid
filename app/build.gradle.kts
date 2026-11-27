@@ -8,12 +8,12 @@ plugins {
 }
 
 android {
-    namespace = "jp.miyavi.android.clawdroid"
+    namespace = "jp.miyavi.android.sumahoclaw"
     compileSdk = 37
     ndkVersion = "27.1.12297006"
 
     defaultConfig {
-        applicationId = "jp.miyavi.android.clawdroid"
+        applicationId = "jp.miyavi.android.sumahoclaw"
         minSdk = 33
         targetSdk = 37
         versionCode = 2
