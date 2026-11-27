@@ -180,6 +180,8 @@ internal fun ChatScreen(
     val expandLabel = stringResource(R.string.chat_text_expand)
     val worktreeCreating = stringResource(R.string.worktree_creating)
     val worktreePreserved = stringResource(R.string.worktree_preserved)
+    val worktreeMerged = stringResource(R.string.worktree_merged)
+    val worktreeMergeUnfinished = stringResource(R.string.worktree_merge_unfinished)
     val grouping by viewModel.sessionGrouping.collectAsStateWithLifecycle()
     // 会話の画面が見えているあいだだけ「開いている」とする（ほかの画面を重ねた・裏に回ったら外す。spec 006 FR-011）
     androidx.lifecycle.compose.LifecycleResumeEffect(viewModel) {
@@ -200,6 +202,8 @@ internal fun ChatScreen(
                 is ChatEvent.WorktreePreserved -> snackbar.showSnackbar(
                     String.format(worktreePreserved, event.branch.orEmpty()), duration = SnackbarDuration.Long,
                 )
+                ChatEvent.WorktreeMerged -> snackbar.showSnackbar(worktreeMerged)
+                ChatEvent.WorktreeMergeUnfinished -> snackbar.showSnackbar(worktreeMergeUnfinished, duration = SnackbarDuration.Long)
                 is ChatEvent.Error -> snackbar.showSnackbar(event.message ?: sendFailed)
                 // 設定は元の値に戻したうえで知らせ、同じ値で再試行できるようにする（マスター指定 2026-11-26）
                 is ChatEvent.SettingFailed -> if (
@@ -248,6 +252,7 @@ internal fun ChatScreen(
             rename = viewModel::rename,
             archive = viewModel::setArchived,
             finishWorktree = viewModel::finishWorktree,
+            mergeAndFinishWorktree = viewModel::mergeAndFinishWorktree,
             delete = viewModel::delete,
             textChange = viewModel::onTextChange,
             reuse = viewModel::reuse,
@@ -292,6 +297,8 @@ data class ChatActions(
     val rename: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit,
     val archive: (jp.miyavi.android.clawdroid.core.data.SessionSummary, Boolean) -> Unit,
     val finishWorktree: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit = {},
+    /** 採用: エージェントにマージを頼み、済んだら終える（2 つ目は依頼の文）。 */
+    val mergeAndFinishWorktree: (jp.miyavi.android.clawdroid.core.data.SessionSummary, String) -> Unit = { _, _ -> },
     val delete: (jp.miyavi.android.clawdroid.core.data.SessionSummary) -> Unit,
     val textChange: (String) -> Unit,
     val reuse: (String) -> Unit = {},
@@ -851,10 +858,14 @@ fun ChatContent(
                 }
             }
             SessionAction.FINISH -> if (current != null) {
-                FinishWorktreeDialog(current, actions.loadDiffSummary, onDismiss = { sessionAction = null }) {
-                    sessionAction = null
-                    actions.finishWorktree(current)
-                }
+                FinishWorktreeSheet(
+                    session = current,
+                    hazeState = hazeState,
+                    loadDiffSummary = actions.loadDiffSummary,
+                    onDismiss = { sessionAction = null },
+                    onMerge = { request -> sessionAction = null; actions.mergeAndFinishWorktree(current, request) },
+                    onDiscard = { sessionAction = null; actions.finishWorktree(current) },
+                )
             }
             null -> Unit
         }

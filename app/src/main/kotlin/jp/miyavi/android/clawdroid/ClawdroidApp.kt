@@ -45,7 +45,11 @@ class AppContainer(app: Application) {
     )
 
     val database = ClawdroidDatabase.create(app)
-    val sessions = SessionsRepository(gateway, appScope)
+    val sessions = SessionsRepository(
+        gateway,
+        appScope,
+        jp.miyavi.android.clawdroid.core.data.AgentRosterCache(java.io.File(app.filesDir, "agent-roster")),
+    )
     val chats = ChatRepository(gateway, appScope)
     val claudeUsage = jp.miyavi.android.clawdroid.core.data.ClaudeCliUsageRepository(
         jp.miyavi.android.clawdroid.core.data.TerminalRepository(

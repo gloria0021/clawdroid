@@ -178,6 +178,10 @@ sealed interface ChatEvent {
     data object AttachmentTooLarge : ChatEvent
     /** 削除したが、ワークツリーは使用中などで残った。 */
     data class WorktreePreserved(val branch: String?) : ChatEvent
+    /** マージの依頼が済み、並行開発を終えた。 */
+    data object WorktreeMerged : ChatEvent
+    /** マージの依頼が済まなかった（並行開発はそのまま）。 */
+    data object WorktreeMergeUnfinished : ChatEvent
 }
 
 /**
@@ -264,6 +268,18 @@ class ChatViewModel(
     val sheetCache = SheetUsageCache()
 
     init {
+        // 「マージを依頼して終える」の結果を知らせる。終えたセッションを開いていれば新規チャットに戻す
+        viewModelScope.launch {
+            sessions.worktreeFinishes.collect { result ->
+                when (result) {
+                    is jp.miyavi.android.clawdroid.core.data.WorktreeFinish.Merged -> {
+                        if (selectedSessionKey.value == result.session.key) newChat()
+                        _events.tryEmit(ChatEvent.WorktreeMerged)
+                    }
+                    is jp.miyavi.android.clawdroid.core.data.WorktreeFinish.Unmerged -> _events.tryEmit(ChatEvent.WorktreeMergeUnfinished)
+                }
+            }
+        }
         // プロバイダの使用枠は、セッションのシートを開いたときだけ取る（アプリを開いただけでホストの claude を動かさない。
         // マスター指定 2026-11-26。CJ レビュー）。Claude Code CLI の行は、取れたところで加わる
         // 前回の選択を戻す（SC-008）。無ければ Gateway の既定のエージェント
@@ -795,6 +811,16 @@ class ChatViewModel(
     fun finishWorktree(session: SessionSummary) = mutate {
         sessions.setArchived(session, true)
         if (selectedSessionKey.value == session.key) newChat()
+    }
+
+    /**
+     * 並行開発を採用する: エージェントにマージと push を頼み、済んだら終える（結果は [ChatEvent.WorktreeMerged] /
+     * [ChatEvent.WorktreeMergeUnfinished]）。[request] は依頼の文（画面側で文言から作る）。
+     */
+    fun mergeAndFinishWorktree(session: SessionSummary, request: String) = mutate {
+        val agentId = session.agentId ?: return@mutate
+        chats.session(session.key, agentId).send(request, emptyList(), java.util.UUID.randomUUID().toString())
+        sessions.finishAfterMerge(session)
     }
 
     /** セッションを削除する。開いていたセッションなら新規チャットに戻す。 */

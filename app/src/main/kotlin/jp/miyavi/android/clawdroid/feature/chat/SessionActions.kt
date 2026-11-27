@@ -122,9 +122,11 @@ internal fun SessionMoreMenu(
             // ここから下は開発の操作（ファイル・ターミナル・並行開発・変更量）。区切りはここだけ（マスター指定 2026-11-23）
             GlassMenuDivider()
             files()
-            MenuRow(R.drawable.ic_huge_branch, R.string.session_menu_new_worktree) { open = false; onAction(SessionAction.WORKTREE) }
-            // 並行開発を開始のすぐ下。ワークツリーのセッションだけ。マージはエージェントへの指示で行い、ここでは終える（アーカイブ）だけ（マスター指定 2026-11-24）
-            if (session.worktreeBranch != null && !session.archived) {
+            // 並行開発は本体のセッションから始め、ワークツリーのセッションでは終えるだけ（入れ子にしない。マスター指定 2026-11-27）。
+            // ワークツリーの中から始めると取り込み先が別のワークツリーのブランチになり、本体のフォルダでマージする前提が崩れるため
+            if (session.worktreeBranch == null) {
+                MenuRow(R.drawable.ic_huge_branch, R.string.session_menu_new_worktree) { open = false; onAction(SessionAction.WORKTREE) }
+            } else if (!session.archived) {
                 MenuRow(R.drawable.ic_huge_archive, R.string.session_menu_finish) { open = false; onAction(SessionAction.FINISH) }
             }
             // 変更量は合計の +/− を添えて（押すと詳細のシート）
@@ -166,33 +168,97 @@ internal fun SessionRenameDialog(initial: String, onDismiss: () -> Unit, onConfi
 }
 
 /**
- * 「作業を終える」の確認。既定のブランチとの差分があれば数を添えて知らせる（スカッシュで取り込んだときも差分は残るので、止めずに知らせるだけ）。
- * 作業内容は Gateway がスナップショットに残すので、差分があっても終えられる。
+ * 「並行開発を終える」のシート（マスター指定 2026-11-27）。既定のブランチとの差分を見て、終え方を選んでもらう。
+ * - 差分がある: 「マージを依頼して終える」（エージェントに依頼を送り、済んだら終える）か「ボツにして終える」
+ * - 差分が無い（取り込み済み・変更なし）: 「並行開発を終える」だけ
+ * ボツでも作業内容は Gateway がスナップショットに残す（30 日）。
  */
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun FinishWorktreeDialog(
+internal fun FinishWorktreeSheet(
     session: SessionSummary,
+    hazeState: HazeState,
     loadDiffSummary: suspend (SessionSummary) -> SessionDiff?,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
+    onMerge: (request: String) -> Unit,
+    onDiscard: () -> Unit,
 ) {
-    val diff by produceState<SessionDiff?>(null, session.key) { value = loadDiffSummary(session) }
-    val pending = diff?.takeIf { it.unavailable == null && (it.additions > 0 || it.deletions > 0) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.worktree_finish_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                if (pending != null) {
-                    Text(stringResource(R.string.worktree_finish_pending, pending.baseRef ?: "main"), style = MaterialTheme.typography.bodyMedium)
-                    DiffCounts(pending.additions, pending.deletions, MaterialTheme.typography.labelLarge)
+    val diff by produceState<Result<SessionDiff?>?>(null, session.key) { value = Result.success(loadDiffSummary(session)) }
+    val loaded = diff?.getOrNull()
+    val base = loaded?.baseRef ?: "main"
+    // 差分を確かめられなかったときは、取り込み済みとみなさず両方を出す
+    val pending = diff != null && (loaded == null || loaded.unavailable != null || loaded.additions > 0 || loaded.deletions > 0)
+    val branch = session.worktreeBranch.orEmpty()
+    val request = stringResource(R.string.worktree_merge_request, branch, session.worktreeRoot ?: session.cwd.orEmpty(), base)
+    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(vertical = Spacing.s).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(
+                stringResource(R.string.worktree_finish_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = Spacing.xl),
+            )
+            when {
+                diff == null -> Box(Modifier.fillMaxWidth().padding(Spacing.l), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.LoadingIndicator()
                 }
-                Text(stringResource(R.string.worktree_finish_desc), style = MaterialTheme.typography.bodyMedium)
+                pending -> {
+                    if (loaded != null && loaded.unavailable == null) {
+                        Row(
+                            Modifier.padding(horizontal = Spacing.xl),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.worktree_finish_pending, base),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            DiffCounts(loaded.additions, loaded.deletions, MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                    FinishChoice(
+                        icon = R.drawable.ic_huge_branch,
+                        title = stringResource(R.string.worktree_finish_merge),
+                        description = stringResource(R.string.worktree_finish_merge_desc, base),
+                        onClick = { onMerge(request) },
+                    )
+                    FinishChoice(
+                        icon = R.drawable.ic_huge_delete,
+                        title = stringResource(R.string.worktree_finish_confirm),
+                        description = stringResource(R.string.worktree_finish_desc),
+                        onClick = onDiscard,
+                    )
+                }
+                else -> FinishChoice(
+                    icon = R.drawable.ic_huge_check_circle,
+                    title = stringResource(R.string.worktree_finish_plain),
+                    description = stringResource(R.string.worktree_finish_plain_desc, base),
+                    onClick = onDiscard,
+                )
             }
-        },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.worktree_finish_confirm)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
+        }
+    }
+}
+
+/**
+ * 終え方の 1 つ（押せる面。アイコン・見出し・説明）。シートの地と見分けられるよう、明るい不透明な面
+ * （`sheetActionColor()`）を角丸で敷く（マスター指定 2026-11-27）。
+ */
+@Composable
+private fun FinishChoice(icon: Int, title: String, description: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = jp.miyavi.android.clawdroid.core.designsystem.sheetActionColor(),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.xs),
+    ) {
+        androidx.compose.material3.ListItem(
+            headlineContent = { Text(title) },
+            supportingContent = { Text(description) },
+            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
+            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        )
+    }
 }
 
 /**

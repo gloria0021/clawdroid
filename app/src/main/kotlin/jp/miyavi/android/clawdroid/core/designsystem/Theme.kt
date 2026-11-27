@@ -323,6 +323,20 @@ fun sheetFieldColor(): Color {
     return if (c.surface.luminance() < 0.5f) c.surfaceContainerHighest else c.surfaceContainerLowest
 }
 
+/**
+ * シートの中の押せる選択肢の面（並行開発を終えるシートなど）。ライトは [sheetFieldColor] と同じ白。
+ * ダークは読む・書く面よりさらに一段明るくして、シートの地から浮かせる（マスター指定 2026-11-27: 暗くて押せると気づきにくい）。
+ */
+@Composable
+@ReadOnlyComposable
+fun sheetActionColor(): Color {
+    val c = MaterialTheme.colorScheme
+    return if (c.surface.luminance() < 0.5f) c.onSurface.copy(alpha = SHEET_ACTION_LIFT_DARK).compositeOver(c.surfaceContainerHighest) else c.surfaceContainerLowest
+}
+
+/** ダークのときに、押せる選択肢の面へ重ねる文字色の量。 */
+private const val SHEET_ACTION_LIFT_DARK = 0.1f
+
 /** 本文のスタイル。bodyLarge を元に、行の高さは文字サイズ × 1.5（AGENTS.md 2.3）。 */
 @Composable
 @ReadOnlyComposable

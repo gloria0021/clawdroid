@@ -26,7 +26,7 @@ class FakeGateway {
     class RpcError(val code: String, val details: JsonObject? = null, val text: String? = null) : Exception(code)
 
     sealed interface ConnectBehavior {
-        data class Accept(val deviceToken: String? = "device-token-1", val tickIntervalMs: Long = 30_000) : ConnectBehavior
+        data class Accept(val deviceToken: String? = "device-token-1", val tickIntervalMs: Long = 30_000, val configHash: String? = null) : ConnectBehavior
         data class Reject(val code: String, val detailCode: String) : ConnectBehavior
         data class PairingRequired(
             val requestId: String = "pair-1",
@@ -138,7 +138,7 @@ class FakeGateway {
                             put("methods", buildJsonArray { handlers.keys.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
                             put("events", buildJsonArray { })
                         })
-                        put("snapshot", buildJsonObject { })
+                        put("snapshot", buildJsonObject { behavior.configHash?.let { put("appliedConfigHash", it) } })
                         put("auth", buildJsonObject {
                             put("role", "operator")
                             put("scopes", buildJsonArray { add(kotlinx.serialization.json.JsonPrimitive("operator.admin")) })

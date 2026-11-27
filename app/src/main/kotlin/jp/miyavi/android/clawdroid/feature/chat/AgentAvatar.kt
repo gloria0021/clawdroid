@@ -43,7 +43,6 @@ import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.data.Agent
 import jp.miyavi.android.clawdroid.core.designsystem.Dimens
 import jp.miyavi.android.clawdroid.core.designsystem.Spacing
-import jp.miyavi.android.clawdroid.feature.chat.message.webUri
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -160,7 +159,7 @@ private fun AmoebaRing(color: Color, modifier: Modifier) {
 @Composable
 private fun AgentAvatarImage(agent: Agent?, label: String?, size: Dp) {
     val url = remember(agent?.avatarUrl) {
-        agent?.avatarUrl?.trim()?.takeIf { it.startsWith("data:image/", ignoreCase = true) || webUri(it) != null }
+        jp.miyavi.android.clawdroid.core.data.AgentAvatarBitmaps.usableUrl(agent?.avatarUrl)
     }
     var loaded by remember(url) { mutableStateOf(false) }
     Box(
@@ -200,7 +199,7 @@ private fun AgentAvatarImage(agent: Agent?, label: String?, size: Dp) {
 @Composable
 internal fun AgentHero(agent: Agent, modifier: Modifier = Modifier) {
     val url = remember(agent.avatarUrl) {
-        agent.avatarUrl?.trim()?.takeIf { it.startsWith("data:image/", ignoreCase = true) || webUri(it) != null }
+        jp.miyavi.android.clawdroid.core.data.AgentAvatarBitmaps.usableUrl(agent.avatarUrl)
     }
     var loaded by remember(url) { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme

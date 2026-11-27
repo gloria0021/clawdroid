@@ -34,9 +34,10 @@ class AgentAvatarBitmaps(private val context: Context) {
     }
 
     companion object {
-        /** 読める URL（`data:image/` と http(s)）だけを返す。 */
+        /** 読める URL（`data:image/`・http(s)・手元の控えの `file:`。[AgentRosterCache]）だけを返す。 */
         fun usableUrl(raw: String?): String? = raw?.trim()?.takeIf {
-            it.startsWith("data:image/", ignoreCase = true) || it.startsWith("https://") || it.startsWith("http://")
+            it.startsWith("data:image/", ignoreCase = true) || it.startsWith("https://") || it.startsWith("http://") ||
+                it.startsWith("file:/")
         }
     }
 }

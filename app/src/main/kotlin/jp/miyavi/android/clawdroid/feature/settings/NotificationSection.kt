@@ -1,13 +1,9 @@
 package jp.miyavi.android.clawdroid.feature.settings
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,8 +25,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import jp.miyavi.android.clawdroid.R
 import jp.miyavi.android.clawdroid.core.settings.NotificationSettings
@@ -86,28 +80,14 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
         refresh++
         onPauseOrDispose { }
     }
-    val permitted = remember(refresh) {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
-            NotificationManagerCompat.from(context).areNotificationsEnabled()
-    }
+    val permitted = remember(refresh) { notificationsPermitted(context) }
     val optimized = remember(refresh) {
         !context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
     }
     val appNotificationSettings = {
         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
     }
-    // 許可を求め、拒否されたら端末の設定を開く（FR-033）
-    val requestPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        refresh++
-        if (!granted) appNotificationSettings()
-    }
-
-    // 通知の許可がいちばん大事なので先頭に（マスター指定 2026-11-26）
-    StatusItem(
-        R.drawable.ic_huge_notification, R.string.settings_notify_permission,
-        if (permitted) R.string.settings_notify_permission_ok else R.string.settings_notify_permission_missing, warn = !permitted,
-        onClick = if (permitted) null else ({ requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }),
-    )
+    // 通知の許可は、設定の画面の「通知設定」のスイッチで求める（ここに同じ役目の行を置かない。マスター指定 2026-11-27）
     SwitchItem(R.drawable.ic_huge_connection, R.string.settings_notify_background, R.string.settings_notify_background_desc, settings.backgroundConnection) {
         onChange(settings.copy(backgroundConnection = it))
     }

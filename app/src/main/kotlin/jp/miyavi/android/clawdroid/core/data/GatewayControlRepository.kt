@@ -22,7 +22,7 @@ class GatewayControlRepository(private val gateway: GatewayClient) {
         if (!mutex.tryLock()) return RestartResult.ALREADY_RUNNING
         try {
             runCatching {
-                gateway.request("gateway.restart.request", buildJsonObject { put("reason", "Clawdroid のワンボタン再起動") })
+                gateway.request("gateway.restart.request", buildJsonObject { put("reason", "SumahoClaw のワンボタン再起動") })
             }.onFailure { return RestartResult.FAILED }
             gateway.markRestarting()
             // 切断されるまで待ってから、戻るのを待つ

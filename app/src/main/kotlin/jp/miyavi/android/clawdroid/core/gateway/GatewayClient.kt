@@ -55,6 +55,11 @@ sealed interface ConnectionState {
         val methods: Set<String>,
         val scopes: List<String>,
         val tickIntervalMs: Long,
+        /**
+         * つないだ時点で Gateway が使っている設定の版（`hello-ok.snapshot.appliedConfigHash`）。
+         * 前に取ったエージェントの一覧が今も正しいかの目印にする。古い Gateway は持たない（null）。
+         */
+        val configHash: String? = null,
     ) : ConnectionState
     data class Reconnecting(val attempt: Int, val reason: FailureReason) : ConnectionState
     /** 再起動を指示したあと、戻るまで（FR-072）。 */
@@ -232,8 +237,12 @@ class GatewayClient(
     private fun probeConnection() {
         val connectionSocket = socket ?: return
         if (monotonicMs() - lastFrameAt < probeSkipRecentMs) return
+        // 受け取り中の応答があれば、確かめの返事はその後ろに並ぶ。大きな応答（エージェントの一覧など）を遅い回線で
+        // 受け取っている途中に短い待ちで切ると、つなぎ直して最初から取り直すことを繰り返すので、要求と同じだけ待つ
+        // （マスター指摘 2026-11-27）
+        val probeTimeoutMs = if (pending.isEmpty()) foregroundProbeTimeoutMs else maxOf(foregroundProbeTimeoutMs, DEFAULT_REQUEST_TIMEOUT_MS)
         scope.launch {
-            val responds = withTimeoutOrNull(foregroundProbeTimeoutMs) {
+            val responds = withTimeoutOrNull(probeTimeoutMs) {
                 try {
                     request("health")
                     true
@@ -244,7 +253,7 @@ class GatewayClient(
                 }
             } == true
             if (!responds && socket === connectionSocket && _state.value is ConnectionState.Connected) {
-                logReconnect("reconnect: no health response within ${foregroundProbeTimeoutMs}ms after foreground")
+                logReconnect("reconnect: no health response within ${probeTimeoutMs}ms after foreground")
                 reconnectSignal.trySend(Unit)
                 connectionSocket.cancel()
             }
@@ -637,6 +646,7 @@ class GatewayClient(
             methods = methods,
             scopes = scopes,
             tickIntervalMs = tickIntervalMs(hello),
+            configHash = hello.obj("snapshot")?.string("appliedConfigHash")?.takeIf(String::isNotBlank),
         )
     }
 

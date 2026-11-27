@@ -11,7 +11,18 @@ import jp.miyavi.android.clawdroid.core.gateway.asObject
 import jp.miyavi.android.clawdroid.core.gateway.obj
 import jp.miyavi.android.clawdroid.core.gateway.string
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -48,9 +59,37 @@ data class SessionListState(
 class SessionsRepository(
     private val gateway: GatewayClient,
     private val scope: CoroutineScope,
+    /** エージェントの一覧の手元の控え（null なら残さない。単体テスト）。 */
+    private val rosterCache: AgentRosterCache? = null,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val _agents = MutableStateFlow(AgentsState())
     val agents: StateFlow<AgentsState> = _agents.asStateFlow()
+
+    /** 一覧を最後に Gateway から取ったときの時刻・接続先・設定の版（控えから戻したときは控えの値）。 */
+    @Volatile private var agentsFetchedAt: Long? = null
+    @Volatile private var agentsEndpoint: String? = null
+    @Volatile private var agentsConfigHash: String? = null
+
+    /** エージェントの一覧の取り直しを 1 本にまとめる（設定の保存と `config.changed` が重なっても 1 回だけ取る）。 */
+    private val agentsRefreshLock = Mutex()
+    private val agentsRequested = AtomicLong()
+    @Volatile private var agentsServed = 0L
+
+    /**
+     * 起動したら、まず手元の控えの一覧を出す（接続を待たずに画面を出せる。マスター指定 2026-11-27）。
+     * 控えは同じ接続先のものだけ使う。
+     */
+    private val cacheLoad: Job = scope.launch(Dispatchers.IO) {
+        val snapshot = rosterCache?.load() ?: return@launch
+        if (snapshot.endpoint != gateway.endpoint()) return@launch
+        val roster = parseRoster(snapshot.root, loading = false)
+        if (roster.agents.isEmpty()) return@launch
+        agentsFetchedAt = snapshot.fetchedAt
+        agentsEndpoint = snapshot.endpoint
+        agentsConfigHash = snapshot.configHash
+        _agents.update { current -> if (current.agents.isNotEmpty()) current else roster }
+    }
 
     private val _sessions = MutableStateFlow<Map<String, SessionListState>>(emptyMap())
     val sessions: StateFlow<Map<String, SessionListState>> = _sessions.asStateFlow()
@@ -88,22 +127,75 @@ class SessionsRepository(
         }
     }
 
+    /**
+     * つながったら（つなぎ直しを含む）、変更イベントを購読し、開いている一覧を取り直す。
+     *
+     * エージェントの一覧は顔の画像込みで数 MB あるため、一度取ったら取り直さない（マスター指定 2026-11-27）。
+     * - つながっているあいだの変更: Gateway が設定を書くたびに送る `config.changed` で取り直す
+     * - 切れていたあいだの変更: つないだときの設定の版（`appliedConfigHash`）が、取ったときの版と違えば取り直す
+     * - 版を持たない古い Gateway: 取ってから [AGENTS_REFRESH_INTERVAL_MS] たっていれば取り直す
+     */
     private suspend fun onConnected() {
-        refreshAgents()
+        cacheLoad.join()
+        val haveAgents = _agents.value.agents.isNotEmpty()
+        val configHash = (gateway.state.value as? ConnectionState.Connected)?.configHash
+        // 一覧が無ければ画面がそれを待っているので先に取る。控えがあれば、軽い一覧を先に済ませてから裏で取る
+        if (!haveAgents) refreshAgents(configHash)
         // 変更イベントの購読（空の params は購読の確認だけを返す）
         runCatching { gateway.request("sessions.subscribe", JsonObject(emptyMap())) }
         _sessions.value.keys.forEach { refresh(it) }
+        if (haveAgents && !rosterCurrent(gateway.endpoint(), configHash)) refreshAgents(configHash)
     }
 
-    suspend fun refreshAgents() {
-        _agents.update { it.copy(loading = true, error = null) }
-        runCatching { gateway.request("agents.list", JsonObject(emptyMap())).asObject() }
-            .onSuccess { root ->
-                val agents = root?.array("agents")?.mapNotNull { Parse.agent(it as? JsonObject ?: return@mapNotNull null) }
-                    ?.filterNot { it.isSystem }.orEmpty()
-                _agents.value = AgentsState(agents, root?.string("defaultId"), loading = false)
+    /** 手元の一覧が、今つながっている Gateway の設定のままか。 */
+    private fun rosterCurrent(endpoint: String?, configHash: String?): Boolean {
+        if (endpoint == null || endpoint != agentsEndpoint) return false
+        if (configHash != null) return configHash == agentsConfigHash
+        val fetchedAt = agentsFetchedAt ?: return false
+        return now() - fetchedAt in 0 until AGENTS_REFRESH_INTERVAL_MS
+    }
+
+    /**
+     * エージェントの一覧を取り直す。[configHash] は、この一覧がどの設定の版のものか分かるとき（つないだ直後）だけ渡す。
+     * 分からないまま取った一覧は版を空にして残し、次につないだときに一度だけ取り直して版をそろえる。
+     * 待っているあいだに重なった依頼は、まとめて 1 回で済ませる。
+     */
+    suspend fun refreshAgents(configHash: String? = null) {
+        val ticket = agentsRequested.incrementAndGet()
+        agentsRefreshLock.withLock {
+            if (agentsServed >= ticket) return
+            val covers = agentsRequested.get()
+            _agents.update { it.copy(loading = true, error = null) }
+            runCatching {
+                val root = gateway.request("agents.list", JsonObject(emptyMap())).asObject()
+                val endpoint = gateway.endpoint()
+                val fetchedAt = now()
+                // 顔の画像はファイルに書き出し、一覧には場所だけを持つ（数 MB の文字列を状態に抱えない）
+                val cache = rosterCache
+                val localized = if (root != null && cache != null && endpoint != null) {
+                    withContext(Dispatchers.IO) { cache.store(endpoint, fetchedAt, configHash, root) }
+                } else {
+                    root
+                }
+                if (root != null) {
+                    agentsFetchedAt = fetchedAt
+                    agentsEndpoint = endpoint
+                    agentsConfigHash = configHash
+                }
+                localized
             }
-            .onFailure { e -> _agents.update { it.copy(loading = false, error = e.message) } }
+                .onSuccess { root ->
+                    agentsServed = covers
+                    _agents.value = parseRoster(root, loading = false)
+                }
+                .onFailure { e -> _agents.update { it.copy(loading = false, error = e.message) } }
+        }
+    }
+
+    private fun parseRoster(root: JsonObject?, loading: Boolean): AgentsState {
+        val agents = root?.array("agents")?.mapNotNull { Parse.agent(it as? JsonObject ?: return@mapNotNull null) }
+            ?.filterNot { it.isSystem }.orEmpty()
+        return AgentsState(agents, root?.string("defaultId"), loading = loading)
     }
 
     /** そのエージェントの一覧を（まだなら）読み込む。 */
@@ -192,6 +284,30 @@ class SessionsRepository(
         _sessions.value.values.firstNotNullOfOrNull { list ->
             list.home?.takeIf { it.key == sessionKey } ?: (list.sessions + list.archived).firstOrNull { it.key == sessionKey }
         }
+
+    private val _worktreeFinishes = MutableSharedFlow<WorktreeFinish>(extraBufferCapacity = 8)
+    /** 「マージを依頼して終える」の結果（[finishAfterMerge]）。 */
+    val worktreeFinishes: SharedFlow<WorktreeFinish> = _worktreeFinishes.asSharedFlow()
+
+    /**
+     * マージの依頼を送ったワークツリーのセッションを、依頼の実行が終わってから片付ける（マスター指定 2026-11-27）。
+     * 終わった時点で既定のブランチに入っていない変更が無ければアーカイブする（ワークツリーは Gateway が片付ける）。
+     * 残っていれば（衝突・失敗・確かめられない）、何もせずに知らせる。待つのはアプリが動いているあいだだけ。
+     */
+    fun finishAfterMerge(session: SessionSummary) {
+        scope.launch {
+            val running = { find(session.key)?.running == true }
+            // 依頼が走り出すのを待つ（すぐ終わって見逃したときは、そのまま確かめに進む）
+            withTimeoutOrNull(MERGE_START_WAIT_MS) { _sessions.first { running() } }
+            val finished = withTimeoutOrNull(MERGE_RUN_WAIT_MS) { _sessions.first { !running() } } != null
+            val current = find(session.key) ?: session
+            val diff = if (finished) runCatching { diff(current, summaryOnly = true) }.getOrNull() else null
+            // ワークツリーが無い（差分を取れない）のは、Gateway が実行の終わりに失うもの無しとして片付けたとき
+            val merged = diff != null && (diff.unavailable != null || (diff.additions == 0 && diff.deletions == 0))
+            if (merged && !current.archived) runCatching { setArchived(current, true) }
+            _worktreeFinishes.emit(if (merged) WorktreeFinish.Merged(current) else WorktreeFinish.Unmerged(current))
+        }
+    }
 
     suspend fun rename(session: SessionSummary, label: String) = patch(session) { put("label", label) }
     /** アーカイブ・解除は「セッションの寿命」の変更で、Gateway は expectedSessionId を必須にしている（別の実体を誤って動かさないため）。 */
@@ -557,7 +673,21 @@ data class DiffFile(
 )
 
 /** Gateway がワークツリーのブランチに付ける頭（固定の名前空間）。 */
+/** 「マージを依頼して終える」の結果。 */
+sealed interface WorktreeFinish {
+    val session: SessionSummary
+    data class Merged(override val session: SessionSummary) : WorktreeFinish
+    data class Unmerged(override val session: SessionSummary) : WorktreeFinish
+}
+
+/** マージの依頼が走り出すまで待つ間と、終わるまで待つ間。 */
+internal const val MERGE_START_WAIT_MS = 60_000L
+internal const val MERGE_RUN_WAIT_MS = 60 * 60_000L
+
 internal const val WORKTREE_BRANCH_PREFIX = "openclaw/"
+
+/** 設定の版を持たない Gateway につなぎ直したとき、エージェントの一覧を取り直すまでの間。 */
+internal const val AGENTS_REFRESH_INTERVAL_MS = 10 * 60_000L
 
 /** [taken] を避けた名前。[wanted] が空いていればそのまま、使われていれば -2, -3… と番号を付ける。 */
 internal fun freeWorktreeName(wanted: String, taken: Set<String>): String {

@@ -166,12 +166,7 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                             color = MaterialTheme.colorScheme.outlineVariant,
                                         )
                                         // 読み込むまでは場所だけ取っておく（仮の値を一瞬見せない）
-                                        Switch(
-                                            checked = notifications?.enabled == true,
-                                            onCheckedChange = { on -> notifications?.let { actions.setNotifications(it.copy(enabled = on)) } },
-                                            enabled = notifications != null,
-                                            modifier = Modifier.graphicsLayer { alpha = if (notifications != null) 1f else 0f },
-                                        )
+                                        NotificationMasterSwitch(notifications) { actions.setNotifications(it) }
                                     }
                                 },
                                 colors = transparentItem(),
@@ -543,3 +538,56 @@ internal fun parseHex(text: String): Int? {
     if (hex.length != 6) return null
     return hex.toIntOrNull(16)?.let { it or (0xFF shl 24) }
 }
+
+/**
+ * 通知のオン・オフ。端末の通知の許可も合わせて 1 つのスイッチで扱う（マスター指定 2026-11-27）。
+ * - 表示: アプリの設定がオンで、端末でも許可されているときだけオン
+ * - オンにする: 許可が無ければここで求める。許可されたらオンにし、拒否されたら端末のこのアプリの通知の設定を開く
+ *   （2 回拒否すると、端末はもう尋ねないため）。設定から戻ったら確かめ直す
+ * - オフにする: アプリの設定だけをオフにする（端末の許可はアプリから取り消せない）
+ */
+@Composable
+private fun NotificationMasterSwitch(
+    notifications: jp.miyavi.android.clawdroid.core.settings.NotificationSettings?,
+    onChange: (jp.miyavi.android.clawdroid.core.settings.NotificationSettings) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var refresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        refresh++
+        onPauseOrDispose { }
+    }
+    val permitted = remember(refresh) { notificationsPermitted(context) }
+    val request = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        refresh++
+        if (granted) {
+            notifications?.let { onChange(it.copy(enabled = true)) }
+        } else {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName),
+            )
+        }
+    }
+    Switch(
+        checked = notifications?.enabled == true && permitted,
+        onCheckedChange = { on ->
+            val current = notifications ?: return@Switch
+            when {
+                !on -> onChange(current.copy(enabled = false))
+                permitted -> onChange(current.copy(enabled = true))
+                else -> request.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        },
+        enabled = notifications != null,
+        modifier = Modifier.graphicsLayer { alpha = if (notifications != null) 1f else 0f },
+    )
+}
+
+/** 端末で通知が許可されているか（実行時の許可と、このアプリの通知の設定の両方）。 */
+internal fun notificationsPermitted(context: android.content.Context): Boolean =
+    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED &&
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()

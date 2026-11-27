@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Clawdroid</string>
+    <string name="app_name" translatable="false">SumahoClaw</string>
 
     <!-- 共通 -->
     <string name="action_retry">再試行</string>
@@ -19,7 +19,7 @@
     <string name="connect_title">Gateway に接続</string>
     <string name="connect_url_label">Gateway URL</string>
     <string name="connect_url_placeholder">ws://100.x.x.x:18789</string>
-    <string name="connect_token_label">ゲートウェイトークン</string>
+    <string name="connect_token_label">Gateway Token</string>
     <string name="connect_action">接続</string>
     <string name="connect_show_token_cd">トークンを表示</string>
     <string name="connect_hide_token_cd">トークンを隠す</string>
@@ -64,7 +64,7 @@
     <string name="connect_close">閉じる</string>
     <string name="connect_open_tailscale">Tailscale を開く</string>
     <string name="connect_install_tailscale">Tailscale を入手</string>
-    <string name="connect_diag_header">Clawdroid の接続の詳細</string>
+    <string name="connect_diag_header">SumahoClaw の接続の詳細</string>
     <string name="connect_diag_app">アプリ: %1$s</string>
     <string name="connect_diag_gateway">Gateway: %1$s</string>
     <string name="connect_diag_state">状態: %1$s</string>
@@ -200,10 +200,17 @@
     <string name="session_menu_unpin">ピン留めを外す</string>
     <string name="session_menu_diff">変更量</string>
     <string name="session_menu_finish">並行開発を終える</string>
-    <string name="worktree_finish_title">並行開発を終えますか？</string>
-    <string name="worktree_finish_pending">%1$s との差分があります。マージが済んでいるか確かめてください。</string>
-    <string name="worktree_finish_desc">セッションをアーカイブし、ワークツリーを片付けます。作業内容は保存され、30 日以内ならアーカイブを解除すると戻せます。</string>
-    <string name="worktree_finish_confirm">終える</string>
+    <string name="worktree_finish_title">この並行開発をどうしますか？</string>
+    <string name="worktree_finish_pending">%1$s にまだ入っていない変更があります。</string>
+    <string name="worktree_finish_desc">作業内容は保存され、30 日以内ならアーカイブを解除すると戻せます。</string>
+    <string name="worktree_finish_confirm">ボツにして終える</string>
+    <string name="worktree_finish_merge">マージを依頼して終える</string>
+    <string name="worktree_finish_merge_desc">エージェントに %1$s へのマージと push を頼み、済んだら自動で終えます。</string>
+    <string name="worktree_finish_plain">並行開発を終える</string>
+    <string name="worktree_finish_plain_desc">%1$s との差分はありません。ワークツリーを片付けます。</string>
+    <string name="worktree_merge_request">このワークツリーのブランチ %1$s を、本体のフォルダ %2$s で %3$s にマージして push してください。%3$s は本体のフォルダが使っているので、ワークツリーの中で %3$s に切り替えないでください。衝突したときやテストが通らないときは、マージも push もせずに止めて、理由を報告してください。</string>
+    <string name="worktree_merged">マージが済んだので、並行開発を終えました</string>
+    <string name="worktree_merge_unfinished">マージが済んでいないので、並行開発を続けています</string>
     <string name="session_diff_title">変更量</string>
     <string name="session_diff_failed">変更を読み込めませんでした</string>
     <string name="session_diff_not_git">作業フォルダが Git のリポジトリではありません</string>
@@ -274,7 +281,7 @@
     <!-- ランチャーのショートカット（spec 007） -->
     <string name="settings_shortcuts">ランチャーのショートカット</string>
     <string name="settings_shortcuts_value">%1$d / %2$d 個</string>
-    <string name="shortcuts_hint">ホーム画面で Clawdroid のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先のセッションがアーカイブ・削除されると、自動で外れます。</string>
+    <string name="shortcuts_hint">ホーム画面で SumahoClaw のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先のセッションがアーカイブ・削除されると、自動で外れます。</string>
     <string name="shortcuts_empty">まだありません。下の「追加」から作れます。</string>
     <string name="shortcuts_add">追加</string>
     <string name="shortcuts_full">ショートカットは 4 つまでです</string>
@@ -543,7 +550,7 @@
         <item>残り時間を計算し直しています…</item>
         <item>思ったより大きな話でした…</item>
         <item>想定内です。たぶん…</item>
-        <item>いま、いいところです…</item>
+        <item>今いいところです…</item>
         <item>もう一回だけ考えさせてください…</item>
         <item>終わりが見えてきました。遠くに…</item>
         <item>「すぐ終わる」と言ったのは誰ですか…</item>
@@ -890,7 +897,7 @@
     <string name="notify_approval_failed">送れませんでした。押すとアプリで開きます</string>
     <string name="notify_automation_failed">実行が失敗しました</string>
     <string name="notify_test_title">通知のテスト</string>
-    <string name="notify_test_body">Clawdroid からの通知はこのように届きます</string>
+    <string name="notify_test_body">SumahoClaw からの通知はこのように届きます</string>
     <string name="settings_section_notifications">通知</string>
     <string name="settings_notify_enabled">通知設定</string>
     <string name="settings_notify_details">常時接続と通知の種類</string>
@@ -899,9 +906,6 @@
     <string name="settings_notify_replies">応答の完了</string>
     <string name="settings_notify_approvals">承認待ち</string>
     <string name="settings_notify_automation">自動化の失敗</string>
-    <string name="settings_notify_permission">通知の許可</string>
-    <string name="settings_notify_permission_missing">許可されていません</string>
-    <string name="settings_notify_permission_ok">許可されています</string>
     <string name="settings_notify_battery">電池の最適化</string>
     <string name="settings_notify_battery_on">対象です。通知が遅れることがあります</string>
     <string name="settings_notify_battery_off">対象外です</string>

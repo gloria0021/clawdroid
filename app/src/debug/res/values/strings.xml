@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Debug 版だと分かるように、ホーム画面の名前を変える（Gerbil と同じ） -->
-    <string name="app_name" translatable="false">Clawdroid Dev</string>
+    <string name="app_name" translatable="false">SumahoClaw Dev</string>
 </resources>
