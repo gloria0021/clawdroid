@@ -274,31 +274,30 @@
     <string name="chat_text_remove">제거</string>
     <string name="chat_text_tile_cd">%1$s, %2$d자</string>
     <string-array name="chat_thinking_phrases">
-        <item>스택 트레이스를 거슬러 헤엄치는 중…</item>
+        <item>스택 트레이스를 거슬러 오르는 중…</item>
         <item>괄호 개수를 다시 세는 중…</item>
         <item>변수 이름을 쥐어짜는 중…</item>
         <item>커피를 토큰으로 변환하는 중…</item>
-        <item>\'왜 그런지 됐다\'를 조사하는 중…</item>
+        <item>왜 되는지 모르겠지만 일단 조사 중…</item>
         <item>명세서의 행간을 읽는 중…</item>
         <item>미래의 나에게 주석을 남기는 중…</item>
         <item>TODO는 못 본 척하는 중…</item>
-        <item>StackOverflow에 물어보는 중…</item>
-        <item>Qiita를 구경하는 중…</item>
-        <item>네이버 지식인에 물어보는 중…</item>
-        <item>일단 캐시부터 지워볼까 고민 중…</item>
-        <item>재부팅하면 낫는지 시험하는 중…</item>
-        <item>\'내 컴퓨터에선 되는데\' 증거를 모으는 중…</item>
-        <item>조금만 더… 아마도…</item>
-        <item>진행률은 마음속으론 90%예요…</item>
+        <item>StackOverflow에 물어볼지 고민 중…</item>
+        <item>Qiita에 물어볼지 고민 중…</item>
+        <item>Yahoo 지혜주머니에 물어볼지 고민 중…</item>
+        <item>일단 캐시부터 지울까 생각 중…</item>
+        <item>재시작하면 낫는지 시험 중…</item>
+        <item>거의 다 됐어요… 아마도…</item>
+        <item>진행률은 마음속으로 90%예요…</item>
         <item>남은 시간을 다시 계산하는 중…</item>
-        <item>생각보다 큰 일이었네요…</item>
+        <item>생각보다 큰 일이었어요…</item>
         <item>예상 범위 안이에요. 아마도…</item>
         <item>지금 한창 좋은 부분이에요…</item>
         <item>딱 한 번만 더 생각해 볼게요…</item>
         <item>끝이 보이기 시작했어요. 저 멀리서…</item>
-        <item>\'금방 끝난다\'고 한 사람이 누구죠…</item>
-        <item>급할수록 산호초를 돌아가는 중…</item>
-        <item>기다려 주셔서 고마워요…</item>
+        <item>\"금방 끝난다\"고 한 사람이 누구죠…</item>
+        <item>급할수록 돌아가는 중…</item>
+        <item>기다려 주셔서 감사해요…</item>
     </string-array>
     <string name="chat_tool_expand_label">도구 실행 열기</string>
     <string name="chat_tool_failed">실패</string>

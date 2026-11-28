@@ -274,30 +274,29 @@
     <string name="chat_text_remove">Remove</string>
     <string name="chat_text_tile_cd">%1$s, %2$d characters</string>
     <string-array name="chat_thinking_phrases">
-        <item>Wading upstream through the stack trace…</item>
+        <item>Climbing up the stack trace…</item>
         <item>Recounting the parentheses…</item>
         <item>Squeezing out a variable name…</item>
         <item>Converting coffee into tokens…</item>
-        <item>Investigating why it just worked…</item>
+        <item>Investigating why it works somehow…</item>
         <item>Reading between the lines of the spec…</item>
         <item>Writing a comment to future me…</item>
         <item>Pretending I didn\'t see the TODO…</item>
-        <item>Consulting StackOverflow…</item>
-        <item>Browsing the tide pools of Reddit…</item>
-        <item>Asking the old forum elders…</item>
-        <item>Wondering whether to just clear the cache…</item>
-        <item>Checking if a restart fixes it…</item>
-        <item>Gathering proof that it works on my machine…</item>
+        <item>Wondering whether to ask StackOverflow…</item>
+        <item>Wondering whether to ask Qiita…</item>
+        <item>Wondering whether to ask Yahoo Chiebukuro…</item>
+        <item>Thinking about just clearing the cache…</item>
+        <item>Seeing if a restart fixes it…</item>
         <item>Almost there… probably…</item>
         <item>Progress is 90% in spirit…</item>
-        <item>Recalculating the time left…</item>
+        <item>Recalculating the time remaining…</item>
         <item>This turned out bigger than expected…</item>
-        <item>All according to plan. Probably…</item>
+        <item>Totally expected. Probably…</item>
         <item>Right in the good part…</item>
-        <item>Let me think one more time…</item>
-        <item>The end is in sight. Way out there…</item>
-        <item>Who said it would be quick…</item>
-        <item>Taking the scenic route around the reef…</item>
+        <item>Let me think just one more time…</item>
+        <item>The end is in sight. Far away…</item>
+        <item>Who was it that said \"it\'ll be quick\"…</item>
+        <item>Taking the scenic route, as they say…</item>
         <item>Thanks for waiting…</item>
     </string-array>
     <string name="chat_tool_expand_label">Open tool call</string>

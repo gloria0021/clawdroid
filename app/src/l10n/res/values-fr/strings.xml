@@ -274,31 +274,30 @@
     <string name="chat_text_remove">Retirer</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caractères</string>
     <string-array name="chat_thinking_phrases">
-        <item>Remontée du stack trace à contre-courant…</item>
+        <item>Remontée de la stack trace…</item>
         <item>Je recompte les parenthèses…</item>
-        <item>J\'extrais un nom de variable des abysses…</item>
+        <item>Je presse mon cerveau pour un nom de variable…</item>
         <item>Conversion du café en tokens…</item>
-        <item>Enquête sur le « pourquoi ça marche »…</item>
+        <item>Enquête : pourquoi ça marche, au juste…</item>
         <item>Lecture entre les lignes du cahier des charges…</item>
         <item>J\'écris un commentaire à mon moi du futur…</item>
         <item>Je fais comme si je n\'avais pas vu le TODO…</item>
-        <item>Je consulte StackOverflow…</item>
-        <item>Je fouille les mares de Reddit…</item>
-        <item>Je demande aux anciens du forum…</item>
-        <item>Je me demande si je vide le cache, tout simplement…</item>
-        <item>Je teste si un redémarrage règle le problème…</item>
-        <item>Je rassemble les preuves que « ça marche chez moi »…</item>
+        <item>Je me demande si je consulte StackOverflow…</item>
+        <item>Je me demande si je consulte Qiita…</item>
+        <item>Je me demande si je consulte Yahoo Chiebukuro…</item>
+        <item>Je songe à vider le cache, au cas où…</item>
+        <item>Je vérifie si un redémarrage règle ça…</item>
         <item>Presque fini… sans doute…</item>
-        <item>Progression à 90 % dans l\'esprit…</item>
+        <item>Avancement : 90 % dans l\'âme…</item>
         <item>Je recalcule le temps restant…</item>
-        <item>Finalement, c\'était plus gros que prévu…</item>
-        <item>Tout est sous contrôle. Probablement…</item>
+        <item>C\'était plus gros que prévu…</item>
+        <item>Tout est prévu. Sûrement…</item>
         <item>On est dans le vif du sujet…</item>
         <item>Laissez-moi réfléchir encore une fois…</item>
-        <item>La fin est en vue. Tout au fond de l\'océan…</item>
-        <item>Qui a dit que ce serait rapide…</item>
-        <item>Je prends le chemin des écoliers autour du récif…</item>
-        <item>Merci d\'avoir patienté…</item>
+        <item>La fin approche. Très au loin…</item>
+        <item>Qui a dit « ça sera vite fait »…</item>
+        <item>Je prends le chemin des écoliers, comme on dit…</item>
+        <item>Merci d\'avoir attendu…</item>
     </string-array>
     <string name="chat_tool_expand_label">Ouvrir l\'exécution de l\'outil</string>
     <string name="chat_tool_failed">Échec</string>

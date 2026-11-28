@@ -274,31 +274,30 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 個字元</string>
     <string-array name="chat_thinking_phrases">
-        <item>正在逆流而上追溯堆疊追蹤…</item>
-        <item>重新數括號的數量中…</item>
-        <item>正在絞盡腦汁想變數名稱…</item>
+        <item>正在逆流攀爬 stack trace…</item>
+        <item>重新數括號中…</item>
+        <item>正在擠出變數名稱…</item>
         <item>正在把咖啡轉換成 token…</item>
-        <item>調查「不知為何就跑起來了」中…</item>
+        <item>正在調查為什麼莫名其妙能跑…</item>
         <item>正在解讀規格書的字裡行間…</item>
-        <item>正在寫註解給未來的自己…</item>
-        <item>假裝沒看到 TODO 中…</item>
-        <item>正在請教 StackOverflow…</item>
-        <item>正在翻閱 Qiita…</item>
-        <item>正在請教 Yahoo 知惠袋…</item>
+        <item>正在幫未來的自己寫註解…</item>
+        <item>假裝沒看到 TODO…</item>
+        <item>猶豫要不要去問 StackOverflow…</item>
+        <item>猶豫要不要去問 Qiita…</item>
+        <item>猶豫要不要去問 Yahoo 知恵袋…</item>
         <item>考慮要不要先清除快取…</item>
         <item>試試看重新啟動能不能解決…</item>
-        <item>正在蒐集「我這邊明明能跑」的證據…</item>
-        <item>快好了…應該吧…</item>
-        <item>進度在心情上已經 90% 了…</item>
-        <item>正在重新計算剩餘時間…</item>
+        <item>快好了…大概…</item>
+        <item>進度在心裡已經 90% 了…</item>
+        <item>重新計算剩餘時間中…</item>
         <item>事情比想像中還大條…</item>
-        <item>在預料之中。應該吧…</item>
-        <item>正在關鍵時刻…</item>
-        <item>請再讓我想一次就好…</item>
-        <item>終點已經看得到了。在好遠的地方…</item>
+        <item>在預料之中。大概…</item>
+        <item>正好到關鍵的地方…</item>
+        <item>再讓我想最後一次…</item>
+        <item>終點在望了。在很遠的地方…</item>
         <item>是誰說「馬上就好」的…</item>
         <item>正在實踐欲速則不達…</item>
-        <item>謝謝你願意等我…</item>
+        <item>謝謝你一直等我…</item>
     </string-array>
     <string name="chat_tool_expand_label">展開工具執行</string>
     <string name="chat_tool_failed">失敗</string>
