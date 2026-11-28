@@ -43,13 +43,13 @@ val LocalVirtualOffice = staticCompositionLocalOf { false }
  * オフィスの 1 人（Gateway の写し）。[running] はセッションが 1 つでも動いているか、[updatedAt] はセッションのいちばん新しい更新。
  * デスクにいるかは [deskAgents] で、動いていなくても最後の動きから [DESK_LINGER_MS] のあいだはデスクに残す。
  */
-internal data class OfficeAgent(val id: String, val name: String, val running: Boolean, val unread: Boolean, val updatedAt: Long?)
+internal data class OfficeAgent(val id: String, val name: String, val running: Boolean, val updatedAt: Long?)
 
 internal fun officeAgents(agents: List<Agent>, sessionsByAgent: Map<String, SessionListState>): List<OfficeAgent> =
     agents.map { agent ->
         val list = sessionsByAgent[agent.id]
         val all = listOfNotNull(list?.home) + list?.sessions.orEmpty()
-        OfficeAgent(agent.id, agent.name, running = all.any { it.running }, unread = all.any { it.unread }, updatedAt = all.mapNotNull { it.updatedAt }.maxOrNull())
+        OfficeAgent(agent.id, agent.name, running = all.any { it.running }, updatedAt = all.mapNotNull { it.updatedAt }.maxOrNull())
     }
 
 /**
@@ -141,7 +141,6 @@ internal fun AgentOffice(
                     put("working", tracker.atDesk(a, now))
                     // 動いているあいだだけ、頭の上に作業中の記号（終わって 20 秒デスクで待つあいだは出さない）
                     put("busy", a.running)
-                    put("unread", a.unread)
                 }
             },
         ).toString()

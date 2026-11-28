@@ -39,7 +39,7 @@
     <label><input type="checkbox" id="reduced"> アニメーションを削除</label></div>
   <div class="row">帯の高さ <input type="range" id="height" min="200" max="480" value="286"> <span id="heightV">286px</span></div>
   <div class="row">描く回数の上限 <select id="fps"><option value="30">30</option><option value="60" selected>60</option><option value="0">上限なし</option></select> 実測 <b id="fpsV">-</b></div>
-  <div class="row">寄り <input type="range" id="zoom" min="60" max="140" value="100"> <span id="zoomV">1.00</span></div>
+  <div class="row">寄り <input type="range" id="zoom" min="60" max="140" value="104"> <span id="zoomV">1.04</span></div>
   <div class="note">作業中 = デスクで仕事。睡眠 = 仮眠室のベッドで寝る。未読 = 頭の上に印。状態を変えると、通路と仮眠室の出入口を通って歩く。</div>
 </div>
 
@@ -195,7 +195,7 @@ function rug(w, d, x, z, material) {
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.012, z); m.receiveShadow = true; scene.add(m); return m;
 }
 // デスクの島の下はタイルカーペット
-rug(6.2, 7.0, -3.6, 2.7, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 128, (g) => {
+rug(6.2, 7.0, -2.6, -0.8, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 128, (g) => {
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
     g.fillStyle = (i + j) % 2 ? '#8c96a5' : '#848e9d'; g.fillRect(i * 64, j * 64, 64, 64);
     g.strokeStyle = 'rgba(0,0,0,.08)';
@@ -207,7 +207,7 @@ rug(5.6, 6.2, 4.35, -4.0, new THREE.MeshLambertMaterial({ map: canvasTexture(128
   g.fillStyle = '#cfc2d8'; g.fillRect(0, 0, 128, 128);
   g.strokeStyle = '#b6a7c3'; g.lineWidth = 6; g.strokeRect(8, 8, 112, 112);
 }) }));
-rug(3.8, 2.8, 4.8, 3.0, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 96, (g) => {
+rug(3.8, 2.8, 3.6, 3.0, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 96, (g) => {
   g.fillStyle = '#d9cbb5'; g.fillRect(0, 0, 128, 96);
   g.fillStyle = '#c9b89d'; for (let i = 0; i < 128; i += 16) g.fillRect(i, 0, 8, 96);
   g.strokeStyle = '#b8a385'; g.lineWidth = 5; g.strokeRect(4, 4, 120, 88);
@@ -385,7 +385,7 @@ box(room, 'paper', 0.3, 0.06, 0.22, WALL_X + 0.3, 1.05, -2.6); box(room, 'mugBlu
 const desks = [];
 for (let i = 0; i < SEATS; i++) {
   const col = i % 2, row = Math.floor(i / 2);
-  const x = -4.65 + col * 2.1, z = 1.25 + row * 2.7;
+  const x = -3.65 + col * 2.1, z = -2.25 + row * 2.7;   // 仮眠室の横（マスター指定 2026-11-28: 右上の空きへ寄せ、横並びに近づける）
   const g = new THREE.Group(); g.position.set(x, 0, z); room.add(g);
   box(g, 'deskTop', 1.6, 0.05, 0.8, 0, 0.72, 0);
   for (const s of [-1, 1]) box(g, 'deskLeg', 0.05, 0.72, 0.7, s * 0.74, 0, 0);
@@ -465,7 +465,7 @@ snakePlant(7.0, -1.15, 0.95, 31);
 
 // --- ラウンジ（右手前）
 {
-  const x = 4.8, z = 1.7;
+  const x = 3.6, z = 1.7;   // 枠の端で切れにくいよう、少し左へ
   box(room, 'sofa', 2.3, 0.4, 0.85, x, 0.05, z);
   box(room, 'sofa', 2.3, 0.75, 0.24, x, 0.05, z - 0.42);
   for (const s of [-1, 1]) box(room, 'sofa', 0.2, 0.62, 0.85, x + s * 1.15, 0.05, z);
@@ -479,18 +479,18 @@ snakePlant(7.0, -1.15, 0.95, 31);
   cyl(room, 'mugWhite', 0.045, 0.1, x + 0.3, 0.41, z + 1.4, 8);
   succulent(room, x + 0.05, 0.41, z + 1.45, 40);
   // フロアランプ
-  cyl(room, 'lampBase', 0.16, 0.03, 6.55, 0, 1.15, 12);
-  box(room, 'lampBase', 0.03, 1.4, 0.03, 6.55, 0, 1.15);
-  cyl(room, 'lampShade', 0.17, 0.26, 6.55, 1.38, 1.15, 12, 0.24);
+  cyl(room, 'lampBase', 0.16, 0.03, 5.35, 0, 1.15, 12);
+  box(room, 'lampBase', 0.03, 1.4, 0.03, 5.35, 0, 1.15);
+  cyl(room, 'lampShade', 0.17, 0.26, 5.35, 1.38, 1.15, 12, 0.24);
 }
-monstera(2.85, 1.2, 1.1, 41);
-fiddleLeaf(6.9, 5.4, 0.95, 42);
+monstera(1.75, 1.6, 1.1, 41);
+fiddleLeaf(5.7, 5.2, 0.95, 42);
 
 // --- オフィス側の植物
 fiddleLeaf(WALL_X + 0.45, 1.4, 1.05, 51);
 snakePlant(WALL_X + 0.45, 5.9, 1.0, 52);
 monstera(WALL_X + 0.6, -6.1, 0.9, 53);
-snakePlant(-1.2, 6.6, 0.85, 54);
+snakePlant(0.1, 3.0, 0.85, 54);
 
 // 動かない物を材質ごとに 1 つのメッシュへ（描く回数を数百 → 数十に）
 function mergeStatic(group) {
@@ -519,11 +519,11 @@ const nightLights = [];
 function nightLight(color, intensity, distance, decay, x, y, z) {
   const l = new THREE.PointLight(color, 0, distance, decay); l.position.set(x, y, z); l.userData.on = intensity; scene.add(l); nightLights.push(l);
 }
-nightLight('#eaf2ff', 15, 7.5, 1.6, -3.6, 3.2, 1.5);   // 蛍光灯（デスクの島）
-nightLight('#eaf2ff', 15, 7.5, 1.6, -3.6, 3.2, 4.2);
+nightLight('#eaf2ff', 15, 7.5, 1.6, -2.6, 3.2, -2.0);   // 蛍光灯（デスクの島）
+nightLight('#eaf2ff', 15, 7.5, 1.6, -2.6, 3.2, 0.7);
 nightLight('#eaf2ff', 6, 5, 1.8, -0.5, 2.9, -6.0);     // 給湯の上
 nightLight('#ffc98a', 5, 6, 1.8, 4.0, 2.4, -4.4);      // 仮眠室の常夜灯
-nightLight('#ffc98a', 3, 4, 1.8, 6.55, 1.7, 1.4);      // ラウンジのフロアランプ
+nightLight('#ffc98a', 3, 4, 1.8, 5.35, 1.7, 1.4);      // ラウンジのフロアランプ
 
 // ============================================================
 // 人（積み木）
@@ -561,7 +561,6 @@ function grawlixSprites() {
     return { s, cycle: -1, dx: 0 };
   });
 }
-const badgeSprite = () => { const s = spriteFromCanvas(64, 64, (g) => { g.fillStyle = theme.accent; g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 7; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(19, 33); g.lineTo(28, 42); g.lineTo(45, 23); g.stroke(); }); s.scale.set(0.34, 0.34, 1); return s; };
 
 function makeCharacter(presetIndex) {
   const p = PRESETS[presetIndex % PRESETS.length];
@@ -579,11 +578,10 @@ function makeCharacter(presetIndex) {
   for (const s of [-1, 1]) box(head, null, 0.05, 0.06, 0.02, s * 0.08, 0.15, -0.175, eye);
   const zzz = zzzSprite(); zzz.visible = false; scene.add(zzz);
   const grawlix = grawlixSprites();
-  const badge = badgeSprite(); badge.visible = false; scene.add(badge);
   scene.add(root);
-  return { root, body, legs, arms, head, zzz, badge, grawlix, presetIndex };
+  return { root, body, legs, arms, head, zzz, grawlix, presetIndex };
 }
-const disposeCharacter = (c) => scene.remove(c.root, c.zzz, c.badge, ...c.grawlix.map((g) => g.s));
+const disposeCharacter = (c) => scene.remove(c.root, c.zzz, ...c.grawlix.map((g) => g.s));
 function poseStand(c) {
   c.body.rotation.set(0, 0, 0); c.body.scale.set(1, 1, 1); c.head.rotation.set(0, 0, 0);
   c.legs.forEach((l) => l.rotation.set(0, 0, 0)); c.arms.forEach((a) => a.rotation.set(0, 0, 0));
@@ -656,7 +654,6 @@ function setTheme({ dark = false, accent } = {}) {
   windowMat.map?.dispose(); windowMat.map = windowTexture(theme.night); windowMat.needsUpdate = true;
   mat('lampShade').emissive.set(theme.night ? '#ffb45c' : '#000000'); mat('lampShade').emissiveIntensity = 0.8;
   nightLights.forEach((l) => (l.intensity = theme.night ? l.userData.on : 0));   // 消さずに 0 にする（数を変えると描き直しの準備で引っかかる）
-  for (const p of people.values()) { scene.remove(p.c.zzz, p.c.badge); p.c.zzz = zzzSprite(); p.c.badge = badgeSprite(); scene.add(p.c.zzz, p.c.badge); }
   refreshFurniture();
 }
 
@@ -699,8 +696,6 @@ function update(dt, t) {
       c.zzz.material.opacity = reduced ? 1 : Math.min(1, (1 - cyc) * 1.6);
     }
     updateGrawlix(c, p.place === 'desk' && !!p.agent.busy, tmp, t, p.slot);
-    c.badge.visible = !!p.agent.unread;
-    if (c.badge.visible) c.badge.position.set(tmp.x - (sleeping ? 0.4 : 0), tmp.y + (sleeping ? 0.45 : 0.75) + (reduced ? 0 : Math.sin(t * 3) * 0.03), tmp.z);
   }
 }
 function updateGrawlix(c, on, head, t, slot) {
@@ -746,13 +741,13 @@ setInterval(() => { const el = document.getElementById('fpsV'); if (el) el.textC
 // ============================================================
 // 枠に合わせる（部屋が収まる大きさに寄せる。外側は壁と床で埋まる）
 // ============================================================
-// 寄り（1 で見せたい所がちょうど収まる。小さいほど寄る）。マスター指定 2026-11-28: 前の試作の約 1.2 倍の大きさ
-let zoom = 1.0;
+// 寄り（1 で見せたい所がちょうど収まる。小さいほど寄る）。デスクとベッドを寄せたので、スマホでは前より約 1.3 倍大きい（マスター指定 2026-11-28）
+let zoom = 1.04;
 // 枠のうち、上に重なる部品（ステータスバー・閉じるボタン）がある分。部屋はその下に収める（CSS px = dp）
 let insets = { top: 0, right: 0, bottom: 0, left: 0 };
-// 見せたい所（デスク・ベッド・ラウンジ）。これが使える所にちょうど収まる寄りを 1 とする。壁や奥の棚は枠の端で切れてよい
+// 見せたい所（デスクとベッド）。これが使える所にちょうど収まる寄りを 1 とする。ラウンジ・壁・奥の棚は枠の端で切れてよい
 const focus = [];
-for (const [x0, x1, z0, z1, y1] of [[-5.5, -2.0, 0.6, 5.4, 1.3], [2.4, 5.6, -6.7, -2.6, 1.0], [3.5, 6.7, 1.2, 3.4, 1.4]])
+for (const [x0, x1, z0, z1, y1] of [[-4.5, -1.0, -2.9, 1.9, 1.3], [2.4, 5.6, -6.7, -2.6, 1.0]])
   for (const x of [x0, x1]) for (const z of [z0, z1]) for (const y of [0, y1]) focus.push(new THREE.Vector3(x, y, z));
 function layout() {
   const w = hero.clientWidth, h = hero.clientHeight;
@@ -786,10 +781,10 @@ const embed = new URLSearchParams(location.search).has('embed');
 document.body.classList.toggle('embed', embed);
 const NAMES = ['Moonshot', 'Wordsmith', 'CJ', 'Scout'];
 let demo = [
-  { id: 'a1', name: 'Moonshot', working: true, busy: true, unread: false },
-  { id: 'a2', name: 'Wordsmith', working: false, busy: false, unread: true },
-  { id: 'a3', name: 'CJ', working: true, busy: false, unread: false },
-  { id: 'a4', name: 'Scout', working: false, busy: false, unread: false },
+  { id: 'a1', name: 'Moonshot', working: true, busy: true },
+  { id: 'a2', name: 'Wordsmith', working: false, busy: false },
+  { id: 'a3', name: 'CJ', working: true, busy: false },
+  { id: 'a4', name: 'Scout', working: false, busy: false },
 ];
 function renderPanel() {
   const root = document.getElementById('agents'); root.innerHTML = '';
@@ -800,17 +795,15 @@ function renderPanel() {
     const label = a.busy ? '作業中' : a.working ? 'デスクで待機' : '睡眠';
     const state = document.createElement('button'); state.textContent = label; state.className = a.working ? 'on' : '';
     state.onclick = () => { if (a.busy) a.busy = false; else if (a.working) a.working = false; else { a.working = true; a.busy = true; } push(); };
-    const unread = document.createElement('label'); unread.innerHTML = `<input type="checkbox" ${a.unread ? 'checked' : ''}> 未読`;
-    unread.querySelector('input').onchange = (e) => { a.unread = e.target.checked; push(); };
     const sel = document.createElement('select');
     PRESETS.forEach((_, k) => { const o = document.createElement('option'); o.value = k; o.textContent = `キャラ ${k + 1}`; sel.append(o); });
     sel.value = String((Number.isInteger(a.preset) ? a.preset : hashId(a.id)) % PRESETS.length);
     sel.onchange = () => { a.preset = Number(sel.value); push(); };
-    row.append(name, state, unread, sel); root.append(row);
+    row.append(name, state, sel); root.append(row);
   });
 }
 function push() { setAgents(demo.map((a) => ({ ...a }))); renderPanel(); }
-document.getElementById('add').onclick = () => { const n = demo.length; if (n >= SEATS) return; demo.push({ id: `a${n + 1}`, name: NAMES[n], working: false, busy: false, unread: false }); push(); };
+document.getElementById('add').onclick = () => { const n = demo.length; if (n >= SEATS) return; demo.push({ id: `a${n + 1}`, name: NAMES[n], working: false, busy: false }); push(); };
 document.getElementById('remove').onclick = () => { demo.pop(); push(); };
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
 document.getElementById('dark').onchange = (e) => setTheme({ dark: e.target.checked });

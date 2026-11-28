@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DeskTrackerTest {
-    private fun agent(running: Boolean = false, updatedAt: Long? = 1_000L) = OfficeAgent("a", "A", running, unread = false, updatedAt = updatedAt)
+    private fun agent(running: Boolean = false, updatedAt: Long? = 1_000L) = OfficeAgent("a", "A", running, updatedAt = updatedAt)
 
     @Test
     fun firstSightIsNotActivity() {
