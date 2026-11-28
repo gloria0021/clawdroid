@@ -532,10 +532,10 @@ function spriteFromCanvas(w, h, draw) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(w, h, draw), transparent: true, depthTest: false }));
   s.renderOrder = 10; return s;
 }
-// zzz はどちらのテーマでも白文字（薄い縁取りで、明るい床の上でも読める）。大きめに
+// Zzz はどちらのテーマでも白文字（薄い縁取りで、明るい床の上でも読める）。大きめに
 const zzzSprite = () => { const s = spriteFromCanvas(192, 112, (g) => {
   g.lineJoin = 'round'; g.lineWidth = 7; g.strokeStyle = 'rgba(30,32,40,.55)'; g.fillStyle = '#ffffff';
-  for (const [t, size, x, y] of [['z', 34, 10, 100], ['Z', 48, 50, 78], ['Z', 64, 104, 58]]) {
+  for (const [t, size, x, y] of [['Z', 64, 8, 104], ['z', 46, 62, 74], ['z', 34, 104, 46]]) {   // 「Zzz」: 大きな Z から、小さな z が上へ流れていく
     g.font = `900 ${size}px system-ui`; g.strokeText(t, x, y); g.fillText(t, x, y);
   }
 }); s.scale.set(0.95, 0.55, 1); return s; };
