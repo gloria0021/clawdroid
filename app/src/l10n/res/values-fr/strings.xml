@@ -443,6 +443,9 @@
     <string name="files_delete_folder_note">Tout le contenu du dossier sera aussi supprimé.</string>
     <string name="files_delete_irreversible">Cette action est irréversible. Les fichiers non suivis par Git ne peuvent pas être restaurés.</string>
     <string name="files_delete_title">Supprimer « %1$s » ?</string>
+    <string name="files_discard_body">Les modifications non enregistrées seront perdues.</string>
+    <string name="files_discard_confirm">Abandonner</string>
+    <string name="files_discard_title">Abandonner les modifications ?</string>
     <string name="files_download_cancel_cd">Annuler le téléchargement</string>
     <string name="files_download_cancelled">Téléchargement annulé</string>
     <string name="files_download_cd">Télécharger</string>

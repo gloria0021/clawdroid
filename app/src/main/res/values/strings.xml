@@ -651,6 +651,9 @@
     <string name="files_unchanged">変更はありません</string>
     <string name="files_download_cd">ダウンロード</string>
     <string name="files_tree_open_cd">ファイルのツリーを開く</string>
+    <string name="files_discard_title">変更を捨てますか？</string>
+    <string name="files_discard_body">保存していない変更は失われます。</string>
+    <string name="files_discard_confirm">捨てる</string>
     <string name="files_menu_open_label">ファイルのメニューを開く</string>
     <string name="files_new_file">新しいファイル</string>
     <string name="files_new_folder">新しいフォルダ</string>

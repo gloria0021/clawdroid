@@ -442,6 +442,9 @@
     <string name="files_delete_folder_note">Everything inside the folder will also be deleted.</string>
     <string name="files_delete_irreversible">This can\'t be undone. Files not tracked by Git can\'t be restored.</string>
     <string name="files_delete_title">Delete \"%1$s\"?</string>
+    <string name="files_discard_body">Unsaved changes will be lost.</string>
+    <string name="files_discard_confirm">Discard</string>
+    <string name="files_discard_title">Discard changes?</string>
     <string name="files_download_cancel_cd">Cancel download</string>
     <string name="files_download_cancelled">Download cancelled</string>
     <string name="files_download_cd">Download</string>

@@ -441,6 +441,9 @@
     <string name="files_delete_folder_note">폴더 안의 모든 항목도 함께 삭제됩니다.</string>
     <string name="files_delete_irreversible">되돌릴 수 없습니다. Git으로 관리하지 않는 파일은 복원할 수 없습니다.</string>
     <string name="files_delete_title">\"%1$s\"을(를) 삭제할까요?</string>
+    <string name="files_discard_body">저장하지 않은 변경 사항은 사라집니다.</string>
+    <string name="files_discard_confirm">삭제</string>
+    <string name="files_discard_title">변경 사항을 삭제할까요?</string>
     <string name="files_download_cancel_cd">다운로드 취소</string>
     <string name="files_download_cancelled">다운로드를 취소했습니다</string>
     <string name="files_download_cd">다운로드</string>

@@ -443,6 +443,9 @@
     <string name="files_delete_folder_note">Todo o conteúdo da pasta também será excluído.</string>
     <string name="files_delete_irreversible">Não é possível desfazer. Arquivos não rastreados pelo Git não podem ser restaurados.</string>
     <string name="files_delete_title">Excluir \"%1$s\"?</string>
+    <string name="files_discard_body">As alterações não salvas serão perdidas.</string>
+    <string name="files_discard_confirm">Descartar</string>
+    <string name="files_discard_title">Descartar alterações?</string>
     <string name="files_download_cancel_cd">Cancelar download</string>
     <string name="files_download_cancelled">Download cancelado</string>
     <string name="files_download_cd">Baixar</string>

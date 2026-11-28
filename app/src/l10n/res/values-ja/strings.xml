@@ -441,6 +441,9 @@
     <string name="files_delete_folder_note">フォルダの中身もすべて消えます。</string>
     <string name="files_delete_irreversible">元に戻せません。Git で管理していないファイルは復元できません。</string>
     <string name="files_delete_title">「%1$s」を削除しますか？</string>
+    <string name="files_discard_body">保存していない変更は失われます。</string>
+    <string name="files_discard_confirm">捨てる</string>
+    <string name="files_discard_title">変更を捨てますか？</string>
     <string name="files_download_cancel_cd">ダウンロードを中止</string>
     <string name="files_download_cancelled">ダウンロードを中止しました</string>
     <string name="files_download_cd">ダウンロード</string>

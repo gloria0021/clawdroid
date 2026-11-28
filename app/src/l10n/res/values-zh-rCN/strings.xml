@@ -441,6 +441,9 @@
     <string name="files_delete_folder_note">文件夹中的所有内容也将被删除。</string>
     <string name="files_delete_irreversible">此操作无法撤销。未由 Git 管理的文件无法恢复。</string>
     <string name="files_delete_title">删除“%1$s”？</string>
+    <string name="files_discard_body">未保存的更改将会丢失。</string>
+    <string name="files_discard_confirm">放弃</string>
+    <string name="files_discard_title">放弃更改？</string>
     <string name="files_download_cancel_cd">取消下载</string>
     <string name="files_download_cancelled">已取消下载</string>
     <string name="files_download_cd">下载</string>

@@ -136,7 +136,7 @@ fun EditorContent(
             snackbarHost = { GlassSnackbarHost(snackbar, Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) },
         ) { padding ->
             Box(Modifier.fillMaxSize()) {
-                // ガラスが透かす元は背景だけ（本文の View は取り込まない）
+                // ガラスが透かす元: 背景（本文の外の帯の後ろ）と、本文（下に浮くピルの後ろ）
                 Box(Modifier.matchParentSize().hazeSource(hazeState))
                 Column(
                     Modifier
@@ -173,7 +173,9 @@ fun EditorContent(
                                             onSelection = actions.onSelection,
                                             onSaveShortcut = if (state.writable) actions.onSave else actions.onSaveAs,
                                             onSearchShortcut = { actions.onSearching(true) },
-                                            modifier = Modifier.fillMaxSize(),
+                                            // 本文もガラスの透かす元にする（下に浮くピルの後ろで文字が透ける）。Sora は普通の Canvas で描く View で、
+                                            // WebView（別の描画の仕組み）とは違うので取り込める。ピルは本文の外（兄弟）に置き、自分を透かさない
+                                            modifier = Modifier.fillMaxSize().hazeSource(hazeState, zIndex = 1f),
                                         )
                                     }
                                 }

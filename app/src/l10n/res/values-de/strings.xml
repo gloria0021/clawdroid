@@ -442,6 +442,9 @@
     <string name="files_delete_folder_note">Der gesamte Inhalt des Ordners wird ebenfalls gelöscht.</string>
     <string name="files_delete_irreversible">Das kann nicht rückgängig gemacht werden. Dateien, die nicht von Git verwaltet werden, lassen sich nicht wiederherstellen.</string>
     <string name="files_delete_title">„%1$s“ löschen?</string>
+    <string name="files_discard_body">Nicht gespeicherte Änderungen gehen verloren.</string>
+    <string name="files_discard_confirm">Verwerfen</string>
+    <string name="files_discard_title">Änderungen verwerfen?</string>
     <string name="files_download_cancel_cd">Download abbrechen</string>
     <string name="files_download_cancelled">Download abgebrochen</string>
     <string name="files_download_cd">Herunterladen</string>

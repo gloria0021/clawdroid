@@ -443,6 +443,9 @@
     <string name="files_delete_folder_note">También se eliminará todo el contenido de la carpeta.</string>
     <string name="files_delete_irreversible">No se puede deshacer. Los archivos que Git no controla no se pueden restaurar.</string>
     <string name="files_delete_title">¿Eliminar \"%1$s\"?</string>
+    <string name="files_discard_body">Se perderán los cambios sin guardar.</string>
+    <string name="files_discard_confirm">Descartar</string>
+    <string name="files_discard_title">¿Descartar los cambios?</string>
     <string name="files_download_cancel_cd">Cancelar descarga</string>
     <string name="files_download_cancelled">Descarga cancelada</string>
     <string name="files_download_cd">Descargar</string>
