@@ -24,10 +24,10 @@
 
 ## 作ったもの（2026-11-24、マスターの依頼で plan より先に作成）
 
-- `scripts/translate-strings.py`: 日本語の文言から各言語の strings.xml を `app/src/release/res/` へ作る。前回訳したときの日本語を `app/src/release/translations.json` に残し、変わった文言だけを `claude -p` で訳す。置き場所（%1$s など）・複数形の数量・配列の数を確かめ、合わなければ 1 回だけ訳し直す。`--check` で訳が最新かだけを見る
-- Release だけが訳を使う（ビルドの種類の重ね合わせ）。Release の既定の言語は英語、Debug は日本語だけ。アプリ単位の言語の一覧は自動生成をやめ、`res/xml/locales_config.xml` を main（ja）と release（スクリプトが作る）に置く（AGP は main の resources.properties しか読まず、既定の言語をビルドの種類ごとに分けられないため）
-- 2026-11-25 追記: Release の日本語（`values-ja/`）は main の日本語の写しで、訳のスクリプトを流すまで古いまま残り、Release 版だけ古い文言が出ていた（サイドパネルの「更新順 ⇔ フォルダ順」・設定の「このアプリについて」）。Release のビルドのたびに Gradle の `syncReleaseJapanese` が `scripts/translate-strings.py --ja-only` で日本語の写しだけを作り直す（訳さない）
-- `scripts/release.sh`: 訳 → 版を上げる → Release の lint とテスト → コミットとタグ → 署名した AAB と難読化の対応表 →（確認）→ Push。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `SUMAHOCLAW_*`
+- `scripts/translate-strings.py`: 日本語の文言から各言語の strings.xml を `app/src/l10n/res/` へ作る。前回訳したときの日本語を `app/src/l10n/translations.json` に残し、変わった文言だけを `claude -p` で訳す。置き場所（%1$s など）・複数形の数量・配列の数を確かめ、合わなければ 1 回だけ訳し直す。`--check` で訳が最新かだけを見る
+- Debug・Release の両方が訳を使う（ビルドの種類ごとの source set に `app/src/l10n/res` を足して重ねる）。既定の言語は英語。アプリ単位の言語の一覧は自動生成をやめ、`res/xml/locales_config.xml` を main（ja）と l10n（スクリプトが作る）に置く（AGP は main の resources.properties しか読まず、既定の言語をビルドの種類ごとに分けられないため）（2026-11-27 改訂。以前は Release だけが `app/src/release/` の訳を使い、Debug は日本語だけ）
+- 2026-11-25 追記: Release の日本語（`values-ja/`）は main の日本語の写しで、訳のスクリプトを流すまで古いまま残り、Release 版だけ古い文言が出ていた（サイドパネルの「更新順 ⇔ フォルダ順」・設定の「このアプリについて」）。ビルドのたびに Gradle の `syncJapaneseCopy` が `scripts/translate-strings.py --ja-only` で日本語の写しだけを作り直す（訳さない。2026-11-27 から Debug でも。以前は Release だけの `syncReleaseJapanese`）
+- `scripts/release.sh`: 訳を確かめる（足りなければ作る）→ 版を上げる → Release の lint とテスト → コミットとタグ → 署名した APK と AAB と難読化の対応表 →（確認）→ Push → APK を GitHub Release に載せる。AAB は手元に残して Play Console に上げる（2026-11-27 改訂。以前は AAB だけ）。Gerbil の `scripts/release.sh` に倣う。署名は `~/.gradle/gradle.properties` の `SUMAHOCLAW_*`
 - ~~`scripts/publish-public.sh`~~: 2026-11-25 に削除。レポジトリをそのまま公開する方針に変えたため（下の Session 2026-11-25）。`release.sh` の公開用レポジトリへの送信の手順も外した
 - `docs/privacy-policy.md`（日本語・英語）と `README.md` の原稿
 - 2026-11-27 変更（マスター指定）: 訳はリリースのときだけでなく、文言を変えたときに作る。置き場所を `app/src/l10n/`（`res/` と `translations.json`）に移し、Debug・Release の両方が使う（ビルドの種類ごとの source set に足す）。日本語の写しは Gradle の `syncJapaneseCopy` がビルドのたびに作り直す。`release.sh` は訳を確かめ（足りなければ作り）、署名した APK と AAB を同じビルドで作り、Push のあと APK を GitHub Release に載せる（`gh release create --generate-notes`）。AAB は手元に残して Play Console に上げる
@@ -42,7 +42,7 @@
 - 設定に情報を足し、プライバシーポリシーとオープンソースのライセンスを置く（マスター指定 2026-11-24。US4 を P2 に上げる）
 - 多言語対応を公開の要件に入れる（マスター指定 2026-11-24。FR-050〜056）
 - Q: 対応する言語 → A: OpenClaw の Control UI と同じ 22 言語を目標に、段階的に出す。初回は英語・日本語・中国語（簡体・繁体）・韓国語・スペイン語・フランス語・ドイツ語・ポルトガル語（ブラジル）（FR-051）
-- 文言はふだん日本語だけを書き、ほかの言語の strings.xml はストアリリースのスクリプトを走らせたときだけ作る。日々の開発で翻訳にトークンを使わないため（マスター指定 2026-11-24。FR-056）
+- 文言はふだん日本語だけを書き、ほかの言語の strings.xml はストアリリースのスクリプトを走らせたときだけ作る。日々の開発で翻訳にトークンを使わないため（マスター指定 2026-11-24。2026-11-27 に「文言を変えたときに作る」へ改めた。FR-056）
 - ~~プライバシーポリシーは Gerbil と同じく、公開用の GitHub レポジトリに置く（マスター指定 2026-11-24。FR-013）~~ → 2026-11-25 に変更（下）
 
 ### Session 2026-11-25
@@ -223,7 +223,7 @@
   - 段階 2: ロシア語・イタリア語・ポーランド語・ウクライナ語・トルコ語・オランダ語・スウェーデン語・インドネシア語・ベトナム語・タイ語・ヒンディー語
   - 段階 3: アラビア語・ペルシア語（右から左に書く言語。左右反転した画面、特に左端のスワイプ・右上のピル・高速スクロールバーを確かめてから）
 - **FR-052**: 対応するすべての言語 MUST、アプリの文言・ストアの掲載情報（名前・短い説明・詳しい説明）・新機能の文をそろえる。スクリーンショットは段階 1 の言語だけを用意し、ほかは英語を出す。プライバシーポリシーは日本語と英語だけにする（Play が求めるのは 1 つの URL）
-- **FR-056**: 日本語以外の文言 MUST、ふだんの開発では書かず、ストアリリースのスクリプトを走らせたときだけ作る。前回から変わった文言だけを訳し、訳は Release のビルドだけが使う。Debug のビルドは日本語だけでよい
+- **FR-056**: 日本語以外の文言 MUST、手では書かず、日本語の文言を変えた同じ変更でスクリプトを流して作り、一緒にコミットする。前回から変わった文言だけを訳し、訳は Debug・Release の両方が使う（2026-11-27 改訂。以前はストアリリースのときだけ作り、Release だけが使った）
 - **FR-057**: 日本語以外の言語（特に中国語・韓国語・タイ語・ヒンディー語） MUST、その文字を正しい字形で表示できるフォントで出す。既定の LINE Seed JP は日本語にだけ使い、ほかの言語ではシステムのフォントを既定にする
 - **FR-058**: 文字が長くなる言語（ドイツ語・フランス語など） MUST、文字 200% でも切れ・重なりが無いことを、段階 1 の言語ごとに確かめる
 - **FR-053**: 翻訳の漏れ MUST、リリース版の生成で検出し、対応する言語に訳の無い文言があれば生成を失敗させる

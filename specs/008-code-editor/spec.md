@@ -1,6 +1,6 @@
 # Feature Specification: アプリに入れるエディター（独立した編集の画面）
 
-**Feature Branch**: `008-code-editor`（ワークツリー `openclaw/codeeditor` で進める）
+**Feature Branch**: `008-code-editor`（ワークツリー `openclaw/codeeditor` で進め、2026-11-28 に main にマージした）
 
 **Created**: 2026-11-28
 

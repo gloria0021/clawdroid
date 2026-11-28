@@ -1,6 +1,6 @@
 # Implementation Plan: アプリに入れるエディター（独立した編集の画面）
 
-**Branch**: `008-code-editor`（ワークツリー `openclaw/codeeditor` で進める） | **Date**: 2026-11-28 | **Spec**: [spec.md](./spec.md)
+**Branch**: `008-code-editor`（ワークツリー `openclaw/codeeditor` で進め、2026-11-28 に main にマージした） | **Date**: 2026-11-28 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/008-code-editor/spec.md`
 
