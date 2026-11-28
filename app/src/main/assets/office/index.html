@@ -539,6 +539,28 @@ const zzzSprite = () => { const s = spriteFromCanvas(192, 112, (g) => {
     g.font = `900 ${size}px system-ui`; g.strokeText(t, x, y); g.fillText(t, x, y);
   }
 }); s.scale.set(0.95, 0.55, 1); return s; };
+// 作業中の印: 漫画で言葉にならない叫び・焦りを表す記号の並び（グロウリクス）。Zzz と同じ白文字・薄い縁取りで、
+// 頭の上から 1 つずつ飛び出しては上へ流れて消える。動いているあいだだけ（終わって 20 秒デスクで待つあいだは出さない）。
+// 小さくても形が崩れず、意味を持たない記号だけを選ぶ（数字・英字・顔文字に見えるものは避ける）
+const GRAWLIX = ['#', '@', '$', '%', '&', '!', '*', '?'];
+const GRAWLIX_SPAWN = 0.32;      // 次の記号が出るまで（秒）
+const GRAWLIX_SLOTS = 3;         // 同時に見えている記号の数（寿命 = 間隔 × 数）
+const glyphTextures = {};
+function glyphMaterial(ch) {
+  glyphTextures[ch] ??= canvasTexture(64, 64, (g) => {
+    g.font = '900 50px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round'; g.lineWidth = 7; g.strokeStyle = 'rgba(30,32,40,.55)'; g.fillStyle = '#ffffff';
+    g.strokeText(ch, 32, 34); g.fillText(ch, 32, 34);
+  });
+  return glyphTextures[ch];
+}
+function grawlixSprites() {
+  return Array.from({ length: GRAWLIX_SLOTS }, () => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphMaterial('#'), transparent: true, depthTest: false }));
+    s.renderOrder = 10; s.visible = false; scene.add(s);
+    return { s, cycle: -1, dx: 0 };
+  });
+}
 const badgeSprite = () => { const s = spriteFromCanvas(64, 64, (g) => { g.fillStyle = theme.accent; g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 7; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(19, 33); g.lineTo(28, 42); g.lineTo(45, 23); g.stroke(); }); s.scale.set(0.34, 0.34, 1); return s; };
 
 function makeCharacter(presetIndex) {
@@ -556,11 +578,12 @@ function makeCharacter(presetIndex) {
   const eye = new THREE.MeshLambertMaterial({ color: '#1d1d22' });
   for (const s of [-1, 1]) box(head, null, 0.05, 0.06, 0.02, s * 0.08, 0.15, -0.175, eye);
   const zzz = zzzSprite(); zzz.visible = false; scene.add(zzz);
+  const grawlix = grawlixSprites();
   const badge = badgeSprite(); badge.visible = false; scene.add(badge);
   scene.add(root);
-  return { root, body, legs, arms, head, zzz, badge, presetIndex };
+  return { root, body, legs, arms, head, zzz, badge, grawlix, presetIndex };
 }
-const disposeCharacter = (c) => scene.remove(c.root, c.zzz, c.badge);
+const disposeCharacter = (c) => scene.remove(c.root, c.zzz, c.badge, ...c.grawlix.map((g) => g.s));
 function poseStand(c) {
   c.body.rotation.set(0, 0, 0); c.body.scale.set(1, 1, 1); c.head.rotation.set(0, 0, 0);
   c.legs.forEach((l) => l.rotation.set(0, 0, 0)); c.arms.forEach((a) => a.rotation.set(0, 0, 0));
@@ -675,9 +698,34 @@ function update(dt, t) {
       c.zzz.position.set(tmp.x + 0.4, tmp.y + 0.5 + cyc * 0.45, tmp.z);
       c.zzz.material.opacity = reduced ? 1 : Math.min(1, (1 - cyc) * 1.6);
     }
+    updateGrawlix(c, p.place === 'desk' && !!p.agent.busy, tmp, t, p.slot);
     c.badge.visible = !!p.agent.unread;
     if (c.badge.visible) c.badge.position.set(tmp.x - (sleeping ? 0.4 : 0), tmp.y + (sleeping ? 0.45 : 0.75) + (reduced ? 0 : Math.sin(t * 3) * 0.03), tmp.z);
   }
+}
+function updateGrawlix(c, on, head, t, slot) {
+  const life = GRAWLIX_SPAWN * GRAWLIX_SLOTS;
+  c.grawlix.forEach((g, k) => {
+    if (!on || (reduced && k > 0)) { g.s.visible = false; return; }
+    if (reduced) {   // 動かさない: 1 つだけ止めて出す
+      g.s.visible = true; g.s.material.map = glyphMaterial('#'); g.s.material.opacity = 1;
+      g.s.scale.set(0.32, 0.32, 1); g.s.position.set(head.x + 0.32, head.y + 0.62, head.z); return;
+    }
+    const clock = t + slot * 0.21 + k * GRAWLIX_SPAWN, cycle = Math.floor(clock / life), age = clock - cycle * life;
+    if (cycle !== g.cycle) {   // 新しく飛び出す: 記号と左右の位置を選び直す
+      g.cycle = cycle;
+      const r = rng(cycle * 31 + k * 7 + slot * 101);
+      g.s.material.map = glyphMaterial(GRAWLIX[Math.floor(r() * GRAWLIX.length)]);
+      g.s.material.rotation = (r() - 0.5) * 0.6;
+      g.dx = (r() - 0.5) * 0.5;
+    }
+    const pop = Math.min(1, age / 0.12), fade = 1 - age / life;
+    g.s.visible = true;
+    g.s.material.opacity = pop * Math.min(1, fade * 2.2);
+    const size = 0.22 + 0.1 * pop;
+    g.s.scale.set(size, size, 1);
+    g.s.position.set(head.x + 0.22 + g.dx, head.y + 0.48 + age * 0.75, head.z);
+  });
 }
 const anyWalking = () => { for (const p of people.values()) if (p.walk) return true; return false; };
 function frame(now) {
@@ -738,18 +786,20 @@ const embed = new URLSearchParams(location.search).has('embed');
 document.body.classList.toggle('embed', embed);
 const NAMES = ['Moonshot', 'Wordsmith', 'CJ', 'Scout'];
 let demo = [
-  { id: 'a1', name: 'Moonshot', working: true, unread: false },
-  { id: 'a2', name: 'Wordsmith', working: false, unread: true },
-  { id: 'a3', name: 'CJ', working: true, unread: false },
-  { id: 'a4', name: 'Scout', working: false, unread: false },
+  { id: 'a1', name: 'Moonshot', working: true, busy: true, unread: false },
+  { id: 'a2', name: 'Wordsmith', working: false, busy: false, unread: true },
+  { id: 'a3', name: 'CJ', working: true, busy: false, unread: false },
+  { id: 'a4', name: 'Scout', working: false, busy: false, unread: false },
 ];
 function renderPanel() {
   const root = document.getElementById('agents'); root.innerHTML = '';
   demo.forEach((a) => {
     const row = document.createElement('div'); row.className = 'row';
     const name = document.createElement('span'); name.className = 'name'; name.textContent = a.name;
-    const state = document.createElement('button'); state.textContent = a.working ? '作業中' : '睡眠'; state.className = a.working ? 'on' : '';
-    state.onclick = () => { a.working = !a.working; push(); };
+    // 睡眠 → 作業中（動いている）→ デスクで待機（終わって 20 秒）→ 睡眠
+    const label = a.busy ? '作業中' : a.working ? 'デスクで待機' : '睡眠';
+    const state = document.createElement('button'); state.textContent = label; state.className = a.working ? 'on' : '';
+    state.onclick = () => { if (a.busy) a.busy = false; else if (a.working) a.working = false; else { a.working = true; a.busy = true; } push(); };
     const unread = document.createElement('label'); unread.innerHTML = `<input type="checkbox" ${a.unread ? 'checked' : ''}> 未読`;
     unread.querySelector('input').onchange = (e) => { a.unread = e.target.checked; push(); };
     const sel = document.createElement('select');
@@ -760,7 +810,7 @@ function renderPanel() {
   });
 }
 function push() { setAgents(demo.map((a) => ({ ...a }))); renderPanel(); }
-document.getElementById('add').onclick = () => { const n = demo.length; if (n >= SEATS) return; demo.push({ id: `a${n + 1}`, name: NAMES[n], working: false, unread: false }); push(); };
+document.getElementById('add').onclick = () => { const n = demo.length; if (n >= SEATS) return; demo.push({ id: `a${n + 1}`, name: NAMES[n], working: false, busy: false, unread: false }); push(); };
 document.getElementById('remove').onclick = () => { demo.pop(); push(); };
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
 document.getElementById('dark').onchange = (e) => setTheme({ dark: e.target.checked });

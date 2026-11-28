@@ -139,6 +139,8 @@ internal fun AgentOffice(
                     put("id", a.id)
                     put("name", a.name)
                     put("working", tracker.atDesk(a, now))
+                    // 動いているあいだだけ、頭の上に作業中の記号（終わって 20 秒デスクで待つあいだは出さない）
+                    put("busy", a.running)
                     put("unread", a.unread)
                 }
             },
