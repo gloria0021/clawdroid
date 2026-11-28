@@ -274,25 +274,25 @@
     <string name="chat_text_remove">Remover</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caracteres</string>
     <string-array name="chat_thinking_phrases">
-        <item>Subindo pela stack trace…</item>
+        <item>Subindo de volta pela stack trace…</item>
         <item>Recontando os parênteses…</item>
-        <item>Inventando um nome de variável…</item>
+        <item>Pensando num nome de variável…</item>
         <item>Convertendo café em tokens…</item>
-        <item>Investigando por que funcionou mesmo assim…</item>
-        <item>Lendo nas entrelinhas da especificação…</item>
-        <item>Deixando um comentário para o eu do futuro…</item>
+        <item>Investigando por que funciona sem motivo…</item>
+        <item>Lendo as entrelinhas da especificação…</item>
+        <item>Escrevendo um comentário para o eu do futuro…</item>
         <item>Fingindo que não vi os TODOs…</item>
         <item>Perguntando ao Stack Overflow da minha cabeça…</item>
         <item>Folheando o TabNews de memória…</item>
-        <item>Esperando a melhor resposta no meu Quora interior…</item>
+        <item>Esperando a melhor resposta no Yahoo Respostas interior…</item>
         <item>Pensando se é só limpar o cache…</item>
-        <item>Vendo se reiniciar resolve…</item>
-        <item>Agora vem a parte boa…</item>
+        <item>Sonhando que reiniciar resolve…</item>
+        <item>Chegando na parte boa…</item>
         <item>Pensando a todo vapor…</item>
         <item>Arregaçando as mangas…</item>
-        <item>Espalhando as ideias pela mesa…</item>
+        <item>Espalhando as ideias na mesa…</item>
         <item>Ligando os pontos…</item>
-        <item>Obrigado por esperar…</item>
+        <item>Obrigado pela paciência…</item>
     </string-array>
     <string name="chat_tool_expand_label">Abrir execução da ferramenta</string>
     <string name="chat_tool_failed">Falhou</string>

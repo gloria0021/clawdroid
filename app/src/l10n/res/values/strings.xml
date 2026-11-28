@@ -274,23 +274,23 @@
     <string name="chat_text_remove">Remove</string>
     <string name="chat_text_tile_cd">%1$s, %2$d characters</string>
     <string-array name="chat_thinking_phrases">
-        <item>Climbing up the stack trace…</item>
+        <item>Walking back up the stack trace…</item>
         <item>Recounting the parentheses…</item>
         <item>Coming up with a variable name…</item>
         <item>Converting coffee into tokens…</item>
-        <item>Investigating why it works anyway…</item>
+        <item>Looking into why it somehow works…</item>
         <item>Reading between the lines of the spec…</item>
-        <item>Leaving a comment for future me…</item>
+        <item>Writing a comment for future me…</item>
         <item>Pretending not to see the TODOs…</item>
         <item>Asking the Stack Overflow in my head…</item>
-        <item>Flipping through dev.to from memory…</item>
+        <item>Flipping through Dev.to from memory…</item>
         <item>Waiting for a best answer on my inner Quora…</item>
         <item>Wondering whether to just clear the cache…</item>
-        <item>Seeing if a restart fixes it…</item>
-        <item>This is the fun part…</item>
+        <item>Daydreaming that a restart fixes it…</item>
+        <item>Just getting to the good part…</item>
         <item>Thinking at full speed…</item>
         <item>Rolling up my sleeves…</item>
-        <item>Spreading ideas across the desk…</item>
+        <item>Spreading my thoughts out on the desk…</item>
         <item>Connecting the dots…</item>
         <item>Thanks for waiting…</item>
     </string-array>

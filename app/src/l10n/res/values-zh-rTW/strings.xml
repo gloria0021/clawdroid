@@ -274,23 +274,23 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 個字元</string>
     <string-array name="chat_thinking_phrases">
-        <item>正在沿著堆疊追蹤往上爬…</item>
-        <item>重新數一遍括號…</item>
+        <item>正在沿著堆疊追蹤往回爬…</item>
+        <item>正在重新數一遍括號…</item>
         <item>正在絞盡腦汁想變數名稱…</item>
         <item>正在把咖啡轉換成 token…</item>
-        <item>正在調查為什麼莫名其妙能跑…</item>
-        <item>正在解讀規格書的弦外之音…</item>
-        <item>正在給未來的自己寫註解…</item>
-        <item>假裝沒看到那些 TODO…</item>
-        <item>正在請教腦內的 Stack Overflow…</item>
-        <item>正在翻閱記憶中的 iT邦幫忙…</item>
-        <item>正在心中的 PTT 等神回覆…</item>
+        <item>正在調查為什麼它居然能跑…</item>
+        <item>正在讀規格書的言外之意…</item>
+        <item>正在幫未來的自己寫註解…</item>
+        <item>正在假裝沒看到那些 TODO…</item>
+        <item>正在問腦中的 Stack Overflow…</item>
+        <item>正在翻閱記憶中的 iT 邦幫忙…</item>
+        <item>正在等心中的 Yahoo 奇摩知識+ 選出最佳解答…</item>
         <item>正在考慮要不要先清快取…</item>
-        <item>試試看重新啟動能不能解決…</item>
-        <item>現在正精彩…</item>
+        <item>正在幻想重開機就能解決…</item>
+        <item>現在正是精彩的地方…</item>
         <item>大腦全速運轉中…</item>
-        <item>捲起袖子中…</item>
-        <item>把想法攤在桌上…</item>
+        <item>正在捲起袖子…</item>
+        <item>正在把想法攤在桌上…</item>
         <item>正在把點連成線…</item>
         <item>謝謝你耐心等候…</item>
     </string-array>

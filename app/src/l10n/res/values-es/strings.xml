@@ -274,23 +274,23 @@
     <string name="chat_text_remove">Quitar</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caracteres</string>
     <string-array name="chat_thinking_phrases">
-        <item>Remontando la traza de la pila…</item>
+        <item>Remontando el stack trace…</item>
         <item>Volviendo a contar los paréntesis…</item>
-        <item>Buscando un nombre para la variable…</item>
+        <item>Inventando un nombre de variable…</item>
         <item>Convirtiendo café en tokens…</item>
-        <item>Investigando por qué funciona igualmente…</item>
+        <item>Investigando por qué funciona sin saber por qué…</item>
         <item>Leyendo entre líneas la especificación…</item>
         <item>Dejando un comentario para mi yo del futuro…</item>
         <item>Haciendo como que no veo los TODO…</item>
         <item>Preguntando al Stack Overflow de mi cabeza…</item>
-        <item>Hojeando dev.to de memoria…</item>
+        <item>Hojeando Dev.to de memoria…</item>
         <item>Esperando la mejor respuesta en mi Quora interior…</item>
-        <item>Pensando si borrar la caché y listo…</item>
-        <item>Probando si se arregla reiniciando…</item>
-        <item>Ahora viene lo bueno…</item>
+        <item>Pensando si borrar la caché sin más…</item>
+        <item>Soñando con que reiniciar lo arregle…</item>
+        <item>Justo en la mejor parte…</item>
         <item>Pensando a toda máquina…</item>
         <item>Arremangándome…</item>
-        <item>Extendiendo ideas sobre la mesa…</item>
+        <item>Extendiendo las ideas sobre la mesa…</item>
         <item>Uniendo los puntos…</item>
         <item>Gracias por esperar…</item>
     </string-array>

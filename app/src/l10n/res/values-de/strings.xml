@@ -274,23 +274,23 @@
     <string name="chat_text_remove">Entfernen</string>
     <string name="chat_text_tile_cd">%1$s, %2$d Zeichen</string>
     <string-array name="chat_thinking_phrases">
-        <item>Klettere den Stacktrace hinauf…</item>
-        <item>Zähle die Klammern nach…</item>
+        <item>Laufe den Stacktrace zurück…</item>
+        <item>Zähle die Klammern nochmal…</item>
         <item>Denke mir einen Variablennamen aus…</item>
-        <item>Verwandle Kaffee in Tokens…</item>
-        <item>Untersuche, warum es trotzdem läuft…</item>
+        <item>Wandle Kaffee in Tokens um…</item>
+        <item>Untersuche, warum es irgendwie läuft…</item>
         <item>Lese zwischen den Zeilen der Spezifikation…</item>
         <item>Schreibe einen Kommentar für mein zukünftiges Ich…</item>
         <item>Übersehe die TODOs geflissentlich…</item>
         <item>Frage das Stack Overflow in meinem Kopf…</item>
-        <item>Blättere im Kopf durch heise Developer…</item>
+        <item>Blättere im Kopf durch Dev.to…</item>
         <item>Warte auf die beste Antwort in meinem inneren gutefrage.net…</item>
         <item>Überlege, ob ich einfach den Cache leere…</item>
-        <item>Teste, ob ein Neustart hilft…</item>
-        <item>Jetzt wird\'s spannend…</item>
+        <item>Träume davon, dass ein Neustart alles löst…</item>
+        <item>Gerade wird’s spannend…</item>
         <item>Denke auf Hochtouren…</item>
-        <item>Kremple die Ärmel hoch…</item>
-        <item>Breite Ideen auf dem Schreibtisch aus…</item>
+        <item>Krempele die Ärmel hoch…</item>
+        <item>Breite meine Gedanken auf dem Tisch aus…</item>
         <item>Verbinde die Punkte…</item>
         <item>Danke fürs Warten…</item>
     </string-array>

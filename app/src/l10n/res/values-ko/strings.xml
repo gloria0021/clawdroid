@@ -276,18 +276,18 @@
     <string-array name="chat_thinking_phrases">
         <item>스택 트레이스를 거슬러 올라가는 중…</item>
         <item>괄호 개수를 다시 세는 중…</item>
-        <item>변수 이름을 짜내는 중…</item>
+        <item>변수 이름을 쥐어짜는 중…</item>
         <item>커피를 토큰으로 바꾸는 중…</item>
-        <item>왜 되는지 조사하는 중…</item>
+        <item>왠지 돌아가는 이유를 조사하는 중…</item>
         <item>명세서의 행간을 읽는 중…</item>
         <item>미래의 나에게 주석을 남기는 중…</item>
         <item>TODO를 못 본 척하는 중…</item>
         <item>머릿속 Stack Overflow에 질문하는 중…</item>
         <item>기억 속 velog를 넘겨 보는 중…</item>
         <item>마음속 지식iN에서 채택 답변을 기다리는 중…</item>
-        <item>일단 캐시를 지울지 고민하는 중…</item>
-        <item>재시작하면 해결되는지 확인하는 중…</item>
-        <item>지금 재밌는 부분이에요…</item>
+        <item>일단 캐시를 지울까 고민하는 중…</item>
+        <item>재부팅하면 고쳐지려나 상상하는 중…</item>
+        <item>지금 한창 재밌는 부분이에요…</item>
         <item>머리를 풀가동하는 중…</item>
         <item>소매를 걷어붙이는 중…</item>
         <item>생각을 책상 위에 펼쳐 놓는 중…</item>
