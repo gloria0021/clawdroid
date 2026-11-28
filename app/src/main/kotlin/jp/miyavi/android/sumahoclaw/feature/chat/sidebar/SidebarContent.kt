@@ -182,6 +182,8 @@ fun SidePanel(
     contentLift: () -> Float = { 0f },
     /** [contentLift] のいちばん大きい値（看板の画像を上にはみ出させる長さ）。 */
     liftRange: androidx.compose.ui.unit.Dp = Spacing.xl,
+    /** パネルが少しでも見えているか。バーチャルオフィス（spec 009）は、見えていないあいだ描かない。 */
+    panelVisible: Boolean = true,
 ) {
     val hazeState = rememberHazeState()
     val agentsById = remember(agents) { agents.associateBy(Agent::id) }
@@ -220,7 +222,12 @@ fun SidePanel(
                     // 頭の看板（マスター指定 2026-11-23）: 選んでいるエージェントの顔を、ステータスバーの裏まで横いっぱいに敷き、
                     // 下へいくほど背景に溶かす。右上に閉じる（ガラスの面で、どの画像の上でも読める）
                     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                    Box(Modifier.fillMaxWidth().height(statusTop + Dimens.agentHeroHeight).graphicsLayer { translationY = contentLift() }) {
+                    // バーチャルオフィス（spec 009）は、閉じるボタンの行の下に顔の看板と同じ高さの部屋を取る（ボタンを部屋に重ねない。
+                    // マスター指定 2026-11-28）。ボタンの行の裏も、奥の壁と床で埋まる
+                    val showOffice = currentAgent != null && LocalOfficeSettings.current.enabled
+                    val closeRow = Spacing.s + Dimens.floatingButtonSize
+                    val heroHeight = statusTop + Dimens.agentHeroHeight + if (showOffice) closeRow else 0.dp
+                    Box(Modifier.fillMaxWidth().height(heroHeight).graphicsLayer { translationY = contentLift() }) {
                         if (currentAgent == null) {
                             // エージェントがまだ無い（つながっていない）: 淡いマスコットを看板の代わりに置く（マスター指定 2026-11-25）
                             Image(
@@ -231,7 +238,18 @@ fun SidePanel(
                                     .graphicsLayer { alpha = DisabledAlpha },
                             )
                         }
-                        currentAgent?.let { agent ->
+                        if (showOffice) {
+                            // バーチャルオフィス（実験機能。spec 009）: 顔の代わりに、タブと同じ 4 体が働く・寝るオフィスを枠いっぱいに描く。
+                            // タブを切り替えても同じ部屋なので、エージェントの切り替えのフェードはかけない
+                            val office = remember(agents, sessionsByAgent) { officeAgents(agents, sessionsByAgent) }
+                            AgentOffice(
+                                office,
+                                active = panelVisible,
+                                modifier = Modifier.overhangTop(liftRange).hazeSource(hazeState, zIndex = HERO_HAZE_Z),
+                                // デスクと寝室は、見えている枠（上にはみ出した分を除く）の真ん中に置く（マスター指定 2026-11-28）
+                                topInset = liftRange,
+                            )
+                        } else currentAgent?.let { agent ->
                             jp.miyavi.android.sumahoclaw.feature.chat.AgentHero(
                                 agent,
                                 // 浮き上がる分だけ上にはみ出させて、下へずれても上端に隙間を作らない（はみ出した所は画面の外）

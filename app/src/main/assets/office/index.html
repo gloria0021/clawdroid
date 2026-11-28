@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Agent Office 試作（SumahoClaw spec 009）</title>
+<style>
+  html, body { margin: 0; }
+  body { font-family: system-ui, sans-serif; background: #f3efe7; color: #1d1d22; }
+  body.dark { background: #1b1a20; color: #e8e8ee; }
+  #hero { position: relative; width: 100%; height: 286px; overflow: hidden; }
+  body.embed #hero { height: 100vh; }
+  #hero canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+  /* プレビューだけ: アプリの閉じるボタンの位置の目安 */
+  #fakeClose { position: absolute; right: 12px; top: 58px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.55); }
+  body.embed #fakeClose { display: none; }
+  #panel { padding: 12px 16px 40px; font-size: 14px; }
+  body.embed #panel { display: none; }
+  #panel h2 { font-size: 15px; margin: 16px 0 8px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; flex-wrap: wrap; }
+  .row .name { width: 92px; font-weight: 600; }
+  button, select { font: inherit; padding: 6px 10px; border-radius: 10px; border: 1px solid #9994; background: transparent; color: inherit; }
+  button.on { background: #4c7bd9; color: #fff; border-color: #4c7bd9; }
+  label { display: inline-flex; align-items: center; gap: 4px; }
+  input[type=range] { width: 160px; }
+  .note { opacity: .7; font-size: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="hero"><div id="fakeClose"></div></div>
+
+<div id="panel">
+  <div class="note">上の帯がサイドパネルの看板の場所（試作）。見る専用でタッチは受けない。下はプレビューだけの操作盤（アプリには出さない）。</div>
+  <h2>エージェント（最大 4 体）</h2>
+  <div id="agents"></div>
+  <div class="row"><button id="add">＋ 増やす</button><button id="remove">− 減らす</button></div>
+  <h2>表示</h2>
+  <div class="row"><label><input type="checkbox" id="dark"> ダーク（夜のオフィス。既定はシステムに連動）</label>
+    <label><input type="checkbox" id="reduced"> アニメーションを削除</label></div>
+  <div class="row">帯の高さ <input type="range" id="height" min="200" max="480" value="286"> <span id="heightV">286px</span></div>
+  <div class="row">描く回数の上限 <select id="fps"><option value="30">30</option><option value="60" selected>60</option><option value="0">上限なし</option></select> 実測 <b id="fpsV">-</b></div>
+  <div class="row">寄り <input type="range" id="zoom" min="60" max="140" value="104"> <span id="zoomV">1.04</span></div>
+  <div class="note">作業中 = デスクで仕事。睡眠 = 仮眠室のベッドで寝る。未読 = 頭の上に印。状態を変えると、通路と仮眠室の出入口を通って歩く。</div>
+</div>
+
+<script type="module">
+// SumahoClaw のバーチャルオフィス（spec 009）。アプリの assets/office に置き、WebView で見る専用に描く。
+// 外へは通信しない（three.js も同梱）。アプリは window.office の口だけを使う。
+// 同じファイルを tailnet のプレビューでも開ける（?embed を付けなければ下に操作盤が出る）
+import * as THREE from './three.module.min.js';
+
+/** 位置・法線・UV だけを持つ、索引の無い形どうしを 1 つにつなぐ。 */
+function mergeGeometries(list) {
+  let count = 0;
+  for (const g of list) count += g.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const size = list[0].attributes[name].itemSize, arr = new Float32Array(count * size);
+    let o = 0;
+    for (const g of list) { arr.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  return out;
+}
+
+// ============================================================
+// 色。家具の色はライト・ダークで共通（暗さは明かりで出す）
+// ============================================================
+const COLORS = {
+  wall: '#ebe6dc', trim: '#cfc8ba', baseboard: '#8a7f70', beam: '#ddd6c9',
+  windowFrame: '#4a4f58', sill: '#d8d2c6',
+  deskTop: '#cfa97f', deskLeg: '#3d424a', partition: '#86a294', partitionTop: '#5c6a63',
+  monitor: '#23262c', keyboard: '#dfe1e6', paper: '#fafafa', paper2: '#e9edf2',
+  mugRed: '#e06a5a', mugWhite: '#f4f4f4', mugYellow: '#f0b23e', mugBlue: '#5b8fd6',
+  chair: '#3f4655', chairBase: '#2c3038',
+  shelf: '#a7835f', book1: '#c0504d', book2: '#4f81bd', book3: '#9bbb59', book4: '#f0b23e', book5: '#8064a2', book6: '#e8e2d4',
+  cabinet: '#b8bcc4', handle: '#5a5f68',
+  board: '#ffffff', clockRim: '#2b2f36', clockFace: '#fafafa', hand: '#2b2f36',
+  counter: '#eae6de', counterTop: '#5a5f68', machine: '#2b2f36', steel: '#b9bec6',
+  cooler: '#e8eef5', coolerWater: '#8fc1e8', printer: '#dfe1e6', printerDark: '#4a4f58',
+  sofa: '#5b7fa6', sofaCushion: '#6f93ba', coffeeTable: '#8a6a4e', loungeRug: '#d9cbb5', magazine: '#e06a5a',
+  lampBase: '#3d424a', lampShade: '#f3e6c8',
+  bedFrame: '#b8916b', mattress: '#f4f1ea', pillow: '#ffffff', blanket: '#7f9cc9', nightstand: '#a7835f', napRug: '#cfc2d8',
+  artFrame: '#2b2f36', art1: '#e9b44c', art2: '#4f81bd', art3: '#e06a5a', art4: '#86a294',
+  potWhite: '#e6e1d8', potTerra: '#b86b3c', potDark: '#3a3f47', soil: '#4a3a2c', trunk: '#7a5a3c',
+  leaf: '#4f8a4b', leaf2: '#3f7a3c', leaf3: '#6aa35a', leaf4: '#2f6b3a',
+  glassFrame: '#9aa0a8',
+};
+const THEMES = {
+  light: { hemiSky: '#ffffff', hemiGround: '#b8ad9a', hemi: 1.55, sun: 1.45, sunColor: '#fff4e2',
+    screenOn: '#8fc1ff', screenOff: '#262a31', ink: '#2a2a33', accent: '#4c7bd9', bg: '#e6e0d5', night: false },
+  // 夜のオフィス: 全体は青みの暗がり。デスクの島の上だけ暗めの蛍光灯、モニターの照り返し、仮眠室とラウンジは暖色
+  dark: { hemiSky: '#8ea2cc', hemiGround: '#2c2f38', hemi: 0.85, sun: 0.22, sunColor: '#9fb4e0',
+    screenOn: '#b9dcff', screenOff: '#1a1c21', ink: '#eef0f6', accent: '#9cb8ff', bg: '#3a3c44', night: true },
+};
+// キャラクター 16 種（人 8・犬 4・猫 4。マスター指定 2026-11-28）。並びは設定の画面のアバターと同じ（0 始まりの番号で保存する）
+const PRESETS = [
+  // 人（男性 4）
+  { kind: 'human', skin: '#f1c7a5', hair: '#2b2421', top: '#4c7bd9', bottom: '#3a3f4b', hairStyle: 'short' },
+  { kind: 'human', skin: '#e0b08a', hair: '#7a4a2a', top: '#e06a5a', bottom: '#33363f', hairStyle: 'short', acc: 'glasses' },
+  { kind: 'human', skin: '#f6d3b8', hair: '#e2c25a', top: '#4fae7a', bottom: '#41454f', hairStyle: 'spiky', acc: 'headphones' },
+  { kind: 'human', skin: '#c68b62', hair: '#1e1a18', top: '#2c3e63', bottom: '#2c3e63', hairStyle: 'short', outfit: 'suit' },
+  // 人（女性 4）
+  { kind: 'human', skin: '#f6d3b8', hair: '#1e1a18', top: '#f4f2ee', bottom: '#2c3e63', hairStyle: 'long', skirt: true },
+  { kind: 'human', skin: '#f1c7a5', hair: '#7a4a2a', top: '#e88aa8', bottom: '#4a6a9a', hairStyle: 'ponytail' },
+  { kind: 'human', skin: '#e0b08a', hair: '#e2c25a', top: '#2f9fb3', bottom: '#5a5f68', hairStyle: 'bob', skirt: true },
+  { kind: 'human', skin: '#f6d3b8', hair: '#b34a3a', top: '#f4f4f4', bottom: '#3a3f4b', hairStyle: 'bun', outfit: 'labcoat', acc: 'glasses' },
+  // 犬
+  { kind: 'quad', name: 'dachshund', coat: '#8b4a26', light: '#a8653a', len: 0.84, h: 0.22, w: 0.22, legH: 0.1, legW: 0.08,
+    head: [0.22, 0.2, 0.22], snout: [0.12, 0.1, 0.16], snoutColor: '#8b4a26', ears: 'floppy', earColor: '#5e2f17', tail: 'thin', eye: '#1d1d22' },
+  { kind: 'quad', name: 'shiba', coat: '#d98b3a', light: '#f3e3c8', len: 0.56, h: 0.26, w: 0.26, legH: 0.2, legW: 0.08,
+    head: [0.26, 0.22, 0.22], snout: [0.13, 0.09, 0.1], snoutColor: '#f3e3c8', ears: 'pointy', earColor: '#d98b3a', tail: 'curl', eye: '#1d1d22', chest: true, socks: true },
+  { kind: 'quad', name: 'corgi', coat: '#e0913a', light: '#f6f2ea', len: 0.64, h: 0.26, w: 0.3, legH: 0.1, legW: 0.09,
+    head: [0.26, 0.22, 0.22], snout: [0.13, 0.09, 0.1], snoutColor: '#f6f2ea', ears: 'big', earColor: '#e0913a', tail: 'stub', eye: '#1d1d22', chest: true, socks: true },
+  { kind: 'quad', name: 'bulldog', coat: '#d8c0a0', light: '#f2ece2', len: 0.5, h: 0.3, w: 0.36, legH: 0.15, legW: 0.1,
+    head: [0.34, 0.26, 0.22], snout: [0.24, 0.12, 0.06], snoutColor: '#f2ece2', ears: 'small', earColor: '#8a6a50', tail: 'stub', eye: '#1d1d22', chest: true },
+  // 猫（色違い）
+  { kind: 'quad', name: 'cat-black', coat: '#2b2b30', light: '#3a3a40', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#3a3a40', ears: 'cat', earColor: '#2b2b30', tail: 'long', eye: '#f2d14a' },
+  { kind: 'quad', name: 'cat-white', coat: '#f2f0ea', light: '#ffffff', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#ffffff', ears: 'cat', earColor: '#f2f0ea', tail: 'long', eye: '#6fb3e6' },
+  { kind: 'quad', name: 'cat-orange', coat: '#e0913a', light: '#f6e2c4', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#f6e2c4', ears: 'cat', earColor: '#e0913a', tail: 'long', eye: '#7cbf4a', stripes: '#b8692a' },
+  { kind: 'quad', name: 'cat-gray', coat: '#9aa0a8', light: '#d8dbe0', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#d8dbe0', ears: 'cat', earColor: '#9aa0a8', tail: 'long', eye: '#f2d14a', stripes: '#5f656d' },
+];
+let FPS = 60;              // 描く回数の上限（電池のため。試作で 30 / 60 / 上限なし を比べる）
+const WALK_SPEED = 2.6;    // 1 秒に進むマス
+const SEATS = 4;           // サイドパネルのエージェントは最大 4 体（MAX_SIDEBAR_AGENTS）
+
+// 決まった乱数（開くたびに同じ部屋）
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+// ============================================================
+// 描画の土台
+// ============================================================
+const hero = document.getElementById('hero');
+// ?shot: 画面を撮って確かめるとき（描いた絵を残す。ふだんは残さない）
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power', preserveDrawingBuffer: new URLSearchParams(location.search).has('shot') });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+hero.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+camera.position.copy(new THREE.Vector3(1, 1.25, 1).normalize()).multiplyScalar(90);
+camera.lookAt(0, 0, 0);
+
+const hemi = new THREE.HemisphereLight(); scene.add(hemi);
+const sun = new THREE.DirectionalLight();
+sun.position.set(-8, 26, 16);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 90 });
+sun.shadow.bias = -0.0015;
+scene.add(sun);
+
+let theme = THEMES.light;
+const mats = {};
+const mat = (role) => (mats[role] ??= new THREE.MeshLambertMaterial({ color: COLORS[role], flatShading: true }));
+const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ico: new THREE.IcosahedronGeometry(1, 0) };
+const cylGeo = {};
+const cylinder = (rt, rb, seg) => (cylGeo[`${rt}|${rb}|${seg}`] ??= new THREE.CylinderGeometry(rt, rb, 1, seg));
+
+function mesh(parent, geo, material, sx, sy, sz, x, y, z) {
+  const m = new THREE.Mesh(geo, material);
+  m.scale.set(sx, sy, sz); m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  parent.add(m); return m;
+}
+/** 箱。y は底の高さ。 */
+const box = (p, role, w, h, d, x, y, z, material) => mesh(p, GEO.box, material ?? mat(role), w, h, d, x, y + h / 2, z);
+/** 円柱。y は底の高さ。 */
+const cyl = (p, role, r, h, x, y, z, seg = 10, rb = r) => mesh(p, cylinder(1, rb / r, seg), mat(role), r, h, r, x, y + h / 2, z);
+/** 葉の塊（角ばった球）。y は中心。 */
+const ico = (p, role, sx, sy, sz, x, y, z) => mesh(p, GEO.ico, mat(role), sx, sy, sz, x, y, z);
+
+function canvasTexture(w, h, draw, repeat) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  return t;
+}
+
+// ============================================================
+// 部屋の配置（奥の 2 面が壁。手前は開けたまま床が続く）
+//   左奥の壁 x = -7.5（窓・本棚・書類棚）、右奥の壁 z = -7.5（ホワイトボード・給湯・仮眠室）
+//   デスクの島は左、仮眠室は右奥（ガラスの仕切り）、ラウンジは右手前
+// ============================================================
+const room = new THREE.Group(); scene.add(room);   // 動かない物。あとで材質ごとに 1 つにまとめる
+const WALL_X = -7.5, WALL_Z = -7.5;
+const NAP = { x0: 1.2, z1: -0.6 };                 // 仮眠室: x > 1.2、z < -0.6
+const DOOR = { x: 2.1 };                           // 仮眠室の出入口（手前の仕切り）
+const AISLE = { napX: 4.0, napZ: -1.3, frontZ: 0.3, officeX: 0.6 };
+
+// --- 床
+const woodTex = canvasTexture(256, 256, (g, w, h) => {
+  const r = rng(7), rows = 8, ph = h / rows;
+  for (let i = 0; i < rows; i++) {
+    let x = -r() * 120;
+    while (x < w) {
+      const len = 90 + r() * 110, tone = 190 + r() * 26;
+      g.fillStyle = `rgb(${tone},${tone * 0.8 | 0},${tone * 0.6 | 0})`;
+      g.fillRect(x, i * ph, len, ph);
+      g.fillStyle = 'rgba(80,50,25,.10)';
+      for (let k = 0; k < 3; k++) g.fillRect(x, i * ph + r() * ph, len, 1);
+      g.fillStyle = 'rgba(70,45,25,.35)'; g.fillRect(x + len - 1, i * ph, 1.5, ph);
+      x += len;
+    }
+    g.fillStyle = 'rgba(70,45,25,.32)'; g.fillRect(0, i * ph, w, 1.5);
+  }
+}, [52, 52]);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(170, 170), new THREE.MeshLambertMaterial({ map: woodTex }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+function rug(w, d, x, z, material) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), material);
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.012, z); m.receiveShadow = true; scene.add(m); return m;
+}
+// デスクの島の下はタイルカーペット
+rug(6.2, 7.0, -2.6, -0.8, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 128, (g) => {
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    g.fillStyle = (i + j) % 2 ? '#8c96a5' : '#848e9d'; g.fillRect(i * 64, j * 64, 64, 64);
+    g.strokeStyle = 'rgba(0,0,0,.08)';
+    for (let k = 0; k < 64; k += 6) { g.beginPath(); if ((i + j) % 2) { g.moveTo(i * 64 + k, j * 64); g.lineTo(i * 64 + k, j * 64 + 64); } else { g.moveTo(i * 64, j * 64 + k); g.lineTo(i * 64 + 64, j * 64 + k); } g.stroke(); }
+  }
+}, [3.5, 3.5]) }));
+// 仮眠室とラウンジのラグ
+rug(5.6, 6.2, 4.35, -4.0, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 128, (g) => {
+  g.fillStyle = '#cfc2d8'; g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = '#b6a7c3'; g.lineWidth = 6; g.strokeRect(8, 8, 112, 112);
+}) }));
+rug(3.8, 2.8, 3.6, 3.0, new THREE.MeshLambertMaterial({ map: canvasTexture(128, 96, (g) => {
+  g.fillStyle = '#d9cbb5'; g.fillRect(0, 0, 128, 96);
+  g.fillStyle = '#c9b89d'; for (let i = 0; i < 128; i += 16) g.fillRect(i, 0, 8, 96);
+  g.strokeStyle = '#b8a385'; g.lineWidth = 5; g.strokeRect(4, 4, 120, 88);
+}) }));
+
+// --- 壁（手前へ長く伸ばし、枠の端で切れ目を見せない）
+box(room, 'wall', 0.3, 8, 60, WALL_X - 0.15, 0, 22.5);
+box(room, 'wall', 60, 8, 0.3, 22.5, 0, WALL_Z - 0.15);
+box(room, 'baseboard', 0.05, 0.12, 60, WALL_X + 0.02, 0, 22.5);
+box(room, 'baseboard', 60, 0.12, 0.05, 22.5, 0, WALL_Z + 0.02);
+box(room, 'beam', 0.14, 0.16, 60, WALL_X + 0.07, 3.1, 22.5);
+box(room, 'beam', 60, 0.16, 0.14, 22.5, 3.1, WALL_Z + 0.07);
+
+// --- 窓（左奥の壁。外はライトで昼の空、ダークで夜の街）
+const windowMat = new THREE.MeshBasicMaterial();
+function windowTexture(night) {
+  return canvasTexture(256, 160, (g, w, h) => {
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    if (night) { sky.addColorStop(0, '#0d1630'); sky.addColorStop(1, '#2a3d66'); }
+    else { sky.addColorStop(0, '#8fc6ee'); sky.addColorStop(1, '#e2f1fb'); }
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+    const r = rng(3);
+    let x = 0;
+    while (x < w) {
+      const bw = 18 + r() * 34, bh = 40 + r() * 90;
+      g.fillStyle = night ? '#161f36' : '#c4d3e0'; g.fillRect(x, h - bh, bw, bh);
+      for (let yy = h - bh + 6; yy < h - 4; yy += 9) for (let xx = x + 4; xx < x + bw - 4; xx += 7) {
+        if (night ? r() < 0.28 : r() < 0.5) { g.fillStyle = night ? '#ffd98a' : '#aebfcf'; g.fillRect(xx, yy, 3, 4); }
+      }
+      x += bw + 2;
+    }
+  });
+}
+function windowOnWallX(zc) {
+  const w = 2.5, y0 = 0.95, h = 1.7, x = WALL_X;
+  box(room, null, 0.02, h - 0.1, w - 0.1, x + 0.01, y0 + 0.05, zc, windowMat);
+  for (const dz of [-w / 2, w / 2]) box(room, 'windowFrame', 0.08, h, 0.07, x + 0.04, y0, zc + dz);
+  for (const yy of [y0, y0 + h - 0.07]) box(room, 'windowFrame', 0.08, 0.07, w, x + 0.04, yy, zc);
+  box(room, 'windowFrame', 0.06, h, 0.04, x + 0.04, y0, zc);
+  box(room, 'windowFrame', 0.06, 0.04, w, x + 0.04, y0 + h * 0.62, zc);
+  box(room, 'sill', 0.2, 0.05, w + 0.2, x + 0.1, y0 - 0.05, zc);
+}
+windowOnWallX(-0.1); windowOnWallX(2.9);
+
+// --- 植物
+function fiddleLeaf(x, z, s = 1, seed = 1) {
+  const r = rng(seed), g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); room.add(g);
+  cyl(g, 'potWhite', 0.24, 0.42, 0, 0, 0, 10, 0.19); cyl(g, 'soil', 0.21, 0.02, 0, 0.41, 0);
+  box(g, 'trunk', 0.05, 1.5, 0.05, 0, 0.42, 0);
+  for (let i = 0; i < 14; i++) {
+    const a = r() * Math.PI * 2, y = 0.95 + r() * 0.95, d = 0.12 + r() * 0.2;
+    const l = ico(g, ['leaf', 'leaf2', 'leaf3'][i % 3], 0.19, 0.06, 0.13, Math.cos(a) * d, y, Math.sin(a) * d);
+    l.rotation.set(r() * 0.8 - 0.4, a, r() * 0.9 - 0.45);
+  }
+}
+function snakePlant(x, z, s = 1, seed = 2) {
+  const r = rng(seed), g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); room.add(g);
+  box(g, 'potDark', 0.36, 0.38, 0.36, 0, 0, 0); box(g, 'soil', 0.3, 0.02, 0.3, 0, 0.37, 0);
+  for (let i = 0; i < 9; i++) {
+    const h = 0.55 + r() * 0.55, b = box(g, i % 2 ? 'leaf4' : 'leaf2', 0.07, h, 0.025, (r() - 0.5) * 0.18, 0.38, (r() - 0.5) * 0.18);
+    b.rotation.set((r() - 0.5) * 0.35, r() * Math.PI, (r() - 0.5) * 0.35);
+  }
+}
+function monstera(x, z, s = 1, seed = 3) {
+  const r = rng(seed), g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); room.add(g);
+  cyl(g, 'potTerra', 0.26, 0.4, 0, 0, 0, 10, 0.2); cyl(g, 'soil', 0.23, 0.02, 0, 0.39, 0);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + r() * 0.4, d = 0.25 + r() * 0.2, y = 0.6 + r() * 0.55;
+    const stem = box(g, 'leaf2', 0.025, y - 0.35, 0.025, Math.cos(a) * d * 0.5, 0.38, Math.sin(a) * d * 0.5);
+    stem.rotation.set(Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.4);
+    const l = ico(g, i % 2 ? 'leaf' : 'leaf4', 0.26, 0.045, 0.2, Math.cos(a) * d, y, Math.sin(a) * d);
+    l.rotation.set(0, -a, 0.35);
+  }
+}
+function succulent(p, x, y, z, seed = 4) {
+  const r = rng(seed);
+  cyl(p, 'potWhite', 0.06, 0.08, x, y, z, 8, 0.05);
+  for (let i = 0; i < 4; i++) ico(p, i % 2 ? 'leaf3' : 'leaf', 0.04, 0.05, 0.04, x + (r() - 0.5) * 0.06, y + 0.11, z + (r() - 0.5) * 0.06);
+}
+
+// --- 本棚・書類棚（左奥の壁）
+function bookshelf(zc, seed) {
+  const r = rng(seed), x = WALL_X + 0.22, w = 1.8, d = 0.4, h = 2.0;
+  for (const dz of [-w / 2, w / 2]) box(room, 'shelf', d, h, 0.05, x, 0, zc + dz);
+  box(room, 'shelf', 0.03, h, w, WALL_X + 0.03, 0, zc);
+  const levels = [0.02, 0.5, 1.0, 1.5];
+  for (const y of [...levels, 1.96]) box(room, 'shelf', d, 0.04, w, x, y, zc);
+  levels.forEach((y, li) => {
+    let z = zc - w / 2 + 0.06;
+    while (z < zc + w / 2 - 0.12) {
+      if (r() < 0.12) { z += 0.15; continue; }
+      const bw = 0.05 + r() * 0.06, bh = 0.26 + r() * 0.16;
+      if (r() < 0.1 && li > 0) {           // 平積み
+        for (let k = 0; k < 3; k++) box(room, `book${1 + ((k + li) % 6)}`, 0.26, 0.05, 0.3, x, y + 0.04 + k * 0.05, z + 0.15);
+        z += 0.34; continue;
+      }
+      box(room, `book${1 + Math.floor(r() * 6)}`, 0.28, bh, bw, x + 0.02, y + 0.04, z + bw / 2);
+      z += bw + 0.008;
+    }
+  });
+  // 上にポトス
+  cyl(room, 'potWhite', 0.1, 0.14, x, 2.0, zc + 0.55, 8);
+  for (let i = 0; i < 6; i++) ico(room, i % 2 ? 'leaf3' : 'leaf', 0.08, 0.05, 0.08, x + 0.05 + (r() - 0.3) * 0.12, 2.14 - i * 0.12, zc + 0.5 + (r() - 0.5) * 0.25);
+}
+bookshelf(-4.6, 11);
+function fileCabinet(zc) {
+  const x = WALL_X + 0.27;
+  box(room, 'cabinet', 0.5, 1.05, 0.5, x, 0, zc);
+  for (let i = 1; i < 3; i++) box(room, 'handle', 0.01, 0.01, 0.48, x + 0.255, i * 0.35, zc);
+  for (let i = 0; i < 3; i++) box(room, 'handle', 0.02, 0.03, 0.14, x + 0.26, 0.22 + i * 0.35, zc);
+}
+fileCabinet(-2.75); fileCabinet(-2.2);
+box(room, 'paper', 0.3, 0.06, 0.22, WALL_X + 0.3, 1.05, -2.6); box(room, 'mugBlue', 0.08, 0.1, 0.08, WALL_X + 0.32, 1.05, -2.2);
+
+// --- 右奥の壁: プリンター・ホワイトボード・時計・給湯
+{ // ウォーターサーバー
+  const x = WALL_X + 0.55, z = WALL_Z + 0.4;
+  box(room, 'cooler', 0.36, 0.95, 0.36, x, 0, z);
+  box(room, 'handle', 0.1, 0.06, 0.02, x, 0.62, z + 0.19);
+  cyl(room, 'coolerWater', 0.15, 0.42, x, 0.95, z, 12);
+}
+{ // 複合機
+  const x = -5.5, z = WALL_Z + 0.35;
+  box(room, 'cabinet', 0.8, 0.55, 0.55, x, 0, z);
+  box(room, 'printer', 0.72, 0.36, 0.5, x, 0.55, z);
+  box(room, 'printerDark', 0.5, 0.03, 0.3, x, 0.91, z);
+  box(room, 'paper', 0.3, 0.02, 0.2, x - 0.12, 0.6, z + 0.27);
+}
+{ // ホワイトボード（付箋のかんばん）
+  const xc = -3.2, z = WALL_Z;
+  const tex = canvasTexture(256, 128, (g) => {
+    g.fillStyle = '#fbfbfb'; g.fillRect(0, 0, 256, 128);
+    g.strokeStyle = '#9aa3ad'; g.lineWidth = 1.5;
+    for (const x of [86, 172]) { g.beginPath(); g.moveTo(x, 10); g.lineTo(x, 120); g.stroke(); }
+    g.fillStyle = '#4a5260'; g.font = 'bold 11px system-ui';
+    ['TODO', 'DOING', 'DONE'].forEach((t, i) => g.fillText(t, 10 + i * 86, 18));
+    const r = rng(5), notes = ['#ffe680', '#ffb3c7', '#a8e6cf', '#9fd3ff'];
+    for (let c = 0; c < 3; c++) for (let k = 0; k < 4 - c; k++) {
+      g.fillStyle = notes[Math.floor(r() * 4)];
+      const x = 12 + c * 86 + (k % 2) * 36, y = 26 + Math.floor(k / 2) * 34;
+      g.fillRect(x, y, 30, 28);
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 4, y + 8, 20, 2); g.fillRect(x + 4, y + 14, 14, 2);
+    }
+    g.strokeStyle = '#3d6fd0'; g.lineWidth = 2; g.beginPath(); g.moveTo(100, 104); g.bezierCurveTo(130, 90, 150, 118, 170, 100); g.stroke();
+  });
+  box(room, 'glassFrame', 2.7, 1.4, 0.05, xc, 0.95, z + 0.03);
+  box(room, null, 2.58, 1.28, 0.02, xc, 1.01, z + 0.065, new THREE.MeshLambertMaterial({ map: tex }));
+  box(room, 'glassFrame', 2.0, 0.04, 0.12, xc, 0.95, z + 0.1);
+  box(room, 'mugRed', 0.14, 0.03, 0.025, xc - 0.5, 0.99, z + 0.12);
+}
+{ // 時計
+  const x = -0.6, y = 2.55, z = WALL_Z;
+  const rim = cyl(room, 'clockRim', 0.27, 0.06, x, y, z + 0.03, 20); rim.rotation.x = Math.PI / 2; rim.position.set(x, y, z + 0.03);
+  const face = cyl(room, 'clockFace', 0.23, 0.02, x, y, z + 0.065, 20); face.rotation.x = Math.PI / 2; face.position.set(x, y, z + 0.065);
+  const hh = box(room, 'hand', 0.025, 0.13, 0.01, x, y, z + 0.08); hh.position.y = y + 0.05; hh.rotation.z = -0.9;
+  const mh = box(room, 'hand', 0.018, 0.19, 0.01, x, y, z + 0.085); mh.position.y = y + 0.08; mh.rotation.z = 0.5;
+}
+{ // 給湯（カウンター・コーヒーメーカー・吊り棚）
+  const xc = -0.45, z = WALL_Z + 0.32;
+  box(room, 'counter', 2.5, 0.86, 0.6, xc, 0, z);
+  for (const dx of [-0.62, 0.62]) box(room, 'handle', 0.01, 0.8, 0.01, xc + dx, 0.03, z + 0.305);
+  for (const dx of [-0.75, -0.5, 0.5, 0.75]) box(room, 'handle', 0.02, 0.12, 0.02, xc + dx, 0.55, z + 0.31);
+  box(room, 'counterTop', 2.58, 0.05, 0.64, xc, 0.86, z);
+  box(room, 'machine', 0.32, 0.44, 0.3, xc - 0.8, 0.91, z - 0.05);
+  box(room, 'steel', 0.2, 0.02, 0.14, xc - 0.8, 0.91, z + 0.12);
+  cyl(room, 'mugWhite', 0.04, 0.09, xc - 0.8, 0.93, z + 0.12, 8);
+  cyl(room, 'steel', 0.08, 0.22, xc - 0.3, 0.91, z - 0.05, 10, 0.1);
+  for (const [i, c] of ['mugRed', 'mugYellow', 'mugBlue', 'mugWhite'].entries()) cyl(room, c, 0.045, 0.1, xc + 0.15 + i * 0.13, 0.91, z + 0.12, 8);
+  succulent(room, xc + 0.95, 0.91, z, 9);
+  box(room, 'shelf', 2.0, 0.04, 0.26, xc, 1.62, WALL_Z + 0.13);
+  for (let i = 0; i < 5; i++) cyl(room, i % 2 ? 'steel' : 'potWhite', 0.07, 0.18 + (i % 3) * 0.04, xc - 0.8 + i * 0.38, 1.66, WALL_Z + 0.13, 8);
+}
+
+// --- デスクの島（2×2。モニターは奥向き、間に布の仕切り）
+const desks = [];
+for (let i = 0; i < SEATS; i++) {
+  const col = i % 2, row = Math.floor(i / 2);
+  const x = -3.65 + col * 2.1, z = -2.25 + row * 2.7;   // 仮眠室の横（マスター指定 2026-11-28: 右上の空きへ寄せ、横並びに近づける）
+  const g = new THREE.Group(); g.position.set(x, 0, z); room.add(g);
+  box(g, 'deskTop', 1.6, 0.05, 0.8, 0, 0.72, 0);
+  for (const s of [-1, 1]) box(g, 'deskLeg', 0.05, 0.72, 0.7, s * 0.74, 0, 0);
+  box(g, 'deskLeg', 1.4, 0.3, 0.03, 0, 0.4, -0.36);
+  box(g, 'partition', 1.6, 0.42, 0.05, 0, 0.77, -0.43);
+  box(g, 'partitionTop', 1.62, 0.03, 0.07, 0, 1.19, -0.43);
+  // モニター
+  box(g, 'monitor', 0.24, 0.02, 0.15, 0, 0.77, -0.24);
+  box(g, 'monitor', 0.04, 0.18, 0.04, 0, 0.78, -0.27);
+  box(g, 'monitor', 0.74, 0.44, 0.04, 0, 0.92, -0.28);
+  box(g, 'keyboard', 0.46, 0.022, 0.15, 0, 0.77, 0.06);
+  box(g, 'keyboard', 0.06, 0.025, 0.1, 0.34, 0.77, 0.08);
+  // 机の上の小物（席ごとに少しずつ違う）
+  const mugs = ['mugRed', 'mugWhite', 'mugYellow', 'mugBlue'];
+  cyl(g, mugs[i], 0.045, 0.1, -0.6, 0.77, 0.12, 8);
+  box(g, 'paper', 0.24, 0.02 + (i % 2) * 0.03, 0.3, 0.55, 0.77, -0.12);
+  if (i % 2 === 0) succulent(g, -0.62, 0.77, -0.22, 20 + i);
+  else { box(g, 'book2', 0.22, 0.04, 0.28, -0.55, 0.77, -0.15); box(g, 'book4', 0.2, 0.04, 0.26, -0.55, 0.81, -0.15); }
+  // 椅子
+  cyl(g, 'chairBase', 0.26, 0.04, 0, 0.02, 0.72, 10);
+  cyl(g, 'chairBase', 0.035, 0.36, 0, 0.06, 0.72, 8);
+  box(g, 'chair', 0.5, 0.08, 0.48, 0, 0.42, 0.72);
+  box(g, 'chair', 0.48, 0.55, 0.07, 0, 0.55, 0.98);
+  // 画面と照り返し（状態で変わるので、まとめる対象の外に置く）
+  const screen = new THREE.Mesh(GEO.box, new THREE.MeshBasicMaterial());
+  screen.scale.set(0.68, 0.38, 0.01); screen.position.set(x, 1.14, z - 0.255); scene.add(screen);
+  const glow = new THREE.PointLight('#9cc8ff', 0, 2.6, 2); glow.position.set(x, 1.05, z + 0.1); glow.userData.on = 2.2; scene.add(glow);
+  desks.push({ screen, glow, seat: new THREE.Vector3(x, 0.07, z + 0.72), stand: new THREE.Vector3(x, 0, z + 1.4), on: false });
+}
+
+// --- 仮眠室（ガラスの仕切り。ベッドは 2×2、真ん中が通路）
+const glassMat = new THREE.MeshLambertMaterial({ color: '#cfe3ee', transparent: true, opacity: 0.18, depthWrite: false });
+function partitionSegment(x0, x1, z0, z1) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0), len = alongX ? x1 - x0 : z1 - z0;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = alongX ? len : 0.08, d = alongX ? 0.08 : len;
+  box(room, 'trim', w, 0.9, d, cx, 0, cz);
+  const glass = box(room, null, alongX ? len : 0.03, 1.3, alongX ? 0.03 : len, cx, 0.9, cz, glassMat); glass.castShadow = false;
+  box(room, 'glassFrame', alongX ? len : 0.06, 0.06, alongX ? 0.06 : len, cx, 2.2, cz);
+  const n = Math.max(1, Math.round(len / 1.5));
+  for (let k = 0; k <= n; k++) {
+    const t = k / n, px = alongX ? x0 + len * t : cx, pz = alongX ? cz : z0 + len * t;
+    box(room, 'glassFrame', 0.05, 1.3, 0.05, px, 0.9, pz);
+  }
+}
+partitionSegment(NAP.x0, NAP.x0, WALL_Z, NAP.z1);
+partitionSegment(DOOR.x + 0.55, 7.6, NAP.z1, NAP.z1);
+partitionSegment(NAP.x0, DOOR.x - 0.55, NAP.z1, NAP.z1);
+box(room, 'glassFrame', 1.1, 0.06, 0.06, DOOR.x, 2.2, NAP.z1);
+
+const beds = [];
+for (let i = 0; i < SEATS; i++) {
+  const col = i % 2, row = Math.floor(i / 2);
+  const x = 3.0 + col * 2.0, z = -5.6 + row * 2.7;
+  const g = new THREE.Group(); g.position.set(x, 0, z); room.add(g);
+  box(g, 'bedFrame', 1.05, 0.3, 2.1, 0, 0, 0);
+  box(g, 'bedFrame', 1.05, 0.62, 0.1, 0, 0, -1.05);
+  box(g, 'mattress', 0.95, 0.16, 1.98, 0, 0.3, 0);
+  box(g, 'pillow', 0.62, 0.1, 0.32, 0, 0.46, -0.76);
+  // サイドテーブルとランプ（外側）
+  const sx = col === 0 ? -0.85 : 0.85;
+  box(g, 'nightstand', 0.45, 0.5, 0.42, sx, 0, -0.8);
+  box(g, 'handle', 0.14, 0.02, 0.01, sx, 0.32, -0.585);
+  cyl(g, 'lampBase', 0.06, 0.2, sx, 0.5, -0.85, 8);
+  cyl(g, 'lampShade', 0.1, 0.14, sx, 0.68, -0.85, 10, 0.14);
+  // 毛布（寝ていると膨らむので、まとめる対象の外）
+  const blanket = new THREE.Mesh(GEO.box, mat('blanket'));
+  blanket.castShadow = blanket.receiveShadow = true; blanket.scale.set(0.98, 0.06, 1.3); blanket.position.set(x, 0.49, z + 0.32); scene.add(blanket);
+  beds.push({ blanket, lie: new THREE.Vector3(x, 0.6, z + 0.3), stand: new THREE.Vector3(AISLE.napX, 0, z + 0.2), used: false });
+}
+// 仮眠室の壁の絵
+for (const [x, a] of [[3.0, 'art2'], [5.0, 'art1']]) {
+  box(room, 'artFrame', 0.8, 0.6, 0.04, x, 1.25, WALL_Z + 0.02);
+  box(room, a, 0.66, 0.46, 0.02, x, 1.32, WALL_Z + 0.05);
+  box(room, 'art4', 0.3, 0.2, 0.025, x + 0.12, 1.36, WALL_Z + 0.06);
+}
+snakePlant(7.0, -1.15, 0.95, 31);
+
+// --- ラウンジ（右手前）
+{
+  const x = 3.6, z = 1.7;   // 枠の端で切れにくいよう、少し左へ
+  box(room, 'sofa', 2.3, 0.4, 0.85, x, 0.05, z);
+  box(room, 'sofa', 2.3, 0.75, 0.24, x, 0.05, z - 0.42);
+  for (const s of [-1, 1]) box(room, 'sofa', 0.2, 0.62, 0.85, x + s * 1.15, 0.05, z);
+  for (const s of [-1, 1]) box(room, 'sofaCushion', 1.0, 0.12, 0.62, x + s * 0.52, 0.45, z + 0.08);
+  for (const s of [-1, 1]) { const c = box(room, s < 0 ? 'mugYellow' : 'book6', 0.36, 0.34, 0.1, x + s * 0.6, 0.55, z - 0.26); c.rotation.x = -0.25; }
+  for (const s of [-1, 1]) box(room, 'deskLeg', 0.06, 0.05, 0.06, x + s * 1.1, 0, z + 0.36);
+  // ローテーブル
+  box(room, 'coffeeTable', 1.1, 0.05, 0.6, x, 0.36, z + 1.35);
+  for (const [dx, dz] of [[-0.48, -0.24], [0.48, -0.24], [-0.48, 0.24], [0.48, 0.24]]) box(room, 'deskLeg', 0.04, 0.36, 0.04, x + dx, 0, z + 1.35 + dz);
+  box(room, 'magazine', 0.3, 0.02, 0.22, x - 0.2, 0.41, z + 1.3);
+  cyl(room, 'mugWhite', 0.045, 0.1, x + 0.3, 0.41, z + 1.4, 8);
+  succulent(room, x + 0.05, 0.41, z + 1.45, 40);
+  // フロアランプ
+  cyl(room, 'lampBase', 0.16, 0.03, 5.35, 0, 1.15, 12);
+  box(room, 'lampBase', 0.03, 1.4, 0.03, 5.35, 0, 1.15);
+  cyl(room, 'lampShade', 0.17, 0.26, 5.35, 1.38, 1.15, 12, 0.24);
+}
+monstera(1.75, 1.6, 1.1, 41);
+fiddleLeaf(5.7, 5.2, 0.95, 42);
+
+// --- オフィス側の植物
+fiddleLeaf(WALL_X + 0.45, 1.4, 1.05, 51);
+snakePlant(WALL_X + 0.45, 5.9, 1.0, 52);
+monstera(WALL_X + 0.6, -6.1, 0.9, 53);
+snakePlant(0.1, 3.0, 0.85, 54);
+
+// 動かない物を材質ごとに 1 つのメッシュへ（描く回数を数百 → 数十に）
+function mergeStatic(group) {
+  group.updateMatrixWorld(true);
+  const buckets = new Map();
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    let gg = o.geometry.clone().applyMatrix4(o.matrixWorld);
+    if (gg.index) gg = gg.toNonIndexed();
+    if (!buckets.has(o.material)) buckets.set(o.material, []);
+    buckets.get(o.material).push(gg);
+  });
+  scene.remove(group);
+  for (const [m, list] of buckets) {
+    const merged = mergeGeometries(list);
+    if (!merged) continue;
+    const mm = new THREE.Mesh(merged, m);
+    mm.castShadow = !m.transparent; mm.receiveShadow = true;
+    scene.add(mm);
+  }
+}
+mergeStatic(room);
+
+// --- 夜の明かり（器具は描かない。天井は視点より上で、描くと部屋を隠す。光の溜まりで見せる）
+const nightLights = [];
+function nightLight(color, intensity, distance, decay, x, y, z) {
+  const l = new THREE.PointLight(color, 0, distance, decay); l.position.set(x, y, z); l.userData.on = intensity; scene.add(l); nightLights.push(l);
+}
+nightLight('#eaf2ff', 15, 7.5, 1.6, -2.6, 3.2, -2.0);   // 蛍光灯（デスクの島）
+nightLight('#eaf2ff', 15, 7.5, 1.6, -2.6, 3.2, 0.7);
+nightLight('#eaf2ff', 6, 5, 1.8, -0.5, 2.9, -6.0);     // 給湯の上
+nightLight('#ffc98a', 5, 6, 1.8, 4.0, 2.4, -4.4);      // 仮眠室の常夜灯
+nightLight('#ffc98a', 3, 4, 1.8, 5.35, 1.7, 1.4);      // ラウンジのフロアランプ
+
+// ============================================================
+// 人（積み木）
+// ============================================================
+function spriteFromCanvas(w, h, draw) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(w, h, draw), transparent: true, depthTest: false }));
+  s.renderOrder = 10; return s;
+}
+// Zzz はどちらのテーマでも白文字（薄い縁取りで、明るい床の上でも読める）。大きめに
+const zzzSprite = () => { const s = spriteFromCanvas(192, 112, (g) => {
+  g.lineJoin = 'round'; g.lineWidth = 7; g.strokeStyle = 'rgba(30,32,40,.55)'; g.fillStyle = '#ffffff';
+  for (const [t, size, x, y] of [['Z', 64, 8, 104], ['z', 46, 62, 74], ['z', 34, 104, 46]]) {   // 「Zzz」: 大きな Z から、小さな z が上へ流れていく
+    g.font = `900 ${size}px system-ui`; g.strokeText(t, x, y); g.fillText(t, x, y);
+  }
+}); s.scale.set(0.95, 0.55, 1); return s; };
+// 作業中の印: 漫画で言葉にならない叫び・焦りを表す記号の並び（グロウリクス）。Zzz と同じ白文字・薄い縁取りで、
+// 頭の上から 1 つずつ飛び出しては上へ流れて消える。動いているあいだだけ（終わって 20 秒デスクで待つあいだは出さない）。
+// 小さくても形が崩れず、意味を持たない記号だけを選ぶ（数字・英字・顔文字に見えるものは避ける）
+const GRAWLIX = ['#', '@', '$', '%', '&', '!', '*', '?'];
+const GRAWLIX_SPAWN = 0.32;      // 次の記号が出るまで（秒）
+const GRAWLIX_SLOTS = 3;         // 同時に見えている記号の数（寿命 = 間隔 × 数）
+const glyphTextures = {};
+function glyphMaterial(ch) {
+  glyphTextures[ch] ??= canvasTexture(64, 64, (g) => {
+    g.font = '900 50px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round'; g.lineWidth = 7; g.strokeStyle = 'rgba(30,32,40,.55)'; g.fillStyle = '#ffffff';
+    g.strokeText(ch, 32, 34); g.fillText(ch, 32, 34);
+  });
+  return glyphTextures[ch];
+}
+function grawlixSprites() {
+  return Array.from({ length: GRAWLIX_SLOTS }, () => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphMaterial('#'), transparent: true, depthTest: false }));
+    s.renderOrder = 10; s.visible = false; scene.add(s);
+    return { s, cycle: -1, dx: 0 };
+  });
+}
+
+// ------------------------------------------------------------
+// 人と動物の組み立て。どちらも root（床）→ body（体の向き）→ head、脚は legs、腕・前脚は arms。顔は -z を向く
+// ------------------------------------------------------------
+const SIT_HEAD_TILT = 0.15;   // 座った動物の首のうつむき
+const ANIMAL_SCALE = 1.25;   // 動物は少し大きく（小さな枠でも見分けられるように）
+const BED_LIE_Y = 0.6, BED_LIE_DZ = 0.3;   // ベッドの寝る位置（beds の lie。ベッドの中心から）
+const LIE_BACK_TOP = 0.7;                  // 伏せた動物の背中の高さ（膨らんだ布団の上面 0.76 より下）
+const LIE_HEAD_Z = -0.55;                  // 伏せた動物の頭の位置（ベッドの中心から。布団の端 -0.33 と枕 -0.76 のあいだ）
+function lambert(color) { return new THREE.MeshLambertMaterial({ color, flatShading: true }); }
+function cone(p, color, r, h, x, y, z, rx = 0, rz = 0) {   // 4 角すい（とがった耳）。y は底
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 4), lambert(color));
+  m.position.set(x, y + h / 2, z); m.rotation.set(rx, Math.PI / 4, rz); m.castShadow = true; p.add(m); return m;
+}
+
+function buildHuman(p) {
+  const mm = {}, m = (c) => (mm[c] ??= lambert(c));
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const legs = [], arms = [];
+  for (const s of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.42, 0);
+    box(hip, null, 0.15, 0.42, 0.17, 0, -0.42, 0, m(p.skirt ? p.skin : p.bottom));
+    box(hip, null, 0.16, 0.06, 0.19, 0, -0.42, -0.01, m('#3a3438'));   // 靴
+    body.add(hip); legs.push(hip);
+  }
+  const coat = p.outfit === 'labcoat';
+  box(body, null, 0.42, 0.42, 0.24, 0, 0.42, 0, m(p.top));
+  if (p.skirt) box(body, null, 0.46, 0.2, 0.28, 0, 0.26, 0, m(p.bottom));
+  if (coat) box(body, null, 0.44, 0.24, 0.26, 0, 0.22, 0, m(p.top));            // 白衣の裾
+  if (p.outfit === 'suit') {                                                       // シャツとネクタイ
+    box(body, null, 0.12, 0.3, 0.01, 0, 0.54, -0.125, m('#f4f4f4'));
+    box(body, null, 0.05, 0.24, 0.012, 0, 0.56, -0.132, m('#c0504d'));
+  }
+  if (coat) box(body, null, 0.03, 0.42, 0.01, 0, 0.42, -0.125, m('#d6d8dc'));    // 白衣の合わせ
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(s * 0.28, 0.8, 0);
+    box(sh, null, 0.13, 0.32, 0.15, 0, -0.32, 0, m(p.top));
+    box(sh, null, 0.12, 0.08, 0.13, 0, -0.4, 0, m(p.skin));
+    body.add(sh); arms.push(sh);
+  }
+  const head = new THREE.Group(); head.position.y = 0.84; body.add(head);
+  box(head, null, 0.36, 0.34, 0.34, 0, 0, 0, m(p.skin));
+  const hair = m(p.hair);
+  box(head, null, 0.39, 0.1, 0.37, 0, 0.32, 0, hair);                              // 頭のてっぺん
+  switch (p.hairStyle) {
+    case 'spiky':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      for (const [x, z] of [[-0.12, -0.08], [0.02, 0.0], [0.13, -0.06], [-0.04, 0.12], [0.1, 0.12]]) {
+        const sp = box(head, null, 0.1, 0.12, 0.1, x, 0.38, z, hair); sp.rotation.z = x * 2;
+      }
+      break;
+    case 'long':
+      box(head, null, 0.4, 0.62, 0.1, 0, -0.3, 0.16, hair);
+      for (const s of [-1, 1]) box(head, null, 0.04, 0.5, 0.3, s * 0.2, -0.2, 0.03, hair);
+      box(head, null, 0.39, 0.07, 0.04, 0, 0.27, -0.17, hair);                     // 前髪
+      break;
+    case 'ponytail':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      box(head, null, 0.1, 0.1, 0.1, 0, 0.26, 0.22, m('#e88aa8'));                 // 髪留め
+      box(head, null, 0.11, 0.36, 0.1, 0, -0.1, 0.25, hair);
+      box(head, null, 0.39, 0.07, 0.04, 0, 0.27, -0.17, hair);
+      break;
+    case 'bob':
+      box(head, null, 0.4, 0.36, 0.1, 0, -0.06, 0.15, hair);
+      for (const s of [-1, 1]) box(head, null, 0.05, 0.34, 0.32, s * 0.2, -0.06, 0.02, hair);
+      box(head, null, 0.39, 0.08, 0.04, 0, 0.25, -0.17, hair);
+      break;
+    case 'bun':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      box(head, null, 0.17, 0.15, 0.17, 0, 0.4, 0.1, hair);
+      break;
+    default:   // short
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+  }
+  const eye = m('#1d1d22');
+  for (const s of [-1, 1]) box(head, null, 0.05, 0.06, 0.02, s * 0.08, 0.15, -0.175, eye);
+  if (p.acc === 'glasses') {
+    const frame = m('#2b2f36');
+    for (const s of [-1, 1]) {
+      box(head, null, 0.11, 0.015, 0.015, s * 0.08, 0.215, -0.185, frame);
+      box(head, null, 0.11, 0.015, 0.015, s * 0.08, 0.125, -0.185, frame);
+      for (const e of [-1, 1]) box(head, null, 0.015, 0.1, 0.015, s * 0.08 + e * 0.05, 0.125, -0.185, frame);
+    }
+  }
+  if (p.acc === 'headphones') {
+    const hp = m('#2b2f36');
+    box(head, null, 0.44, 0.05, 0.08, 0, 0.42, 0, hp);
+    for (const s of [-1, 1]) { box(head, null, 0.04, 0.3, 0.06, s * 0.21, 0.14, 0, hp); box(head, null, 0.07, 0.15, 0.15, s * 0.21, 0.04, 0, m('#e06a5a')); }
+  }
+  return { kind: 'human', root, body, legs, arms, head, bodyZ: 0, typeBase: 1.15, sitDy: 0, lieDy: 0, lieDz: 0, lieRot: Math.PI };
+}
+
+function buildQuad(p) {
+  const mm = {}, m = (c) => (mm[c] ??= lambert(c));
+  const coat = m(p.coat), light = m(p.light);
+  const root = new THREE.Group(), scaled = new THREE.Group(); scaled.scale.setScalar(ANIMAL_SCALE); root.add(scaled);
+  const { len, h, w, legH, legW } = p;
+  const legs = [], arms = [];
+  const legX = w / 2 - legW / 2 - 0.01;
+  // 後ろ脚（root に付ける。座っても床・座面に残る）
+  for (const s of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(s * legX, legH, len * 0.36);
+    box(hip, null, legW, legH, legW, 0, -legH, 0, coat);
+    if (p.socks) box(hip, null, legW + 0.005, legH * 0.45, legW + 0.005, 0, -legH, 0, light);
+    scaled.add(hip); legs.push(hip);
+  }
+  // 体（腰を軸に起き上がる）
+  const body = new THREE.Group(); const bodyZ = len * 0.42; body.position.set(0, legH, bodyZ); scaled.add(body);
+  box(body, null, w, h, len, 0, 0, -len / 2, coat);
+  if (p.chest) box(body, null, w * 0.7, h * 0.7, 0.02, 0, 0.0, -len - 0.005, light);
+  if (p.stripes) for (let i = 0; i < 3; i++) box(body, null, w + 0.01, 0.025, 0.04, 0, h - 0.02, -len * (0.25 + i * 0.22), m(p.stripes));
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(s * legX, 0.02, -len + legW * 0.9);
+    box(sh, null, legW, legH + 0.02, legW, 0, -legH - 0.02, 0, coat);
+    if (p.socks) box(sh, null, legW + 0.005, legH * 0.45, legW + 0.005, 0, -legH - 0.02, 0, light);
+    body.add(sh); arms.push(sh);
+  }
+  // しっぽ
+  const tail = new THREE.Group(); tail.position.set(0, h * 0.75, 0); body.add(tail);
+  switch (p.tail) {
+    case 'curl': box(tail, null, 0.07, 0.14, 0.07, 0, 0, 0.02, coat); box(tail, null, 0.07, 0.07, 0.12, 0, 0.12, -0.04, light); break;
+    case 'long': {   // 付け根から後ろ上へ伸び、先が上を向く（2 つの箱を付け根でつなぐ）
+      const base = new THREE.Group(); base.rotation.x = -0.75; tail.add(base);
+      box(base, null, 0.05, 0.05, 0.24, 0, -0.025, 0.11, coat);
+      const tip = new THREE.Group(); tip.position.set(0, 0, 0.22); tip.rotation.x = -0.7; base.add(tip);
+      box(tip, null, 0.05, 0.05, 0.18, 0, -0.025, 0.08, coat);
+      break;
+    }
+    case 'thin': {
+      const base = new THREE.Group(); base.rotation.x = -0.35; tail.add(base);
+      box(base, null, 0.04, 0.04, 0.28, 0, -0.02, 0.13, coat);
+      break;
+    }
+    default: box(tail, null, 0.06, 0.06, 0.05, 0, -0.02, 0.02, coat);   // stub
+  }
+  // 頭（体の前、少し上）
+  const [hw, hh, hd] = p.head;
+  const head = new THREE.Group(); head.position.set(0, h * 0.55, -len - hd * 0.3); body.add(head);
+  box(head, null, hw, hh, hd, 0, 0, 0, coat);
+  const [sw, sh2, sd] = p.snout;
+  box(head, null, sw, sh2, sd, 0, 0.01, -hd / 2 - sd / 2 + 0.005, m(p.snoutColor));
+  box(head, null, Math.min(0.05, sw * 0.5), 0.035, 0.03, 0, 0.01 + sh2 - 0.035, -hd / 2 - sd + 0.005, m('#1d1d22'));   // 鼻
+  const eye = m(p.eye);
+  for (const s of [-1, 1]) {
+    box(head, null, 0.045, 0.05, 0.015, s * hw * 0.26, hh * 0.52, -hd / 2 - 0.006, eye);
+    if (p.eye !== '#1d1d22') box(head, null, 0.016, 0.04, 0.016, s * hw * 0.26, hh * 0.52 + 0.005, -hd / 2 - 0.012, m('#1d1d22'));   // 猫の瞳
+  }
+  const ec = p.earColor;
+  for (const s of [-1, 1]) {
+    switch (p.ears) {
+      case 'floppy': box(head, null, 0.04, 0.2, 0.12, s * (hw / 2 + 0.02), -0.06, 0.0, m(ec)); break;
+      case 'small': box(head, null, 0.08, 0.05, 0.07, s * (hw / 2 - 0.02), hh - 0.01, 0.02, m(ec)); break;
+      case 'big': cone(head, ec, 0.085, 0.2, s * hw * 0.3, hh - 0.02, 0.02, 0, -s * 0.25); break;
+      case 'cat': cone(head, ec, 0.065, 0.12, s * hw * 0.3, hh - 0.01, 0.02, 0, -s * 0.15); break;
+      default: cone(head, ec, 0.06, 0.13, s * hw * 0.28, hh - 0.01, 0.02, 0, -s * 0.15);   // pointy
+    }
+  }
+  if (p.name === 'bulldog') for (const s of [-1, 1]) box(head, null, 0.08, 0.08, 0.04, s * 0.08, -0.04, -hd / 2 - 0.02, light);   // ほお
+  return {
+    kind: 'quad', root, body, legs, arms, head, bodyZ, longBody: len > 0.7,
+    typeBase: 0.15, tail,
+    // 座面（高さ 0.5）にお尻が乗る高さ
+    sitDy: 0.43 - legH * ANIMAL_SCALE,
+    // ベッドでは、背中が布団（上面 0.76）の下に収まる高さに伏せ、頭が布団の端から出て枕に乗るよう前へずらす
+    lieDy: LIE_BACK_TOP - (h + legH) * ANIMAL_SCALE - BED_LIE_Y,
+    lieDz: LIE_HEAD_Z - ANIMAL_SCALE * (-0.58 * len - 0.3 * hd) - BED_LIE_DZ, lieRot: 0,
+  };
+}
+
+function buildFigure(presetIndex) {
+  const p = PRESETS[((presetIndex % PRESETS.length) + PRESETS.length) % PRESETS.length];
+  return p.kind === 'quad' ? buildQuad(p) : buildHuman(p);
+}
+
+function makeCharacter(presetIndex) {
+  const c = buildFigure(presetIndex);
+  c.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  c.zzz = zzzSprite(); c.zzz.visible = false; scene.add(c.zzz);
+  c.grawlix = grawlixSprites();
+  c.presetIndex = presetIndex;
+  scene.add(c.root);
+  return c;
+}
+const disposeCharacter = (c) => scene.remove(c.root, c.zzz, ...c.grawlix.map((g) => g.s));
+function poseStand(c) {
+  c.body.rotation.set(0, 0, 0); c.body.scale.set(1, 1, 1); c.head.rotation.set(0, 0, 0);
+  c.legs.forEach((l) => l.rotation.set(0, 0, 0)); c.arms.forEach((a) => a.rotation.set(0, 0, 0));
+  c.body.position.z = c.bodyZ;
+  if (c.tail) c.tail.visible = true;
+  c.root.position.y = 0;
+}
+function poseSit(c) {
+  poseStand(c);
+  c.legs.forEach((l) => (l.rotation.x = Math.PI / 2));
+  c.arms.forEach((a) => (a.rotation.x = c.typeBase));
+  // お座りして、前脚をキーボードへ。胴の長い犬は立ち上がりすぎないよう浅く
+  if (c.kind === 'quad') {
+    c.body.rotation.x = c.longBody ? 0.75 : 1.2; c.body.position.z = 0.02;
+    // 首はパソコンへ向ける（胴を起こした分だけ戻し、少しうつむく）。ダックスは胴が長いので起こしたままが面白い（マスター指定 2026-11-28）
+    if (!c.longBody) c.head.rotation.x = -c.body.rotation.x + SIT_HEAD_TILT;
+  }
+}
+function poseLie(c) {
+  poseStand(c);
+  if (c.kind === 'quad') {   // 伏せて、脚をたたむ
+    c.legs.forEach((l) => (l.rotation.x = -1.3)); c.arms.forEach((a) => (a.rotation.x = 1.3)); c.head.rotation.x = 0.15;
+    if (c.tail) c.tail.visible = false;   // 布団の中
+  } else c.body.rotation.x = Math.PI / 2;
+}
+// ============================================================
+// 状態 → 居場所。歩く道: ベッド ⇔ 仮眠室の通路 ⇔ 出入口 ⇔ 手前の通路 ⇔ デスク
+// ============================================================
+const people = new Map();
+let reduced = false, paused = false, firstSet = true, dirty = true, lastTime = 0;
+const hashId = (id) => { let h = 0; for (const ch of id) h = (h * 31 + ch.codePointAt(0)) | 0; return Math.abs(h); };
+const V = (x, z) => new THREE.Vector3(x, 0, z);
+function routeBedToDesk(slot) {
+  const b = beds[slot].stand, d = desks[slot].stand;
+  return [b.clone(), V(AISLE.napX, AISLE.napZ), V(DOOR.x, AISLE.napZ), V(DOOR.x, AISLE.frontZ), V(AISLE.officeX, d.z), d.clone()];
+}
+
+function placeAt(p, place) {
+  const c = p.c;
+  // 姿勢を先に決めてから置く（姿勢を戻すときに高さを 0 に戻すので、逆だとベッドの中に沈む）
+  if (place === 'desk') { poseSit(c); c.root.position.copy(desks[p.slot].seat); c.root.position.y += c.sitDy; c.root.rotation.y = 0; }
+  else {
+    poseLie(c); c.root.position.copy(beds[p.slot].lie);
+    c.root.position.y += c.lieDy; c.root.position.z += c.lieDz; c.root.rotation.y = c.lieRot;
+  }
+  p.place = place; p.walk = null; refreshFurniture();
+}
+function walkTo(p, place) {
+  if (p.walk) {           // 途中で向きが変わった: 来た道を戻る
+    const back = [p.c.root.position.clone().setY(0), ...p.walk.points.slice(0, p.walk.i).reverse()];
+    p.walk = { points: back, i: 1, target: place, phase: p.walk.phase };
+  } else {
+    const route = routeBedToDesk(p.slot);
+    if (place === 'bed') route.reverse();
+    poseStand(p.c); p.c.root.position.copy(route[0]);
+    p.walk = { points: route, i: 1, target: place, phase: 0 };
+  }
+  p.place = 'walking'; refreshFurniture();
+}
+function refreshFurniture() {
+  desks.forEach((d) => (d.on = false)); beds.forEach((b) => (b.used = false));
+  for (const p of people.values()) { if (p.place === 'desk') desks[p.slot].on = true; if (p.place === 'bed') beds[p.slot].used = true; }
+  desks.forEach((d) => { d.screen.material.color.set(d.on ? theme.screenOn : theme.screenOff); d.glow.intensity = d.on && theme.night ? d.glow.userData.on : 0; });
+  beds.forEach((b) => { b.blanket.position.y = b.used ? 0.7 : 0.49; b.blanket.scale.y = b.used ? 0.12 : 0.06; });
+  dirty = true;
+}
+function setAgents(all) {
+  const list = all.slice(0, SEATS), seen = new Set();   // タブと同じ並び・同じ 4 体
+  list.forEach((agent, index) => {
+    seen.add(agent.id);
+    const preset = (Number.isInteger(agent.preset) ? agent.preset : hashId(agent.id)) % PRESETS.length;
+    let p = people.get(agent.id);
+    if (p && p.c.presetIndex !== preset) { disposeCharacter(p.c); people.delete(agent.id); p = null; }
+    if (!p) { p = { c: makeCharacter(preset), agent, slot: index, place: null, walk: null }; people.set(agent.id, p); }
+    const slotChanged = p.slot !== index;
+    p.agent = agent; p.slot = index;
+    const want = agent.working ? 'desk' : 'bed', current = p.walk ? p.walk.target : p.place;
+    if (firstSet || reduced || p.place === null || slotChanged) placeAt(p, want);
+    else if (current !== want) walkTo(p, want);
+  });
+  for (const [id, p] of people) if (!seen.has(id)) { disposeCharacter(p.c); people.delete(id); }
+  firstSet = false; refreshFurniture();
+}
+function setTheme({ dark = false, accent } = {}) {
+  theme = { ...(dark ? THEMES.dark : THEMES.light) }; if (accent) theme.accent = accent;
+  document.body.classList.toggle('dark', dark);
+  scene.background = new THREE.Color(theme.bg);
+  hemi.color.set(theme.hemiSky); hemi.groundColor.set(theme.hemiGround); hemi.intensity = theme.hemi;
+  sun.intensity = theme.sun; sun.color.set(theme.sunColor);
+  windowMat.map?.dispose(); windowMat.map = windowTexture(theme.night); windowMat.needsUpdate = true;
+  mat('lampShade').emissive.set(theme.night ? '#ffb45c' : '#000000'); mat('lampShade').emissiveIntensity = 0.8;
+  nightLights.forEach((l) => (l.intensity = theme.night ? l.userData.on : 0));   // 消さずに 0 にする（数を変えると描き直しの準備で引っかかる）
+  refreshFurniture();
+}
+
+// ============================================================
+// 毎コマ
+// ============================================================
+const tmp = new THREE.Vector3();
+function update(dt, t) {
+  for (const p of people.values()) {
+    const c = p.c;
+    if (p.walk) {
+      const w = p.walk, target = w.points[w.i];
+      tmp.subVectors(target, c.root.position); tmp.y = 0;
+      const dist = tmp.length(), step = WALK_SPEED * dt;
+      if (dist <= step || reduced) {
+        c.root.position.set(target.x, 0, target.z);
+        if (++w.i >= w.points.length || reduced) { placeAt(p, w.target); continue; }
+      } else {
+        tmp.multiplyScalar(1 / dist);
+        c.root.position.addScaledVector(tmp, step);
+        c.root.rotation.y = Math.atan2(-tmp.x, -tmp.z);
+        w.phase += dt * 9;
+        const s = Math.sin(w.phase) * 0.6;
+        c.legs[0].rotation.x = s; c.legs[1].rotation.x = -s; c.arms[0].rotation.x = -s; c.arms[1].rotation.x = s;
+        c.root.position.y = Math.abs(Math.sin(w.phase)) * 0.04;
+      }
+    } else if (!reduced && p.place === 'desk') {
+      const k = t * 14 + p.slot;
+      c.arms[0].rotation.x = c.typeBase + Math.sin(k) * 0.12; c.arms[1].rotation.x = c.typeBase + Math.sin(k + 1.7) * 0.12;
+      c.head.rotation.y = Math.sin(t * 0.7 + p.slot) * 0.12;
+    } else if (!reduced && p.place === 'bed') {
+      c.body.scale.y = 1 + Math.sin(t * 2 + p.slot) * 0.015;
+    }
+    c.head.getWorldPosition(tmp);
+    const sleeping = p.place === 'bed';
+    c.zzz.visible = sleeping;
+    if (sleeping) {
+      const cyc = reduced ? 0.4 : ((t * 0.45 + p.slot * 0.13) % 1);
+      c.zzz.position.set(tmp.x + 0.4, tmp.y + 0.5 + cyc * 0.45, tmp.z);
+      c.zzz.material.opacity = reduced ? 1 : Math.min(1, (1 - cyc) * 1.6);
+    }
+    updateGrawlix(c, p.place === 'desk' && !!p.agent.busy, tmp, t, p.slot);
+  }
+}
+function updateGrawlix(c, on, head, t, slot) {
+  const life = GRAWLIX_SPAWN * GRAWLIX_SLOTS;
+  c.grawlix.forEach((g, k) => {
+    if (!on || (reduced && k > 0)) { g.s.visible = false; return; }
+    if (reduced) {   // 動かさない: 1 つだけ止めて出す
+      g.s.visible = true; g.s.material.map = glyphMaterial('#'); g.s.material.opacity = 1;
+      g.s.scale.set(0.32, 0.32, 1); g.s.position.set(head.x + 0.32, head.y + 0.62, head.z); return;
+    }
+    const clock = t + slot * 0.21 + k * GRAWLIX_SPAWN, cycle = Math.floor(clock / life), age = clock - cycle * life;
+    if (cycle !== g.cycle) {   // 新しく飛び出す: 記号と左右の位置を選び直す
+      g.cycle = cycle;
+      const r = rng(cycle * 31 + k * 7 + slot * 101);
+      g.s.material.map = glyphMaterial(GRAWLIX[Math.floor(r() * GRAWLIX.length)]);
+      g.s.material.rotation = (r() - 0.5) * 0.6;
+      g.dx = (r() - 0.5) * 0.5;
+    }
+    const pop = Math.min(1, age / 0.12), fade = 1 - age / life;
+    g.s.visible = true;
+    g.s.material.opacity = pop * Math.min(1, fade * 2.2);
+    const size = 0.22 + 0.1 * pop;
+    g.s.scale.set(size, size, 1);
+    g.s.position.set(head.x + 0.22 + g.dx, head.y + 0.48 + age * 0.75, head.z);
+  });
+}
+const anyWalking = () => { for (const p of people.values()) if (p.walk) return true; return false; };
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused || document.hidden) return;
+  const animating = anyWalking() || (!reduced && people.size > 0);
+  if (!animating && !dirty) return;
+  // 画面の更新（120Hz なら 8.3ms ごと）と少しずれても取りこぼさないよう、1.5ms の余裕を見る
+  if (!dirty && FPS && now - lastTime < 1000 / FPS - 1.5) return;
+  const dt = Math.min(0.1, (now - lastTime) / 1000 || 0);
+  lastTime = now; update(dt, now / 1000);
+  renderer.render(scene, camera); dirty = false;
+  fpsCount++;
+}
+let fpsCount = 0;
+setInterval(() => { const el = document.getElementById('fpsV'); if (el) el.textContent = `${fpsCount} fps`; fpsCount = 0; }, 1000);
+
+// ============================================================
+// 枠に合わせる（部屋が収まる大きさに寄せる。外側は壁と床で埋まる）
+// ============================================================
+// 寄り（1 で見せたい所がちょうど収まる。小さいほど寄る）。デスクとベッドを寄せたので、スマホでは前より約 1.3 倍大きい（マスター指定 2026-11-28）
+let zoom = 1.04;
+// 枠のうち、上に重なる部品（ステータスバー・閉じるボタン）がある分。部屋はその下に収める（CSS px = dp）
+let insets = { top: 0, right: 0, bottom: 0, left: 0 };
+// 見せたい所（デスクとベッド）。これが使える所にちょうど収まる寄りを 1 とする。ラウンジ・壁・奥の棚は枠の端で切れてよい
+const focus = [];
+for (const [x0, x1, z0, z1, y1] of [[-4.5, -0.7, -2.9, 1.9, 1.3], [1.9, 6.1, -6.7, -1.7, 1.0]])   // ベッドは足元・サイドテーブルまで
+  for (const x of [x0, x1]) for (const z of [z0, z1]) for (const y of [0, y1]) focus.push(new THREE.Vector3(x, y, z));
+function layout() {
+  const w = hero.clientWidth, h = hero.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.updateMatrixWorld();
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const v of focus) { tmp.copy(v).applyMatrix4(camera.matrixWorldInverse); minX = Math.min(minX, tmp.x); maxX = Math.max(maxX, tmp.x); minY = Math.min(minY, tmp.y); maxY = Math.max(maxY, tmp.y); }
+  // 部屋は、上に重なる部品を除いた所（使える所）の真ん中に、使える所に収まる大きさ × 寄りで置く。枠の残りも床と壁で埋まる
+  const aw = Math.max(1, w - insets.left - insets.right), ah = Math.max(1, h - insets.top - insets.bottom);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const unit = (Math.max((maxX - minX) / aw, (maxY - minY) / ah) * zoom);   // 1 px あたりの長さ
+  const fx = cx - ((insets.left - insets.right) / 2) * unit, fy = cy + ((insets.top - insets.bottom) / 2) * unit;
+  Object.assign(camera, { left: fx - (w / 2) * unit, right: fx + (w / 2) * unit, top: fy + (h / 2) * unit, bottom: fy - (h / 2) * unit });
+  camera.updateProjectionMatrix(); dirty = true;
+}
+new ResizeObserver(layout).observe(hero);
+
+// アプリ（WebView）から呼ぶ口
+/**
+ * キャラクターの見本の絵（設定の画面のアバター。PRESETS の並び）。PNG の data URL の配列を返す。
+ * オフィスと同じ組み立てで描くので、見本とオフィスの見た目が必ずそろう。顔の見える斜め前から、透明な背景で
+ */
+function portraits(size = 160) {
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1); r.setSize(size, size, false); r.setClearColor(0x000000, 0);
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight('#ffffff', '#b8ad9a', 1.7));
+  const dl = new THREE.DirectionalLight('#fff4e2', 1.3); dl.position.set(-3, 6, -5); sc.add(dl);
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
+  const dir = new THREE.Vector3(0.9, 0.55, -1).normalize(), v = new THREE.Vector3(), out = [];
+  for (let i = 0; i < PRESETS.length; i++) {
+    const f = buildFigure(i); poseStand(f); sc.add(f.root); f.root.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(f.root), center = bb.getCenter(new THREE.Vector3());
+    cam.position.copy(center).addScaledVector(dir, 10); cam.lookAt(center); cam.updateMatrixWorld();
+    let half = 0;
+    for (const x of [bb.min.x, bb.max.x]) for (const y of [bb.min.y, bb.max.y]) for (const z of [bb.min.z, bb.max.z]) {
+      v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse); half = Math.max(half, Math.abs(v.x), Math.abs(v.y));
+    }
+    half *= 1.08;
+    Object.assign(cam, { left: -half, right: half, top: half, bottom: -half }); cam.updateProjectionMatrix();
+    r.render(sc, cam); out.push(r.domElement.toDataURL('image/png'));
+    sc.remove(f.root);
+  }
+  r.dispose();
+  return out;
+}
+
+window.office = {
+  portraits,
+  setAgents, setTheme,
+  setReducedMotion(v) { reduced = !!v; setAgents([...people.values()].sort((a, b) => a.slot - b.slot).map((p) => p.agent)); },
+  setPaused(v) { paused = !!v; dirty = true; },
+  setInsets(v) { insets = { top: 0, right: 0, bottom: 0, left: 0, ...v }; layout(); },
+};
+
+// ============================================================
+// プレビューだけの操作盤
+// ============================================================
+const params = new URLSearchParams(location.search);
+// 埋め込み（アプリのサイドパネル）と、見本の絵を作るだけの読み込み（設定の画面）では操作盤を出さない
+const embed = params.has('embed') || params.has('portraits');
+document.body.classList.toggle('embed', embed);
+const NAMES = ['Moonshot', 'Wordsmith', 'CJ', 'Scout'];
+let demo = [
+  { id: 'a1', name: 'Moonshot', working: true, busy: true },
+  { id: 'a2', name: 'Wordsmith', working: false, busy: false },
+  { id: 'a3', name: 'CJ', working: true, busy: false },
+  { id: 'a4', name: 'Scout', working: false, busy: false },
+];
+function renderPanel() {
+  const root = document.getElementById('agents'); root.innerHTML = '';
+  demo.forEach((a) => {
+    const row = document.createElement('div'); row.className = 'row';
+    const name = document.createElement('span'); name.className = 'name'; name.textContent = a.name;
+    // 睡眠 → 作業中（動いている）→ デスクで待機（終わって 20 秒）→ 睡眠
+    const label = a.busy ? '作業中' : a.working ? 'デスクで待機' : '睡眠';
+    const state = document.createElement('button'); state.textContent = label; state.className = a.working ? 'on' : '';
+    state.onclick = () => { if (a.busy) a.busy = false; else if (a.working) a.working = false; else { a.working = true; a.busy = true; } push(); };
+    const sel = document.createElement('select');
+    PRESETS.forEach((_, k) => { const o = document.createElement('option'); o.value = k; o.textContent = `キャラ ${k + 1}`; sel.append(o); });
+    sel.value = String((Number.isInteger(a.preset) ? a.preset : hashId(a.id)) % PRESETS.length);
+    sel.onchange = () => { a.preset = Number(sel.value); push(); };
+    row.append(name, state, sel); root.append(row);
+  });
+}
+function push() { setAgents(demo.map((a) => ({ ...a }))); renderPanel(); }
+document.getElementById('add').onclick = () => { const n = demo.length; if (n >= SEATS) return; demo.push({ id: `a${n + 1}`, name: NAMES[n], working: false, busy: false }); push(); };
+document.getElementById('remove').onclick = () => { demo.pop(); push(); };
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+document.getElementById('dark').onchange = (e) => setTheme({ dark: e.target.checked });
+document.getElementById('fps').onchange = (e) => { FPS = Number(e.target.value); };
+document.getElementById('reduced').onchange = (e) => window.office.setReducedMotion(e.target.checked);
+document.getElementById('height').oninput = (e) => { hero.style.height = e.target.value + 'px'; document.getElementById('heightV').textContent = e.target.value + 'px'; };
+document.getElementById('zoom').oninput = (e) => { zoom = e.target.value / 100; document.getElementById('zoomV').textContent = zoom.toFixed(2); layout(); };
+// システムの外観に連動（アプリでは、アプリのテーマから setTheme で渡す）
+sysDark.addEventListener('change', (e) => { setTheme({ dark: e.matches }); document.getElementById('dark').checked = e.matches; });
+setTheme({ dark: sysDark.matches });
+document.getElementById('dark').checked = sysDark.matches;
+layout();
+if (!embed) { push(); }
+requestAnimationFrame(frame);
+</script>
+</body>

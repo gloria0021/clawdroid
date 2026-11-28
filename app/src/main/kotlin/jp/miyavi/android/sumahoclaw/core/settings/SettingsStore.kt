@@ -61,6 +61,17 @@ data class NotificationSettings(
     val notifyAutomationFailures: Boolean = true,
 )
 
+/** バーチャルオフィスの昼・夜（spec 009）。自動はアプリの外観に合わせる。 */
+enum class OfficeTheme { AUTO, DAY, NIGHT }
+
+/** バーチャルオフィスの設定（spec 009。設定 → エージェント → バーチャルオフィス）。 */
+data class OfficeSettings(
+    val enabled: Boolean = false,
+    val theme: OfficeTheme = OfficeTheme.AUTO,
+    /** エージェントごとに選んだキャラクター（0 始まり）。選んでいなければ id から決める。 */
+    val avatars: Map<String, Int> = emptyMap(),
+)
+
 data class UiSelection(
     val selectedAgentId: String? = null,
     val selectedSessionKeyByAgent: Map<String, String> = emptyMap(),
@@ -176,6 +187,26 @@ class SettingsStore(context: Context) {
         p[EDITOR_LANGUAGES] = json.encodeToString<Map<String, String>>(next)
     }
 
+    /** バーチャルオフィス（実験機能。spec 009）。既定はオフ（電池を使うため）。 */
+    val virtualOffice: Flow<Boolean> = store.data.map { it[VIRTUAL_OFFICE] ?: false }.distinctUntilChanged()
+
+    suspend fun setVirtualOffice(v: Boolean) = store.edit { it[VIRTUAL_OFFICE] = v }
+
+    val office: Flow<OfficeSettings> = store.data.map { p ->
+        OfficeSettings(
+            enabled = p[VIRTUAL_OFFICE] ?: false,
+            theme = p[OFFICE_THEME].toEnum(OfficeTheme.AUTO),
+            avatars = p[OFFICE_AVATARS]?.let { runCatching { json.decodeFromString<Map<String, Int>>(it) }.getOrNull() }.orEmpty(),
+        )
+    }.distinctUntilChanged()
+
+    suspend fun setOfficeTheme(v: OfficeTheme) = store.edit { it[OFFICE_THEME] = v.name }
+
+    suspend fun setOfficeAvatar(agentId: String, preset: Int) = store.edit { p ->
+        val current = p[OFFICE_AVATARS]?.let { runCatching { json.decodeFromString<Map<String, Int>>(it) }.getOrNull() }.orEmpty()
+        p[OFFICE_AVATARS] = json.encodeToString(current + (agentId to preset))
+    }
+
     suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
 
     /** ランチャーのショートカットの枠（spec 007 R7）。読めなければ空。 */
@@ -237,6 +268,9 @@ class SettingsStore(context: Context) {
         val SHORTCUTS = stringPreferencesKey("shortcuts")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val THINKING_PHRASES = stringPreferencesKey("thinking_phrases")
+        val VIRTUAL_OFFICE = booleanPreferencesKey("virtual_office")
+        val OFFICE_THEME = stringPreferencesKey("office_theme")
+        val OFFICE_AVATARS = stringPreferencesKey("office_avatars")
     }
 }
 

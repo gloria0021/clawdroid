@@ -41,6 +41,8 @@ object OssLicenses {
         Bundled("hugeicons", "Hugeicons (Stroke Rounded)", "MIT License", "hugeicons-MIT.md"),
         Bundled("line-seed-jp", "LINE Seed JP", "SIL Open Font License 1.1", "line-seed-jp-OFL.md"),
         Bundled("openclaw", "OpenClaw", "MIT License", "openclaw-MIT.md"),
+        // バーチャルオフィスの 3D の描画（spec 009。assets/office に同梱）
+        Bundled("threejs", "three.js", "MIT License", "threejs-MIT.md"),
     )
 
     /**

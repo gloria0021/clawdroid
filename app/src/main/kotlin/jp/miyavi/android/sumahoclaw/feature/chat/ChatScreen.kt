@@ -569,6 +569,13 @@ fun ChatContent(
         val panelFloatPx = with(density) { PANEL_FLOAT.toPx() }
         // パネルの幅（全画面のパネルなので窓の幅）。中身を浮かせる割合に使う
         val drawerWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toFloat()
+        // パネルが少しでも見えているか（バーチャルオフィスを、閉じているあいだ止めるため）。値が変わったときだけ再構成する
+        val panelVisible by remember(drawerState, drawerWidthPx) {
+            androidx.compose.runtime.derivedStateOf {
+                val offset = drawerState.currentOffset
+                drawerState.targetValue == DrawerValue.Open || (!offset.isNaN() && drawerWidthPx > 0f && offset > -drawerWidthPx + 1f)
+            }
+        }
         DismissibleNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -606,6 +613,7 @@ fun ChatContent(
                     },
                     // 看板も中身も、少し下から浮き上がる
                     liftRange = PANEL_FLOAT,
+                    panelVisible = panelVisible,
                     contentLift = {
                         val offset = revealOffset()
                         if (offset.isNaN() || drawerWidthPx <= 0f) 0f else (-offset / drawerWidthPx).coerceIn(0f, 1f) * panelFloatPx
