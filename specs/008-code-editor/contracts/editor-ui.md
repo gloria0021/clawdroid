@@ -41,7 +41,7 @@
 
 ## 文言（`strings.xml` に足すもの。案）
 
-- `editor_launcher_label`「SumahoClaw エディター」
+- `editor_launcher_label`「テキストエディタ」（下に SumahoClaw）
 - `editor_save_cd`「保存」、`editor_search_cd`「検索」
 - `editor_menu_wrap`「折り返す」、`editor_menu_language`「言語」、`editor_menu_charset`「文字コード」、`editor_menu_save_as`「別の名前で保存」
 - `editor_status_selected`「選択 %1$s 文字」、`editor_status_chars`「%1$s 文字」、`editor_status_lines`「%1$s 行」

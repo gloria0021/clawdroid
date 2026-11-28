@@ -915,7 +915,7 @@
     <string name="settings_notify_channels_desc">端末の通知の設定を開きます</string>
     <string name="settings_notify_test">テスト通知を送る</string>
     <!-- エディター（spec 008） -->
-    <string name="editor_launcher_label">SumahoClaw エディター</string>
+    <string name="editor_launcher_label">テキストエディタ</string>
     <string name="editor_back_cd">戻る</string>
     <string name="editor_more_cd">エディターのメニュー</string>
     <string name="editor_menu_wrap">折り返す</string>

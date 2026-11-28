@@ -393,7 +393,7 @@
     <string name="editor_copied">Gesamten Text kopiert</string>
     <string name="editor_language_cd">Sprache ändern</string>
     <string name="editor_language_none">Keine (ohne Hervorhebung)</string>
-    <string name="editor_launcher_label">SumahoClaw Editor</string>
+    <string name="editor_launcher_label">Texteditor</string>
     <string name="editor_leave_body">Vor dem Schließen speichern?</string>
     <string name="editor_leave_discard">Verwerfen</string>
     <string name="editor_leave_keep">Weiter bearbeiten</string>

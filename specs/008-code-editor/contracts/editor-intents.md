@@ -42,7 +42,7 @@
 </activity>
 ```
 
-- 「アプリで開く」の候補に出る名前は `editor_launcher_label`（例: 「SumahoClaw エディター」）
+- 「アプリで開く」の候補に出る名前は `editor_launcher_label`（例: 「テキストエディタ」（下に SumahoClaw））
 - `exported="true"` で受けるのは上の 2 つの action だけ。アプリの中の extras（`editor.kind` など）は、外から来た Intent では読まない（`getCallingActivity`・`ACTION` で区別し、`data` が `content://` の `ACTION_VIEW` / `ACTION_EDIT` だけを `LocalDocument` にする）。ほかのアプリが Gateway のファイルを開かせることはできない
 - 書けるかは research R8 の順で決める
 

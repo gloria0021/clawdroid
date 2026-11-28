@@ -392,7 +392,7 @@
     <string name="editor_copied">전체 텍스트를 복사했습니다</string>
     <string name="editor_language_cd">언어 다시 선택</string>
     <string name="editor_language_none">없음(구문 강조 안 함)</string>
-    <string name="editor_launcher_label">SumahoClaw 편집기</string>
+    <string name="editor_launcher_label">텍스트 편집기</string>
     <string name="editor_leave_body">닫기 전에 저장할까요?</string>
     <string name="editor_leave_discard">삭제</string>
     <string name="editor_leave_keep">계속 편집</string>

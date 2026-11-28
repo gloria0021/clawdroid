@@ -394,7 +394,7 @@
     <string name="editor_copied">Tout le texte a été copié</string>
     <string name="editor_language_cd">Changer de langue</string>
     <string name="editor_language_none">Aucune (sans coloration)</string>
-    <string name="editor_launcher_label">Éditeur SumahoClaw</string>
+    <string name="editor_launcher_label">Éditeur de texte</string>
     <string name="editor_leave_body">Enregistrer avant de fermer ?</string>
     <string name="editor_leave_discard">Abandonner</string>
     <string name="editor_leave_keep">Continuer</string>

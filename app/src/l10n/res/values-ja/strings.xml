@@ -392,7 +392,7 @@
     <string name="editor_copied">全文をコピーしました</string>
     <string name="editor_language_cd">言語を選び直す</string>
     <string name="editor_language_none">なし（色分けしない）</string>
-    <string name="editor_launcher_label">SumahoClaw エディター</string>
+    <string name="editor_launcher_label">テキストエディタ</string>
     <string name="editor_leave_body">閉じる前に保存しますか？</string>
     <string name="editor_leave_discard">捨てる</string>
     <string name="editor_leave_keep">続ける</string>
