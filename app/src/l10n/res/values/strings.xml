@@ -701,6 +701,9 @@
     <string name="settings_surface_blur">Blur</string>
     <string name="settings_surface_glass">Glass</string>
     <string name="settings_surface_style">Transparency effect</string>
+    <string name="settings_thinking_phrases">Thinking phrases</string>
+    <string name="settings_thinking_phrases_count">%1$d phrases</string>
+    <string name="settings_thinking_phrases_default">Default</string>
     <string name="settings_title">Settings</string>
     <string name="settings_version">Version %1$s</string>
     <string name="shortcut_archived">Archived. Unarchiving the session also restores it to the launcher</string>
@@ -871,6 +874,13 @@
     <string name="theme_modern_desc">A world of black and white</string>
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">The mark of OpenClaw</string>
+    <string name="thinking_phrases_empty">Add at least one phrase</string>
+    <string name="thinking_phrases_hint">Short lines shown in the chat while the agent works. Each line is one phrase, and they rotate at random. The trailing \"…\" is added automatically.</string>
+    <string name="thinking_phrases_more_cd">More options</string>
+    <string name="thinking_phrases_preview">Preview</string>
+    <string name="thinking_phrases_reset">Reset to default</string>
+    <string name="thinking_phrases_reset_body">Your edited phrases will be lost and the built-in list will be restored.</string>
+    <string name="thinking_phrases_reset_title">Reset to default?</string>
     <string name="tool_profile_coding">Coding</string>
     <string name="tool_profile_full">All</string>
     <string name="tool_profile_messaging">Messaging</string>

@@ -81,6 +81,7 @@ import jp.miyavi.android.sumahoclaw.feature.connect.ConnectViewModel
 import jp.miyavi.android.sumahoclaw.feature.settings.SettingsActions
 import jp.miyavi.android.sumahoclaw.feature.settings.SettingsContent
 import jp.miyavi.android.sumahoclaw.feature.settings.SettingsState
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -91,6 +92,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object AgentLayoutRoute : NavKey
 @Serializable data object NotificationSettingsRoute : NavKey
 @Serializable data object ShortcutSettingsRoute : NavKey
+@Serializable data object ThinkingPhrasesRoute : NavKey
 @Serializable data object LicensesRoute : NavKey
 @Serializable data class TerminalRoute(val sessionKey: String? = null, val agentId: String? = null, val cwd: String? = null) : NavKey
 @Serializable data class FilesRoute(val sessionKey: String, val agentId: String) : NavKey
@@ -185,6 +187,9 @@ private fun MainNavigation(container: AppContainer) {
         { ms -> DateUtils.getRelativeTimeSpanString(ms, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString() }
     }
 
+    // 考え中のひとこと（設定で書き換えたもの）。会話の考え中の表示が読む
+    val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
+    CompositionLocalProvider(jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases) {
     NavDisplay(
         backStack = backStack,
         modifier = Modifier.fillMaxSize().clipToBounds().background(MaterialTheme.colorScheme.surface),
@@ -252,7 +257,7 @@ private fun MainNavigation(container: AppContainer) {
                 SettingsContent(
                     state = SettingsState(
                         theme, connection, url, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, shown, agentsState.agents.size, notifications, shortcuts.slots.size,
-                        languages = languages, language = language,
+                        languages = languages, language = language, thinkingPhrases = thinkingPhrases?.size,
                     ),
                     snackbar = snackbar,
                     actions = SettingsActions(
@@ -273,6 +278,7 @@ private fun MainNavigation(container: AppContainer) {
                         setNotifications = { next -> scope.launch { container.settings.setNotifications(next) } },
                         openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
                         openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
+                        openThinkingPhrases = { gate.run { backStack.push(ThinkingPhrasesRoute) } },
                         openLicenses = { gate.run { backStack.push(LicensesRoute) } },
                         setLanguage = { jp.miyavi.android.sumahoclaw.core.settings.AppLanguage.set(languageContext, it) },
                     ),
@@ -309,6 +315,20 @@ private fun MainNavigation(container: AppContainer) {
                     state = jp.miyavi.android.sumahoclaw.feature.settings.ShortcutSettingsUi(shortcuts.slots, agentsState.agents, lists),
                     actions = shortcutActions,
                 )
+            }
+            entry<ThinkingPhrasesRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                // 開いたときの保存済みの内容を一度だけ読む（読み終わるまでエディタを作らない）
+                val loaded by androidx.compose.runtime.produceState<Pair<Boolean, List<String>?>>(false to null) {
+                    value = true to container.settings.thinkingPhrases.first()
+                }
+                if (loaded.first) {
+                    jp.miyavi.android.sumahoclaw.feature.settings.ThinkingPhrasesScreen(
+                        initial = loaded.second,
+                        onSave = { phrases -> scope.launch { container.settings.setThinkingPhrases(phrases) } },
+                        onBack = { gate.run { backStack.pop() } },
+                    )
+                }
             }
             entry<NotificationSettingsRoute> {
                 val gate = rememberNavGate(onBack = { backStack.pop() })
@@ -508,6 +528,7 @@ private fun MainNavigation(container: AppContainer) {
             }
         },
     )
+    }
 
     // 再起動の確認（FR-071）。結果は Snackbar で示す
     if (confirmRestart) {

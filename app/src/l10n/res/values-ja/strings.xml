@@ -698,6 +698,9 @@
     <string name="settings_surface_blur">ぼかし</string>
     <string name="settings_surface_glass">ガラス</string>
     <string name="settings_surface_style">透過効果</string>
+    <string name="settings_thinking_phrases">考え中のひとこと</string>
+    <string name="settings_thinking_phrases_count">%1$d 個</string>
+    <string name="settings_thinking_phrases_default">既定</string>
     <string name="settings_title">設定</string>
     <string name="settings_version">バージョン %1$s</string>
     <string name="shortcut_archived">アーカイブ済み。セッションのアーカイブを戻すと、ランチャーにも戻ります</string>
@@ -868,6 +871,13 @@
     <string name="theme_modern_desc">白と黒の世界</string>
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">OpenClawの象徴</string>
+    <string name="thinking_phrases_empty">1 つ以上書いてください</string>
+    <string name="thinking_phrases_hint">エージェントが作業しているあいだ、会話に出すひとことです。1 行が 1 つのひとことで、ランダムに入れ替わります。末尾の「…」は自動で付きます。</string>
+    <string name="thinking_phrases_more_cd">その他の操作</string>
+    <string name="thinking_phrases_preview">見え方</string>
+    <string name="thinking_phrases_reset">既定に戻す</string>
+    <string name="thinking_phrases_reset_body">書き換えたひとことは失われ、アプリに入っている一覧に戻ります。</string>
+    <string name="thinking_phrases_reset_title">既定に戻しますか？</string>
     <string name="tool_profile_coding">コーディング</string>
     <string name="tool_profile_full">すべて</string>
     <string name="tool_profile_messaging">メッセージ</string>

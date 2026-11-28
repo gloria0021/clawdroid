@@ -36,6 +36,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
+/** 設定で書き換えた考え中のひとこと（null なら既定の訳の一覧）。 */
+val LocalThinkingPhrases = androidx.compose.runtime.compositionLocalOf<List<String>?> { null }
+
 /**
  * 考え中の表示（Control UI の「10m 13s · …」と同じ役割）。経過時間と、ふざけた言い回し。
  * 経過時間は 1 秒ごとにこの行だけを描き直す。言い回しは数秒ごとに入れ替える（ツールの実行中も名前は出さない。マスター指定 2026-11-23）。
@@ -49,7 +52,9 @@ fun ThinkingIndicator(
     label: String? = null,
 ) {
     val elapsed = rememberElapsedSeconds(startedAt)
-    val phrases = stringArrayResource(R.array.chat_thinking_phrases)
+    val defaults = stringArrayResource(R.array.chat_thinking_phrases)
+    // 設定で書き換えた一覧があればそちら（マスター指定 2026-11-28）
+    val phrases = LocalThinkingPhrases.current ?: remember(defaults) { defaults.toList() }
     // ネタは毎回ランダムに選ぶ。直前と同じネタは続けない（マスター指定 2026-11-23）
     // 切り替えは経過秒で数え、末尾の点が 1 個に戻る瞬間にそろえる
     val phraseTick = elapsed / PHRASE_SECONDS

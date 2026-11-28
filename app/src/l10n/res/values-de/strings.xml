@@ -701,6 +701,9 @@
     <string name="settings_surface_blur">Weichzeichner</string>
     <string name="settings_surface_glass">Glas</string>
     <string name="settings_surface_style">Transparenzeffekt</string>
+    <string name="settings_thinking_phrases">Statuszeilen beim Nachdenken</string>
+    <string name="settings_thinking_phrases_count">%1$d Zeilen</string>
+    <string name="settings_thinking_phrases_default">Standard</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_version">Version %1$s</string>
     <string name="shortcut_archived">Archiviert. Wenn du die Sitzung wiederherstellst, erscheint sie auch wieder im Launcher</string>
@@ -871,6 +874,13 @@
     <string name="theme_modern_desc">Eine Welt in Schwarz und Weiß</string>
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">Das Symbol von OpenClaw</string>
+    <string name="thinking_phrases_empty">Mindestens eine Zeile hinzufügen</string>
+    <string name="thinking_phrases_hint">Kurze Zeilen, die im Chat erscheinen, während der Agent arbeitet. Jede Zeile ist ein Eintrag, die Reihenfolge wechselt zufällig. Das abschließende „…“ wird automatisch ergänzt.</string>
+    <string name="thinking_phrases_more_cd">Weitere Optionen</string>
+    <string name="thinking_phrases_preview">Vorschau</string>
+    <string name="thinking_phrases_reset">Auf Standard zurücksetzen</string>
+    <string name="thinking_phrases_reset_body">Deine bearbeiteten Zeilen gehen verloren und die mitgelieferte Liste wird wiederhergestellt.</string>
+    <string name="thinking_phrases_reset_title">Auf Standard zurücksetzen?</string>
     <string name="tool_profile_coding">Coding</string>
     <string name="tool_profile_full">Alle</string>
     <string name="tool_profile_messaging">Nachrichten</string>

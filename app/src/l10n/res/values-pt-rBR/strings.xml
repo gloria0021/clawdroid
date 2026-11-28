@@ -704,6 +704,9 @@
     <string name="settings_surface_blur">Desfoque</string>
     <string name="settings_surface_glass">Vidro</string>
     <string name="settings_surface_style">Efeito de transparência</string>
+    <string name="settings_thinking_phrases">Frases de espera</string>
+    <string name="settings_thinking_phrases_count">%1$d frases</string>
+    <string name="settings_thinking_phrases_default">Padrão</string>
     <string name="settings_title">Configurações</string>
     <string name="settings_version">Versão %1$s</string>
     <string name="shortcut_archived">Arquivada. Desarquivar a sessão também a restaura no launcher</string>
@@ -874,6 +877,13 @@
     <string name="theme_modern_desc">Um mundo em preto e branco</string>
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">A marca do OpenClaw</string>
+    <string name="thinking_phrases_empty">Adicione pelo menos uma frase</string>
+    <string name="thinking_phrases_hint">Frases curtas exibidas na conversa enquanto o agente trabalha. Cada linha é uma frase, e elas se alternam aleatoriamente. As reticências \"…\" no final são adicionadas automaticamente.</string>
+    <string name="thinking_phrases_more_cd">Mais opções</string>
+    <string name="thinking_phrases_preview">Prévia</string>
+    <string name="thinking_phrases_reset">Restaurar padrão</string>
+    <string name="thinking_phrases_reset_body">As frases editadas serão perdidas e a lista integrada será restaurada.</string>
+    <string name="thinking_phrases_reset_title">Restaurar padrão?</string>
     <string name="tool_profile_coding">Programação</string>
     <string name="tool_profile_full">Todas</string>
     <string name="tool_profile_messaging">Mensagens</string>

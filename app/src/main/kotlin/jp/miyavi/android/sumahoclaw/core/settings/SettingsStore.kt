@@ -168,6 +168,19 @@ class SettingsStore(context: Context) {
         if (next != current) p[SHORTCUTS] = json.encodeToString(next)
     }
 
+    /**
+     * 考え中のひとこと（設定 → エージェント）。null なら既定（言語ごとの訳の一覧）。
+     * 保存した一覧は、どの言語でもそのまま使う。
+     */
+    val thinkingPhrases: Flow<List<String>?> = store.data.map { p ->
+        p[THINKING_PHRASES]?.let { runCatching { json.decodeFromString<List<String>>(it) }.getOrNull() }?.takeIf { it.isNotEmpty() }
+    }.distinctUntilChanged()
+
+    /** 一覧を保存する。null か空なら既定に戻す。 */
+    suspend fun setThinkingPhrases(phrases: List<String>?) = store.edit { p ->
+        if (phrases.isNullOrEmpty()) p.remove(THINKING_PHRASES) else p[THINKING_PHRASES] = json.encodeToString(phrases)
+    }
+
     suspend fun selectSession(agentId: String, sessionKey: String?) = store.edit { p ->
         val current = p[SELECTED_SESSIONS]?.let {
             runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull()
@@ -197,6 +210,7 @@ class SettingsStore(context: Context) {
         val CODE_WRAP = booleanPreferencesKey("code_wrap")
         val SHORTCUTS = stringPreferencesKey("shortcuts")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
+        val THINKING_PHRASES = stringPreferencesKey("thinking_phrases")
     }
 }
 
