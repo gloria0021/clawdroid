@@ -274,29 +274,24 @@
     <string name="chat_text_remove">Retirer</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caractères</string>
     <string-array name="chat_thinking_phrases">
-        <item>Je remonte la pile d\'appels à contre-courant…</item>
+        <item>Je remonte la stack trace…</item>
         <item>Je recompte les parenthèses…</item>
-        <item>Je pêche un nom de variable…</item>
-        <item>Je convertis le café en tokens…</item>
-        <item>J\'enquête sur ce miracle qui fonctionne…</item>
+        <item>Je cherche un nom de variable…</item>
+        <item>Je convertis du café en tokens…</item>
+        <item>J\'enquête sur pourquoi ça marche quand même…</item>
         <item>Je lis entre les lignes de la spec…</item>
-        <item>J\'écris un commentaire pour mon futur moi…</item>
-        <item>Je fais comme si je n\'avais pas vu ce TODO…</item>
-        <item>Je consulte le Stack Overflow dans ma tête…</item>
-        <item>Je feuillette les articles de blog dans ma mémoire…</item>
-        <item>J\'attends la meilleure réponse sur mon forum intérieur…</item>
-        <item>Je me demande s\'il faut juste vider le cache…</item>
-        <item>Je vérifie si un redémarrage règle tout…</item>
-        <item>On y est presque… sans doute…</item>
-        <item>Progression ressentie : 90%…</item>
-        <item>Je recalcule le temps restant…</item>
-        <item>Plus gros poisson que prévu…</item>
-        <item>Tout est sous contrôle. Sans doute…</item>
-        <item>J\'arrive au meilleur moment…</item>
-        <item>Laissez-moi y réfléchir encore une fois…</item>
-        <item>Je vois le bout. Tout là-bas, à l\'horizon…</item>
-        <item>Qui a dit que ce serait rapide…</item>
-        <item>Je marche en crabe, c\'est voulu…</item>
+        <item>J\'écris un commentaire pour mon moi du futur…</item>
+        <item>Je fais semblant de ne pas voir les TODO…</item>
+        <item>Je demande au Stack Overflow dans ma tête…</item>
+        <item>Je feuillette Developpez.com de mémoire…</item>
+        <item>J\'attends la meilleure réponse sur mon Comment Ça Marche intérieur…</item>
+        <item>Je me demande s\'il suffit de vider le cache…</item>
+        <item>Je vois si un redémarrage règle ça…</item>
+        <item>C\'est là que ça devient intéressant…</item>
+        <item>Je réfléchis à plein régime…</item>
+        <item>Je retrousse mes manches…</item>
+        <item>J\'étale mes idées sur le bureau…</item>
+        <item>Je relie les points…</item>
         <item>Merci de votre patience…</item>
     </string-array>
     <string name="chat_tool_expand_label">Ouvrir l\'exécution de l\'outil</string>

@@ -274,29 +274,24 @@
     <string name="chat_text_remove">Entfernen</string>
     <string name="chat_text_tile_cd">%1$s, %2$d Zeichen</string>
     <string-array name="chat_thinking_phrases">
-        <item>Schwimme den Stacktrace hinauf…</item>
-        <item>Zähle die Klammern nach, mit beiden Scheren…</item>
-        <item>Angle nach einem Variablennamen…</item>
+        <item>Klettere den Stacktrace hinauf…</item>
+        <item>Zähle die Klammern nach…</item>
+        <item>Denke mir einen Variablennamen aus…</item>
         <item>Verwandle Kaffee in Tokens…</item>
-        <item>Untersuche, warum es irgendwie läuft…</item>
+        <item>Untersuche, warum es trotzdem läuft…</item>
         <item>Lese zwischen den Zeilen der Spezifikation…</item>
-        <item>Hinterlasse einen Kommentar für mein künftiges Ich…</item>
-        <item>Tue so, als hätte ich das TODO nicht gesehen…</item>
+        <item>Schreibe einen Kommentar für mein zukünftiges Ich…</item>
+        <item>Übersehe die TODOs geflissentlich…</item>
         <item>Frage das Stack Overflow in meinem Kopf…</item>
-        <item>Blättere durch Blogposts aus dem Gedächtnis…</item>
-        <item>Warte auf die beste Antwort im Forum in meinem Kopf…</item>
+        <item>Blättere im Kopf durch heise Developer…</item>
+        <item>Warte auf die beste Antwort in meinem inneren gutefrage.net…</item>
         <item>Überlege, ob ich einfach den Cache leere…</item>
         <item>Teste, ob ein Neustart hilft…</item>
-        <item>Fast geschafft… wahrscheinlich…</item>
-        <item>Gefühlt bei 90 %…</item>
-        <item>Berechne die Restzeit neu…</item>
-        <item>Das ist größer als gedacht…</item>
-        <item>Alles nach Plan. Wahrscheinlich…</item>
-        <item>Gerade wird\'s spannend…</item>
-        <item>Lass mich noch einmal nachdenken…</item>
-        <item>Das Ende ist in Sicht. Weit draußen am Horizont…</item>
-        <item>Wer hat gesagt, das geht schnell…</item>
-        <item>Nehme absichtlich den Umweg übers Riff…</item>
+        <item>Jetzt wird\'s spannend…</item>
+        <item>Denke auf Hochtouren…</item>
+        <item>Kremple die Ärmel hoch…</item>
+        <item>Breite Ideen auf dem Schreibtisch aus…</item>
+        <item>Verbinde die Punkte…</item>
         <item>Danke fürs Warten…</item>
     </string-array>
     <string name="chat_tool_expand_label">Tool-Aufruf öffnen</string>

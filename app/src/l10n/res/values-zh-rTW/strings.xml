@@ -274,29 +274,24 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 個字元</string>
     <string-array name="chat_thinking_phrases">
-        <item>正沿著堆疊追蹤逆流而上…</item>
+        <item>正在沿著堆疊追蹤往上爬…</item>
         <item>重新數一遍括號…</item>
-        <item>正在撈一個變數名稱…</item>
-        <item>把咖啡轉換成 token 中…</item>
-        <item>正在調查它為什麼莫名能動…</item>
-        <item>在規格書的字裡行間摸索…</item>
-        <item>替未來的自己留個註解…</item>
-        <item>假裝沒看到那個 TODO…</item>
-        <item>正在問腦中的 Stack Overflow…</item>
-        <item>翻找記憶裡的技術文章…</item>
-        <item>等待內心問答板的最佳解答…</item>
-        <item>考慮要不要先清快取…</item>
-        <item>試試看重開能不能解決…</item>
-        <item>快好了…大概吧…</item>
-        <item>感覺上進度有 90% 了…</item>
-        <item>重新計算剩餘時間…</item>
-        <item>事情比想像中大條…</item>
-        <item>一切都在預料之中。大概…</item>
-        <item>正要進入精彩的部分…</item>
-        <item>讓我再想一次就好…</item>
-        <item>看得到終點了。在遙遠的海平線上…</item>
-        <item>是誰說很快就好的…</item>
-        <item>故意繞遠路橫著走…</item>
+        <item>正在絞盡腦汁想變數名稱…</item>
+        <item>正在把咖啡轉換成 token…</item>
+        <item>正在調查為什麼莫名其妙能跑…</item>
+        <item>正在解讀規格書的弦外之音…</item>
+        <item>正在給未來的自己寫註解…</item>
+        <item>假裝沒看到那些 TODO…</item>
+        <item>正在請教腦內的 Stack Overflow…</item>
+        <item>正在翻閱記憶中的 iT邦幫忙…</item>
+        <item>正在心中的 PTT 等神回覆…</item>
+        <item>正在考慮要不要先清快取…</item>
+        <item>試試看重新啟動能不能解決…</item>
+        <item>現在正精彩…</item>
+        <item>大腦全速運轉中…</item>
+        <item>捲起袖子中…</item>
+        <item>把想法攤在桌上…</item>
+        <item>正在把點連成線…</item>
         <item>謝謝你耐心等候…</item>
     </string-array>
     <string name="chat_tool_expand_label">展開工具執行</string>

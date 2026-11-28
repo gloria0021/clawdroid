@@ -274,29 +274,24 @@
     <string name="chat_text_remove">Quitar</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caracteres</string>
     <string-array name="chat_thinking_phrases">
-        <item>Nadando contra corriente por el stack trace…</item>
-        <item>Recontando los paréntesis…</item>
-        <item>Pescando un nombre de variable…</item>
+        <item>Remontando la traza de la pila…</item>
+        <item>Volviendo a contar los paréntesis…</item>
+        <item>Buscando un nombre para la variable…</item>
         <item>Convirtiendo café en tokens…</item>
-        <item>Investigando por qué funciona sin saber por qué…</item>
+        <item>Investigando por qué funciona igualmente…</item>
         <item>Leyendo entre líneas la especificación…</item>
         <item>Dejando un comentario para mi yo del futuro…</item>
-        <item>Fingiendo que no vi ese TODO…</item>
+        <item>Haciendo como que no veo los TODO…</item>
         <item>Preguntando al Stack Overflow de mi cabeza…</item>
-        <item>Hojeando los blogs que recuerdo…</item>
-        <item>Esperando la mejor respuesta en mi foro interior…</item>
-        <item>Pensando si simplemente borrar la caché…</item>
+        <item>Hojeando dev.to de memoria…</item>
+        <item>Esperando la mejor respuesta en mi Quora interior…</item>
+        <item>Pensando si borrar la caché y listo…</item>
         <item>Probando si se arregla reiniciando…</item>
-        <item>Ya casi… probablemente…</item>
-        <item>El progreso se siente como un 90 %…</item>
-        <item>Recalculando el tiempo restante…</item>
-        <item>Esto resultó más grande de lo esperado…</item>
-        <item>Todo según lo previsto. Probablemente…</item>
-        <item>Justo llegando a la mejor parte…</item>
-        <item>Déjame pensarlo una vez más…</item>
-        <item>Ya veo el final. Allá en el horizonte…</item>
-        <item>¿Quién dijo que esto sería rápido?…</item>
-        <item>Tomando el camino largo a propósito…</item>
+        <item>Ahora viene lo bueno…</item>
+        <item>Pensando a toda máquina…</item>
+        <item>Arremangándome…</item>
+        <item>Extendiendo ideas sobre la mesa…</item>
+        <item>Uniendo los puntos…</item>
         <item>Gracias por esperar…</item>
     </string-array>
     <string name="chat_tool_expand_label">Abrir la ejecución de la herramienta</string>

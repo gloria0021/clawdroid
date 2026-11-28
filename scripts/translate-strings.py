@@ -67,7 +67,7 @@ Rules:
 - Use the standard platform terms of Android and Material Design in the target language (Settings, Cancel, Retry, Copy, Share...).
 - UI text is short and plain. Buttons are verbs. Keep sentences concise. Match the register of a modern developer tool.
 - Keys ending in _cd are accessibility labels for screen readers.
-- chat_thinking_phrases is a list of playful status lines on a crab / lobster / ocean theme. Translate them freely as playful lines in the same theme; keep the item count and the trailing ellipsis.
+- chat_thinking_phrases is a list of playful status lines shown while the agent works: developer in-jokes, then light encouraging lines. Translate them freely as natural playful lines; do not add a crab / lobster / ocean theme. Replace Japan-only sites (Qiita, Yahoo知恵袋) with a well-known local equivalent. Never suggest trouble, delay, progress or remaining time, a promised result, or an action the agent is not actually doing. Keep the item count and the trailing ellipsis.
 - schedule_day_names are the abbreviated weekday names starting from Sunday.
 - For plural objects, return exactly the quantities requested for the target language."""
 
