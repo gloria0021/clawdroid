@@ -1294,7 +1294,9 @@ private const val SENT_UNREAD_ALPHA = 0.6f
 @Composable
 private fun ScrollToBottomButton(listState: LazyListState, hazeState: dev.chrisbanes.haze.HazeState) {
     val scope = rememberCoroutineScope()
-    val show by remember { androidx.compose.runtime.derivedStateOf { listState.canScrollBackward } }
+    // 会話を切り替えると一覧の状態（listState）も作り直されるので、それを鍵にして見直す。
+    // 鍵が無いと最初に渡された状態を見続け、切り替えたあとはスクロールしても出なかった（マスター指摘 2026-11-28）
+    val show by remember(listState) { androidx.compose.runtime.derivedStateOf { listState.canScrollBackward } }
     AnimatedVisibility(
         visible = show,
         enter = scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
