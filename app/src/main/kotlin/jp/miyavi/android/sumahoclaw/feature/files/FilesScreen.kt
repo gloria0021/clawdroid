@@ -56,6 +56,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.sumahoclaw.R
+import jp.miyavi.android.sumahoclaw.feature.editor.EditTarget
+import jp.miyavi.android.sumahoclaw.feature.editor.HandoffContent
+import jp.miyavi.android.sumahoclaw.feature.editor.openEditor
 import jp.miyavi.android.sumahoclaw.core.data.FileEntry
 import jp.miyavi.android.sumahoclaw.core.data.FileOp
 import jp.miyavi.android.sumahoclaw.core.data.FileOpResult
@@ -75,8 +78,8 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wrap by viewModel.wrap.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val saved = stringResource(R.string.files_saved)
-    val saveFailed = stringResource(R.string.files_save_failed)
+    // 読んでいる行（エディターをその行から開く。spec 008 FR-003）
+    val readingLine = remember { androidx.compose.runtime.mutableIntStateOf(0) }
     val gone = stringResource(R.string.files_gone)
     val refreshFailed = stringResource(R.string.files_refresh_failed)
     val refreshed = stringResource(R.string.files_refreshed)
@@ -88,8 +91,12 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                FilesEvent.Saved -> snackbar.showSnackbar(saved)
-                is FilesEvent.SaveFailed -> snackbar.showSnackbar(event.message?.let { "$saveFailed: $it" } ?: saveFailed)
+                // 編集はエディターの画面で（spec 008）
+                is FilesEvent.OpenEditor -> context.openEditor(
+                    EditTarget.GatewayFile(event.file.root, event.file.path),
+                    HandoffContent.Gateway(event.file),
+                    line = readingLine.intValue,
+                )
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
                 is FilesEvent.Operated -> snackbar.showSnackbar(context.operationMessage(event.op, event.result))
                 // 読み直した結果（中身が同じだと表示が変わらず、効いたか分からないため）
@@ -115,14 +122,8 @@ fun FilesScreen(viewModel: FilesViewModel, onBack: () -> Unit) {
         onDownloadEntry = { viewModel.download(it.path) },
         onRetry = viewModel::retry,
         onStartEditing = viewModel::startEditing,
-        onEdit = viewModel::edit,
-        onSave = { viewModel.save() },
         onDownload = { viewModel.download() },
-        onDiscard = viewModel::discardAndClose,
-        onDismissDiscard = viewModel::dismissDiscard,
-        onOverwrite = { viewModel.save(overwrite = true) },
-        onReload = viewModel::reloadDiscarding,
-        onDismissConflict = viewModel::dismissConflict,
+        readingLine = readingLine,
         onToggleCode = viewModel::toggleCode,
         onOpenSearch = viewModel::openSearch,
         onSearchQuery = viewModel::setSearchQuery,
@@ -171,14 +172,8 @@ internal fun FilesContent(
     onDownloadEntry: (FileEntry) -> Unit,
     onRetry: () -> Unit,
     onStartEditing: () -> Unit,
-    onEdit: (String, Int) -> Unit,
-    onSave: () -> Unit,
     onDownload: () -> Unit,
-    onDiscard: () -> Unit,
-    onDismissDiscard: () -> Unit,
-    onOverwrite: () -> Unit,
-    onReload: () -> Unit,
-    onDismissConflict: () -> Unit,
+    readingLine: androidx.compose.runtime.MutableIntState? = null,
     onToggleCode: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onSearchQuery: (String) -> Unit = {},
@@ -219,8 +214,6 @@ internal fun FilesContent(
     val openedUpdatedAt = ready?.file?.updatedAt ?: opened?.path?.let { state.tree.entry(it)?.updatedAt }
     val openedUpdated = openedUpdatedAt?.let { metaFormat.updated(it, now) }
     val treeListState = rememberLazyListState()
-    // 編集中の入力欄は画面の上で持つ（記号の行と取り消しが同じ欄を触る）
-    val editor = if (ready?.editing == true) rememberEditorState(ready, onEdit) else null
 
     // アップロードはダイアログを出さず、端末のファイル選択を開く（複数可）
     val pickFiles = rememberUploadLauncher(
@@ -288,19 +281,12 @@ internal fun FilesContent(
                         }
                     },
                     actions = {
-                        // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: 保存（編集中）とダウンロード、読むときはダウンロードと読み直し。
+                        // TopAppBar のアイコンは 2 つまで（AGENTS.md 2.6）: ダウンロードと読み直し（編集はエディターの画面。spec 008）。
                         // 読み直しは引き下げではなくボタン（スクロールしない APK などでも効かせる。マスター指定 2026-11-26）
                         if (ready != null) {
-                            if (ready.editing) {
-                                IconButton(onClick = onSave, enabled = ready.dirty && !ready.saving) {
-                                    Icon(painterResource(R.drawable.ic_huge_check), stringResource(R.string.files_save_cd))
-                                }
-                            }
                             IconButton(onClick = onDownload) { Icon(painterResource(R.drawable.ic_huge_download), stringResource(R.string.files_download_cd)) }
-                            if (!ready.editing) {
-                                IconButton(onClick = onRefreshOpened, enabled = !ready.refreshing) {
-                                    Icon(painterResource(R.drawable.ic_huge_refresh), stringResource(R.string.files_refresh_cd))
-                                }
+                            IconButton(onClick = onRefreshOpened, enabled = !ready.refreshing) {
+                                Icon(painterResource(R.drawable.ic_huge_refresh), stringResource(R.string.files_refresh_cd))
                             }
                         }
                     },
@@ -309,10 +295,10 @@ internal fun FilesContent(
             snackbarHost = { GlassSnackbarHost(snackbar, Modifier.navigationBarsPadding()) },
         ) { padding ->
             val codeView = ready != null && ready.showCode && ready.file.text != null
-            val showControls = ready != null && !ready.editing && ready.file.text != null
+            val showControls = ready != null && ready.file.text != null
             Box(Modifier.fillMaxSize()) {
                 // WebView（HTML のプレビュー）はガラスの透かしに取り込まない（取り込むと描画のスレッドで落ちる）
-                val showsWebView = ready != null && ready.preview == PreviewFormat.HTML && !ready.showCode && !ready.editing
+                val showsWebView = ready != null && ready.preview == PreviewFormat.HTML && !ready.showCode
                 Row(Modifier.fillMaxSize().then(if (showsWebView) Modifier else Modifier.hazeSource(hazeState))) {
                     if (twoPane) {
                         Box(Modifier.width(Dimens.sidebarWidth).fillMaxHeight()) {
@@ -339,11 +325,10 @@ internal fun FilesContent(
                                         contentPadding = contentPadding,
                                         htmlFind = htmlFind,
                                         onRetry = onRetry,
-                                        onEdit = onEdit,
                                         onOpenImage = { image -> overlayImage = image },
                                         onDownload = onDownload,
-                                        editor = editor,
                                         wrap = wrap,
+                                        readingLine = readingLine,
                                     )
                                 }
                             }
@@ -381,18 +366,6 @@ internal fun FilesContent(
                             .navigationBarsPadding()
                             .imePadding()
                             .padding(Spacing.l),
-                    )
-                }
-                // 編集中は、キーボードの上に取り消し・やり直しと記号の行（FR-055・056）
-                if (editor != null) {
-                    SymbolRow(
-                        hazeState = hazeState,
-                        state = editor,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .imePadding()
-                            .padding(Spacing.s),
                     )
                 }
             }
@@ -445,52 +418,10 @@ internal fun FilesContent(
         }
         // 保存していない変更のあるファイル（またはそれを含むフォルダ）の名前の変更・削除は、変更が失われることも示す
         val target = (action as? TreeAction.Rename)?.entry?.path ?: (action as? TreeAction.Delete)?.entry?.path
-        val losesEdits = target != null && ready?.dirty == true && (ready.path == target || ready.path.startsWith("$target/"))
-        FileOpDialog(action, state.tree.namesIn(parent), losesEdits, onDismiss = { treeAction = null }) { op ->
+        FileOpDialog(action, state.tree.namesIn(parent), onDismiss = { treeAction = null }) { op ->
             treeAction = null
             onOperate(op)
         }
-    }
-
-    FileDialogs(
-        confirmDiscard = state.confirmDiscard,
-        conflict = ready?.conflict == true,
-        onDiscard = onDiscard,
-        onDismissDiscard = onDismissDiscard,
-        onOverwrite = onOverwrite,
-        onReload = onReload,
-        onDismissConflict = onDismissConflict,
-    )
-}
-
-/** 変更を捨てる確認と、保存の衝突（上書き / 読み直し）。004 のエージェントのファイルでも使う。 */
-@Composable
-internal fun FileDialogs(
-    confirmDiscard: Boolean,
-    conflict: Boolean,
-    onDiscard: () -> Unit,
-    onDismissDiscard: () -> Unit,
-    onOverwrite: () -> Unit,
-    onReload: () -> Unit,
-    onDismissConflict: () -> Unit,
-) {
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = onDismissDiscard,
-            title = { Text(stringResource(R.string.files_discard_title)) },
-            text = { Text(stringResource(R.string.files_discard_body)) },
-            confirmButton = { TextButton(onClick = onDiscard) { Text(stringResource(R.string.files_discard_confirm)) } },
-            dismissButton = { TextButton(onClick = onDismissDiscard) { Text(stringResource(R.string.action_cancel)) } },
-        )
-    }
-    if (conflict) {
-        AlertDialog(
-            onDismissRequest = onDismissConflict,
-            title = { Text(stringResource(R.string.files_conflict_title)) },
-            text = { Text(stringResource(R.string.files_conflict_body)) },
-            confirmButton = { TextButton(onClick = onOverwrite) { Text(stringResource(R.string.files_conflict_overwrite)) } },
-            dismissButton = { TextButton(onClick = onReload) { Text(stringResource(R.string.files_conflict_reload)) } },
-        )
     }
 }
 
@@ -501,15 +432,14 @@ internal fun FilePage(
     contentPadding: PaddingValues,
     htmlFind: HtmlFindState,
     onRetry: () -> Unit,
-    onEdit: (String, Int) -> Unit,
     onOpenImage: (MessagePart.Image) -> Unit,
     onDownload: () -> Unit,
-    editor: androidx.compose.foundation.text.input.TextFieldState? = null,
     wrap: Boolean = true,
+    readingLine: androidx.compose.runtime.MutableIntState? = null,
 ) {
     opened ?: return
     val ready = opened as? OpenedState.Ready
-    FadeInOnChange(key = "${opened.path}:${ready?.showCode}:${ready?.editing}") {
+    FadeInOnChange(key = "${opened.path}:${ready?.showCode}") {
         when {
             opened is OpenedState.Loading -> LoadingOrFailed(failed = false, message = R.string.files_open_failed, onRetry = onRetry)
             opened is OpenedState.Failed -> LoadingOrFailed(
@@ -521,11 +451,10 @@ internal fun FilePage(
                 state = ready,
                 contentPadding = contentPadding,
                 htmlFind = htmlFind,
-                onEdit = onEdit,
                 onOpenImage = { onOpenImage(MessagePart.Image(url = null, base64 = ready.file.imageBase64, mimeType = ready.file.mimeType, preloaded = ready.file.image)) },
                 onDownload = onDownload,
-                editor = editor,
                 wrap = wrap,
+                readingLine = readingLine,
             )
         }
     }

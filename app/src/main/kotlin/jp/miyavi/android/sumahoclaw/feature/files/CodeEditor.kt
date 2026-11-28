@@ -65,6 +65,8 @@ internal fun CodeReader(
     wrap: Boolean,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    /** 読んでいる行を書き戻す所（エディターをその行から開く。spec 008 FR-003）。 */
+    readingLine: androidx.compose.runtime.MutableIntState? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val style = codeTextStyle()
@@ -79,6 +81,9 @@ internal fun CodeReader(
     // 利用者が送った一致・指定した行へだけ動かす（読んでいる最中には動かさない。AGENTS.md 2.8）
     val matchOffset = search?.currentOffset
     LaunchedEffect(matchOffset) { matchOffset?.let { listState.animateScrollToItem((index.lineOf(it) - CONTEXT_LINES).coerceAtLeast(0)) } }
+    if (readingLine != null) {
+        LaunchedEffect(listState, readingLine) { snapshotFlow { listState.firstVisibleItemIndex }.collect { readingLine.intValue = it } }
+    }
 
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -130,100 +135,6 @@ internal fun CodeReader(
     }
 }
 
-/**
- * 編集するときのコード（spec 005 US5）。1 つの BasicTextField に、色分け（OutputTransformation の addStyle）・
- * 行番号・今の行の強調を重ねる。字句の範囲は入力が止まってから裏で作り直す。
- */
-// shortcut: 編集中はいつも折り返す（BasicTextField の複数行は横スクロールを持たない）。折り返さない編集が要るようになったら、横に広げた入力欄を横スクロールに載せる
-@Composable
-internal fun CodeEditorField(
-    state: TextFieldState,
-    fileName: String,
-    contentPadding: PaddingValues,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    val style = codeTextStyle().copy(color = LocalContentColor.current)
-    var spans by remember { mutableStateOf<List<TokenSpan>>(emptyList()) }
-    var index by remember { mutableStateOf(LineIndex.of(state.text)) }
-    LaunchedEffect(state, fileName) {
-        snapshotFlow { state.text.toString() }.collectLatest { text ->
-            index = withContext(Dispatchers.Default) { LineIndex.of(text) }
-            delay(HIGHLIGHT_DEBOUNCE_MS)
-            // 大きいファイルは編集中だけ色分けを止める（入力の滑らかさを優先。憲章 I）
-            spans = if (index.lineCount > MAX_HIGHLIGHT_LINES) emptyList()
-            else withContext(Dispatchers.Default) { CodeHighlighter.spans(fileName, text) }
-        }
-    }
-    val palette = remember(colors) { jp.miyavi.android.sumahoclaw.core.designsystem.codeColors(colors) }
-    val transformation = remember(spans, palette) {
-        OutputTransformation {
-            spans.forEach { span ->
-                if (span.end <= length) addStyle(SpanStyle(color = palette.of(span.kind)), span.start, span.end)
-            }
-        }
-    }
-    var layout by remember { mutableStateOf<(() -> TextLayoutResult?)?>(null) }
-    val scroll = rememberScrollState()
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val charWidth = remember(style, density) { with(density) { measurer.measure("0", style).size.width.toDp() } }
-    val gutterWidth = charWidth * (index.gutterDigits + 1) + Spacing.s
-    val lineBackground = bodyContainerColor()
-    val numberStyle = style.copy(color = colors.onSurfaceVariant, textAlign = TextAlign.End)
-    val topPadding = contentPadding.calculateTopPadding()
-
-    Row(modifier.fillMaxSize().padding(top = topPadding)) {
-        // 行番号は論理行の先頭にだけ（折り返した行には付けない）。描画の中で位置を読み、入力のたびに組み立て直さない
-        Box(
-            Modifier
-                .width(gutterWidth)
-                .fillMaxHeight()
-                .drawBehind {
-                    val result = layout?.invoke() ?: return@drawBehind
-                    val lines = index
-                    val textLength = result.layoutInput.text.length
-                    val gutterPx = size.width - Spacing.s.toPx()
-                    for (line in 0 until lines.lineCount) {
-                        val offset = lines.start(line).coerceAtMost(textLength)
-                        val top = result.getLineTop(result.getLineForOffset(offset)) - scroll.value
-                        if (top > size.height) break
-                        if (top < -result.size.height) continue
-                        val number = measurer.measure((line + 1).toString(), numberStyle)
-                        drawText(number, topLeft = Offset(gutterPx - number.size.width, top))
-                    }
-                },
-        )
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .drawBehind {
-                    // 今の行（カーソルのある論理行）を、本文の下地の色で敷く
-                    val result = layout?.invoke() ?: return@drawBehind
-                    val textLength = result.layoutInput.text.length
-                    val cursor = state.selection.start.coerceIn(0, textLength)
-                    val line = index.lineOf(cursor)
-                    val from = result.getLineForOffset(index.start(line).coerceAtMost(textLength))
-                    val to = result.getLineForOffset(index.end(line, state.text).coerceAtMost(textLength))
-                    val top = result.getLineTop(from) - scroll.value
-                    drawRect(lineBackground, Offset(0f, top), Size(size.width, result.getLineBottom(to) - result.getLineTop(from)))
-                },
-        ) {
-            BasicTextField(
-                state = state,
-                textStyle = style,
-                lineLimits = TextFieldLineLimits.MultiLine(),
-                outputTransformation = transformation,
-                scrollState = scroll,
-                cursorBrush = SolidColor(colors.primary),
-                onTextLayout = { layout = it },
-                modifier = Modifier.fillMaxSize().padding(end = Spacing.l),
-            )
-        }
-    }
-}
-
 /** インデントに使う空白（ファイルの先頭の空白の最頻値。無ければ 4）。 */
 internal fun indentUnit(text: CharSequence): String {
     if (text.lines().any { it.startsWith("\t") }) return "\t"
@@ -232,14 +143,5 @@ internal fun indentUnit(text: CharSequence): String {
     return " ".repeat(unit ?: 4)
 }
 
-/** カーソルの位置に文字を入れる（記号の行から）。 */
-internal fun TextFieldState.insert(value: String) = edit {
-    val start = selection.start
-    replace(start, selection.end, value)
-    selection = androidx.compose.ui.text.TextRange(start + value.length)
-}
-
 /** 一致の上に残す行数。 */
 private const val CONTEXT_LINES = 3
-private const val HIGHLIGHT_DEBOUNCE_MS = 150L
-private const val MAX_HIGHLIGHT_LINES = 5_000

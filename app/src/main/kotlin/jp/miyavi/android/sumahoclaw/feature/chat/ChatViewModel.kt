@@ -201,6 +201,8 @@ class ChatViewModel(
     private val timeFormatter: (Long) -> String,
     /** 開いている会話を知らせ、通知から開く行き先を受ける（spec 006。無ければ使わない）。 */
     private val foreground: jp.miyavi.android.sumahoclaw.core.notify.ForegroundState? = null,
+    /** エディターで直した「コピーしたテキスト」（spec 008 US5。タイルの中身を差し替える）。 */
+    editorResults: kotlinx.coroutines.flow.Flow<jp.miyavi.android.sumahoclaw.feature.editor.EditorResult>? = null,
 ) : ViewModel() {
     /** 通知から会話を開いた（起動時の「前回の会話を戻す」で上書きしない）。 */
     @Volatile private var openedExplicitly = false
@@ -266,6 +268,21 @@ class ChatViewModel(
     private var sessionGeneration = 0
     private var settingsJob: Job? = null
     val sheetCache = SheetUsageCache()
+
+    init {
+        editorResults?.let { flow ->
+            viewModelScope.launch {
+                flow.collect { r ->
+                    if (r is jp.miyavi.android.sumahoclaw.feature.editor.EditorResult.PasteEdited) replacePastedText(r.textId, r.text)
+                }
+            }
+        }
+    }
+
+    /** タイルの中身を差し替える（送る前のものだけ。送ったあとのものは変えない）。 */
+    fun replacePastedText(id: String, text: String) = _composer.update { c ->
+        c.copy(texts = c.texts.map { if (it.id == id && it.kind == PendingText.Kind.PASTE) it.copy(text = text) else it })
+    }
 
     init {
         // 「マージを依頼して終える」の結果を知らせる。終えたセッションを開いていれば新規チャットに戻す

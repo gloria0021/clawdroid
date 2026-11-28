@@ -114,6 +114,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.sumahoclaw.R
+import jp.miyavi.android.sumahoclaw.feature.editor.EditTarget
+import jp.miyavi.android.sumahoclaw.feature.editor.HandoffContent
+import jp.miyavi.android.sumahoclaw.feature.editor.openEditor
 import jp.miyavi.android.sumahoclaw.core.data.ChatMessage
 import jp.miyavi.android.sumahoclaw.core.data.MessagePart
 import jp.miyavi.android.sumahoclaw.core.data.ModelCatalog
@@ -455,6 +458,8 @@ fun ChatContent(
     val imageSource = remember(inboundImages, imageSessionKey, imageAgentId) {
         if (inboundImages == null || imageSessionKey == null) null
         else object : InboundImageSource {
+            override val sessionKey: String get() = imageSessionKey
+            override val agentId: String? get() = imageAgentId
             override suspend fun load(source: String, messageScope: String) = inboundImages.load(source, imageSessionKey, imageAgentId, messageScope)
             override suspend fun bytes(source: String) = inboundImages.loadBytes(source, imageSessionKey, imageAgentId)
             override val progress get() = inboundImages.progress
@@ -838,9 +843,20 @@ fun ChatContent(
         }
         ImageOverlay(gallery = openedImage, onDismiss = { openedImage = null })
         composer.texts.firstOrNull { it.id == openedText }?.let { item ->
+            val editorContext = androidx.compose.ui.platform.LocalContext.current
             TextAttachmentSheet(
                 item = item,
                 hazeState = hazeState,
+                // コピーしたテキストはエディターで直せる（spec 008 US5。保存するとタイルの中身が変わる）
+                onEdit = if (item.kind == jp.miyavi.android.sumahoclaw.feature.chat.PendingText.Kind.PASTE) {
+                    {
+                        openedText = null
+                        editorContext.openEditor(
+                            EditTarget.PastedText(state.currentSessionKey ?: "new", item.id),
+                            HandoffContent.Text(item.text),
+                        )
+                    }
+                } else null,
                 onExpand = { openedText = null; actions.expandText(item.id) },
                 onRemove = { openedText = null; actions.removeText(item.id) },
                 onDismiss = { openedText = null },
@@ -1346,6 +1362,7 @@ private val PANEL_FLOAT = Spacing.xl
 private fun TextAttachmentSheet(
     item: jp.miyavi.android.sumahoclaw.feature.chat.PendingText,
     hazeState: dev.chrisbanes.haze.HazeState,
+    onEdit: (() -> Unit)?,
     onExpand: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
@@ -1379,6 +1396,7 @@ private fun TextAttachmentSheet(
             horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.End),
         ) {
             TextButton(onClick = onRemove) { Text(stringResource(R.string.chat_text_remove)) }
+            onEdit?.let { edit -> TextButton(onClick = edit) { Text(stringResource(R.string.files_paste_edit)) } }
             androidx.compose.material3.FilledTonalButton(onClick = onExpand) { Text(stringResource(R.string.chat_text_expand)) }
         }
     }

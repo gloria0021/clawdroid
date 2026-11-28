@@ -4,82 +4,72 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import jp.miyavi.android.sumahoclaw.core.data.FileRoot
 import jp.miyavi.android.sumahoclaw.core.data.FileSource
-import jp.miyavi.android.sumahoclaw.core.database.FileDraftDao
 import jp.miyavi.android.sumahoclaw.feature.files.FilesEvent
 import jp.miyavi.android.sumahoclaw.feature.files.OpenedFileController
 import jp.miyavi.android.sumahoclaw.feature.files.OpenedState
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class AgentFileUiState(
     val name: String,
     val opened: OpenedState? = null,
-    val confirmDiscard: Boolean = false,
 ) {
-    /** 画面の中で済む「戻る」（確認・検索・編集）があるか。 */
+    /** 画面の中で済む「戻る」（検索）があるか。 */
     val handlesBackInPage: Boolean
-        get() = confirmDiscard || (opened as? OpenedState.Ready)?.let { it.search != null || it.editing } == true
+        get() = (opened as? OpenedState.Ready)?.search != null
 }
 
 /**
- * エージェントのファイル 1 つ（spec 004 US1）。読む・編集・保存・衝突・作成・下書きは 002 と同じ [OpenedFileController]。
- * 下書きの鍵は `agent:<agentId>:<name>`。
+ * エージェントのファイル 1 つ（spec 004 US1）。読むのは 002 と同じ [OpenedFileController]。
+ * 編集・保存・衝突・下書きはエディターの画面（spec 008。下書きの鍵は `agent:<agentId>:<name>`）。
+ * 未作成のファイルは、開けたらすぐエディターを開く。
  */
 class AgentFileViewModel(
     agentId: String,
     name: String,
     files: FileSource,
-    drafts: FileDraftDao,
+    /** エディターで保存した結果（開いているファイルを差し替える）。 */
+    editorResults: kotlinx.coroutines.flow.Flow<jp.miyavi.android.sumahoclaw.feature.editor.EditorResult>? = null,
 ) : ViewModel() {
     private val root = FileRoot.AgentFile(agentId)
     private val _state = MutableStateFlow(AgentFileUiState(name))
     val state: StateFlow<AgentFileUiState> = _state.asStateFlow()
 
-    private val _events = MutableSharedFlow<FilesEvent>(extraBufferCapacity = 4)
-    val events: SharedFlow<FilesEvent> = _events.asSharedFlow()
+    // 画面が知らせを受け始める前に開き終わっても取りこぼさないよう、受け取られるまで溜めておく
+    // （未作成のファイルは開けたらすぐエディターを開く。spec 008）
+    private val _events = kotlinx.coroutines.channels.Channel<FilesEvent>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    val events: kotlinx.coroutines.flow.Flow<FilesEvent> = _events.receiveAsFlow()
 
     private val opened = OpenedFileController(
         scope = viewModelScope,
         files = files,
-        drafts = drafts,
         read = { _state.value.opened },
         write = { block -> _state.update { it.copy(opened = block(it.opened)) } },
-        emit = { _events.tryEmit(it) },
+        emit = { _events.trySend(it) },
     )
 
     init {
         opened.open(root, name)
+        editorResults?.let { flow ->
+            viewModelScope.launch {
+                flow.collect { r -> if (r is jp.miyavi.android.sumahoclaw.feature.editor.EditorResult.Saved) opened.applySaved(r.file) }
+            }
+        }
     }
 
     fun retry() = opened.open(root, _state.value.name)
 
     /** 戻る操作。true なら処理した（false なら画面を閉じてよい）。 */
     fun back(): Boolean {
-        val s = _state.value
-        val current = s.opened as? OpenedState.Ready
+        val current = _state.value.opened as? OpenedState.Ready
         return when {
-            s.confirmDiscard -> { _state.update { it.copy(confirmDiscard = false) }; true }
             current?.search != null -> { opened.closeSearch(); true }
-            current != null && current.dirty -> { _state.update { it.copy(confirmDiscard = true) }; true }
-            // 未作成のファイルは編集から始めるので、変更が無ければそのまま閉じる
-            current != null && current.editing && !current.file.creating -> { opened.stopEditing(); true }
             else -> false
         }
-    }
-
-    fun dismissDiscard() = _state.update { it.copy(confirmDiscard = false) }
-
-    /** 変更を捨てる。未作成のファイルは閉じる（false を返す）。 */
-    fun discard(): Boolean {
-        _state.update { it.copy(confirmDiscard = false) }
-        val creating = (_state.value.opened as? OpenedState.Ready)?.file?.creating == true
-        opened.stopEditing()
-        return !creating
     }
 
     fun startEditing() = opened.startEditing()
@@ -88,8 +78,4 @@ class AgentFileViewModel(
     fun closeSearch() = opened.closeSearch()
     fun setSearchQuery(query: String) = opened.setSearchQuery(query)
     fun moveMatch(step: Int) = opened.moveMatch(step)
-    fun edit(text: String, cursor: Int) = opened.edit(text, cursor)
-    fun save(overwrite: Boolean = false) = opened.save(overwrite)
-    fun reloadDiscarding() = opened.reloadDiscarding()
-    fun dismissConflict() = opened.dismissConflict()
 }

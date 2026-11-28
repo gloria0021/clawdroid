@@ -154,6 +154,28 @@ class SettingsStore(context: Context) {
 
     suspend fun setCodeWrap(v: Boolean) = store.edit { it[CODE_WRAP] = v }
 
+    /** エディターで折り返すか（spec 008 research R7）。コードは既定でオフ、文章（md・txt・未知）は既定でオン。 */
+    fun editorWrap(prose: Boolean): Flow<Boolean> =
+        store.data.map { if (prose) it[EDITOR_WRAP_PROSE] ?: true else it[EDITOR_WRAP_CODE] ?: false }.distinctUntilChanged()
+
+    suspend fun setEditorWrap(prose: Boolean, v: Boolean) = store.edit { it[if (prose) EDITOR_WRAP_PROSE else EDITOR_WRAP_CODE] = v }
+
+    /** エディターで選び直した言語（対象の鍵 → 言語の名前。空文字は「色分けなし」）。 */
+    val editorLanguages: Flow<Map<String, String>> = store.data.map { p ->
+        p[EDITOR_LANGUAGES]?.let { runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull() }.orEmpty()
+    }.distinctUntilChanged()
+
+    /** 言語を覚える（null で忘れる）。[EDITOR_LANGUAGES_MAX] 件を超えたら古いものから消す。 */
+    suspend fun setEditorLanguage(key: String, language: String?) = store.edit { p ->
+        val current = p[EDITOR_LANGUAGES]?.let { runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull() }.orEmpty()
+        val next = LinkedHashMap(current).apply {
+            remove(key)
+            if (language != null) put(key, language)
+            while (size > EDITOR_LANGUAGES_MAX) remove(keys.first())
+        }
+        p[EDITOR_LANGUAGES] = json.encodeToString<Map<String, String>>(next)
+    }
+
     suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
 
     /** ランチャーのショートカットの枠（spec 007 R7）。読めなければ空。 */
@@ -208,6 +230,10 @@ class SettingsStore(context: Context) {
         val AGENT_LAYOUT = stringPreferencesKey("agent_layout")
         val SESSION_GROUPING_BY_AGENT = stringPreferencesKey("session_grouping_by_agent")
         val CODE_WRAP = booleanPreferencesKey("code_wrap")
+        val EDITOR_WRAP_CODE = booleanPreferencesKey("editor_wrap_code")
+        val EDITOR_WRAP_PROSE = booleanPreferencesKey("editor_wrap_prose")
+        val EDITOR_LANGUAGES = stringPreferencesKey("editor_languages")
+        const val EDITOR_LANGUAGES_MAX = 200
         val SHORTCUTS = stringPreferencesKey("shortcuts")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val THINKING_PHRASES = stringPreferencesKey("thinking_phrases")

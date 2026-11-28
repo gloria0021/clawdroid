@@ -52,7 +52,7 @@ data class EditorUiState(
     dirty: Boolean,                   # 開いた時点 / 最後の保存から変わったか
     saving: Boolean,
     status: StatusLine,               # 行・列・文字数・選択の文字数・行数
-    dialog: None | ConfirmLeave | Conflict | Missing | ConfirmLineSeparator | Unmappable(offset) | TooLarge(limit),
+    dialog: None | ConfirmLeave | Conflict | ConfirmSeparators | ConfirmReload(charset),   # 無い・上限・書けない文字は Snackbar とカーソルの移動（実装）
     search: FileSearch?,              # 既存の型を使い回す
     restoredDraft: Boolean,
 )
@@ -110,7 +110,7 @@ OpenEditors     register(key, closeAndKeepDraft: () -> Unit) / unregister(key)  
 ```text
 Loading ──読めた──▶ Ready ──保存──▶ Saving ──成功──▶ Ready(dirty=false)
    │                  │                    ├─衝突──▶ Conflict ──上書き / 読み直す──▶ Saving / Loading
-   │                  │                    ├─無い──▶ Missing ──作り直して保存 / 捨てる──▶ Saving / 閉じる
+   │                  │                    ├─無い──▶ Ready（Snackbar。作業フォルダは Gateway が無いファイルへの書き込みを断るので、作り直しはしない。内容は画面と下書きに残る）
    │                  │                    └─失敗──▶ Ready（Snackbar に再試行）
    └─読めない──▶ Failed（文字でない・大きすぎる・許可が無い。理由を示し、下書きがあれば「別の名前で保存」）
 ```

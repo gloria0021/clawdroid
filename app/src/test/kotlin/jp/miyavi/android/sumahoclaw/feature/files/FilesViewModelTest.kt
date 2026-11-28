@@ -1,5 +1,10 @@
 package jp.miyavi.android.sumahoclaw.feature.files
 
+import jp.miyavi.android.sumahoclaw.feature.editor.EditTarget
+import jp.miyavi.android.sumahoclaw.feature.editor.EditorResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import jp.miyavi.android.sumahoclaw.core.data.DownloadResult
 import jp.miyavi.android.sumahoclaw.core.data.DownloadSource
 import jp.miyavi.android.sumahoclaw.core.data.FileEntry
@@ -10,8 +15,6 @@ import jp.miyavi.android.sumahoclaw.core.data.OpenResult
 import jp.miyavi.android.sumahoclaw.core.data.OpenedFile
 import jp.miyavi.android.sumahoclaw.core.data.PreviewKind
 import jp.miyavi.android.sumahoclaw.core.data.SaveResult
-import jp.miyavi.android.sumahoclaw.core.database.FileDraftDao
-import jp.miyavi.android.sumahoclaw.core.database.FileDraftEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -62,17 +65,10 @@ class FilesViewModelTest {
         }
     }
 
-    private class FakeDrafts : FileDraftDao {
-        val rows = mutableMapOf<String, FileDraftEntity>()
-        override suspend fun get(key: String) = rows[key]
-        override suspend fun upsert(draft: FileDraftEntity) { rows[draft.key] = draft }
-        override suspend fun delete(key: String) { rows.remove(key) }
-    }
-
     private val files = FakeFiles()
-    private val drafts = FakeDrafts()
+    private val results = MutableSharedFlow<EditorResult>(extraBufferCapacity = 4)
     private fun viewModel(hasWorkingFolder: Boolean = true) = FilesViewModel(
-        files, { _, _ -> }, drafts, "agent:a:s1", "a", hasWorkingFolder,
+        files, { _, _ -> }, "agent:a:s1", "a", hasWorkingFolder, editorResults = results,
     )
 
     // 下書きの間引き（delay）を実時間で進めるため、仮想時間のテスト用ではなく素の Unconfined を使う
@@ -103,12 +99,12 @@ class FilesViewModelTest {
 
     @Test fun expandedFoldersAndOpenedFile_surviveProcessDeath() {
         val saved = androidx.lifecycle.SavedStateHandle()
-        val vm = FilesViewModel(files, { _, _ -> }, drafts, "agent:a:s1", "a", true, saved = saved)
+        val vm = FilesViewModel(files, { _, _ -> }, "agent:a:s1", "a", true, saved = saved)
         waitFor { vm.rootListing is ListingState.Loaded }
         vm.toggleFolder("src")
         vm.openEntry(FileEntry("src/a.kt", "a.kt", false, 9, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
-        val again = FilesViewModel(files, { _, _ -> }, drafts, "agent:a:s1", "a", true, saved = saved)
+        val again = FilesViewModel(files, { _, _ -> }, "agent:a:s1", "a", true, saved = saved)
         waitFor { again.state.value.tree.children["src"] is ListingState.Loaded && again.state.value.opened is OpenedState.Ready }
         assertEquals(setOf("src"), again.state.value.tree.expanded)
         assertEquals("src/a.kt", again.state.value.opened?.path)
@@ -122,75 +118,38 @@ class FilesViewModelTest {
         waitFor { vm.state.value.opened is OpenedState.Ready }
         val ready = vm.state.value.opened as OpenedState.Ready
         assertFalse(ready.file.editable)
-        vm.startEditing()
-        assertFalse((vm.state.value.opened as OpenedState.Ready).editing)
+        // 読むだけのファイルではエディターを開かない
+        val event = runBlocking { kotlinx.coroutines.withTimeoutOrNull(300) { vm.startEditing(); vm.events.first() } }
+        assertNull(event)
     }
 
-    @Test fun editSave_thenConflictChoices() {
+    @Test fun edit_opensEditor_andSavedResultReplacesTheFile() {
         val vm = viewModel()
         waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
-        vm.startEditing()
-        vm.edit("val x = 2", 9)
-        vm.save()
-        waitFor { (vm.state.value.opened as? OpenedState.Ready)?.editing == false }
-        assertEquals("val x = 2", files.content)
+        val opened = runBlocking {
+            val event = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { vm.events.first { it is FilesEvent.OpenEditor } }
+            vm.startEditing()
+            withTimeout(5_000) { event.await() }
+        } as FilesEvent.OpenEditor
+        assertEquals("README.md", opened.file.path)
 
-        // 開いたあとに他で書き換えられた
-        vm.startEditing()
-        vm.edit("val x = 3", 9)
-        files.hash = "changed"
-        vm.save()
-        waitFor { (vm.state.value.opened as? OpenedState.Ready)?.conflict == true }
-        // 上書き: 最新のハッシュを取り直して書く
-        vm.save(overwrite = true)
-        waitFor { (vm.state.value.opened as? OpenedState.Ready)?.editing == false }
-        assertEquals("val x = 3", files.content)
-        assertEquals("changed", files.saves.last().first)
+        // エディターで保存した中身に差し替わる
+        val file = opened.file
+        results.tryEmit(EditorResult.Saved(EditTarget.GatewayFile(file.root, file.path), file.copy(text = "val x = 2", hash = "h2")))
+        waitFor { (vm.state.value.opened as? OpenedState.Ready)?.file?.text == "val x = 2" }
     }
 
-    @Test fun unsavedEdits_survive_asDraft_andBackAsksToDiscard() {
+    @Test fun savedResultForAnotherFile_isIgnored() {
         val vm = viewModel()
         waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
         waitFor { vm.state.value.opened is OpenedState.Ready }
-        vm.startEditing()
-        vm.edit("draft text", 5)
-        waitFor { drafts.rows.isNotEmpty() }
-        assertTrue(vm.back())
-        assertTrue(vm.state.value.confirmDiscard)
-
-        // 開き直すと（プロセスが終わったあとも）下書きが戻る
-        val again = viewModel()
-        waitFor { again.rootListing is ListingState.Loaded }
-        again.openEntry(FileEntry("README.md", "README.md", false, 10, null))
-        waitFor { again.state.value.opened is OpenedState.Ready }
-        val restored = again.state.value.opened as OpenedState.Ready
-        assertEquals("draft text", restored.editText)
-        assertTrue(restored.restoredDraft)
-
-        // 捨てると一覧ではなく、開いたまま読む表示に戻る
-        again.discardAndClose()
-        waitFor { drafts.rows.isEmpty() }
-        val discarded = again.state.value.opened as OpenedState.Ready
-        assertFalse(discarded.editing)
-        assertEquals(files.content, discarded.file.text)
-    }
-
-    @Test fun backWhileEditingWithoutChanges_returnsToViewing() {
-        val vm = viewModel()
-        waitFor { vm.rootListing is ListingState.Loaded }
-        vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
-        waitFor { vm.state.value.opened is OpenedState.Ready }
-        vm.startEditing()
-        assertTrue((vm.state.value.opened as OpenedState.Ready).editing)
-
-        assertTrue(vm.back()) // 編集 → 読む表示（確認なし）
-        val viewing = vm.state.value.opened as OpenedState.Ready
-        assertFalse(viewing.editing)
-        assertFalse(vm.state.value.confirmDiscard)
-        assertFalse(vm.back()) // 読む表示 → 画面を閉じてよい
+        val file = (vm.state.value.opened as OpenedState.Ready).file
+        results.tryEmit(EditorResult.Saved(EditTarget.GatewayFile(file.root, "other.md"), file.copy(path = "other.md", text = "x")))
+        Thread.sleep(100)
+        assertEquals("val x = 1", (vm.state.value.opened as OpenedState.Ready).file.text)
     }
 
     @Test fun markdown_opensAsPreview_andTogglesToCode_keepingSearch() {
@@ -222,7 +181,7 @@ class FilesViewModelTest {
         assertNull((vm.state.value.opened as OpenedState.Ready).search)
     }
 
-    @Test fun plainText_hasNoPreview_andEditingClosesSearch() {
+    @Test fun plainText_hasNoPreview() {
         val vm = viewModel()
         waitFor { vm.rootListing is ListingState.Loaded }
         vm.openEntry(FileEntry("src/a.kt", "a.kt", false, 9, null))
@@ -232,12 +191,6 @@ class FilesViewModelTest {
         assertTrue(ready.showCode)
         vm.toggleCode()
         assertTrue((vm.state.value.opened as OpenedState.Ready).showCode)
-
-        vm.openSearch()
-        vm.startEditing()
-        val editing = vm.state.value.opened as OpenedState.Ready
-        assertTrue(editing.editing)
-        assertNull(editing.search)
     }
 
     @Test fun search_helpers() {
@@ -301,20 +254,6 @@ class FilesViewModelTest {
         // ハッシュがあれば、そちらを優先する
         assertFalse(apk.copy(hash = "h").differsFrom(apk.copy(hash = "h", updatedAt = 2)))
         assertTrue(apk.copy(hash = "h").differsFrom(apk.copy(hash = "g")))
-    }
-
-    @Test fun refresh_doesNothingWhileEditing() {
-        val vm = viewModel()
-        vm.openEntry(FileEntry("README.md", "README.md", false, 10, null))
-        waitFor { vm.state.value.opened is OpenedState.Ready }
-        vm.startEditing()
-        vm.edit("draft", 5)
-        files.content = "changed outside"
-        vm.refreshOpened()
-        val ready = vm.state.value.opened as OpenedState.Ready
-        assertFalse(ready.refreshing)
-        assertEquals("draft", ready.editText)
-        assertEquals("val x = 1", ready.file.text)
     }
 
     @Test fun refreshTree_keepsTheOldListing_whenItFails() {

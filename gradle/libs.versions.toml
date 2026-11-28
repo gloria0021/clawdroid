@@ -32,6 +32,8 @@ tink = "1.24.0"
 termux = "v0.118.3"
 # コードの色分け（research R10。マスター承認 2026-11-22）
 highlights = "1.2.0"
+# エディターの本文（spec 008 research R1。マスター承認 2026-11-28。LGPL-2.1、改変せずに使う）
+soraEditor = "0.24.7"
 # オープンソースのライセンスの一覧を依存関係から作る（spec 003 FR-034）。ビルドのときだけ使い、実行時の依存は足さない
 aboutLibraries = "15.3.0"
 
@@ -80,6 +82,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
 termux-terminal-view = { module = "com.github.termux.termux-app:terminal-view", version.ref = "termux" }
 highlights = { module = "dev.snipme:highlights", version.ref = "highlights" }
+sora-editor = { module = "io.github.rosemoe:editor", version.ref = "soraEditor" }
 
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidxJunit" }

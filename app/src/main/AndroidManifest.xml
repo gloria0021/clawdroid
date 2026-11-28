@@ -65,5 +65,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- エディター（spec 008）。アプリの中から開くものは外に出さない -->
+        <activity
+            android:name=".feature.editor.EditorActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- ほかのアプリの「アプリで開く」「編集」の受け口（spec 008 US4・contracts/editor-intents.md） -->
+        <activity
+            android:name=".feature.editor.ExternalEditorActivity"
+            android:exported="true"
+            android:label="@string/editor_launcher_label"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="application/javascript" />
+                <data android:mimeType="application/x-sh" />
+                <data android:mimeType="application/x-yaml" />
+                <data android:mimeType="application/toml" />
+                <data android:mimeType="application/x-subrip" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

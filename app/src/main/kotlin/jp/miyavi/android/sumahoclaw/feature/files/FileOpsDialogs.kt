@@ -31,7 +31,7 @@ import jp.miyavi.android.sumahoclaw.core.designsystem.Spacing
  * [siblings] は同じフォルダの読み込み済みの名前（同じ名前は先に断る。最後の判断はシェル）。
  */
 @Composable
-internal fun FileOpDialog(action: TreeAction, siblings: List<String>, losesEdits: Boolean, onDismiss: () -> Unit, onConfirm: (FileOp) -> Unit) {
+internal fun FileOpDialog(action: TreeAction, siblings: List<String>, onDismiss: () -> Unit, onConfirm: (FileOp) -> Unit) {
     when (action) {
         is TreeAction.NewFile -> NameDialog(R.string.files_new_file, R.string.files_create, "", siblings, onDismiss) {
             onConfirm(FileOp.CreateFile(action.parent, it))
@@ -39,7 +39,7 @@ internal fun FileOpDialog(action: TreeAction, siblings: List<String>, losesEdits
         is TreeAction.NewFolder -> NameDialog(R.string.files_new_folder, R.string.files_create, "", siblings, onDismiss) {
             onConfirm(FileOp.CreateFolder(action.parent, it))
         }
-        is TreeAction.Rename -> NameDialog(R.string.files_rename, R.string.action_save, action.entry.name, siblings - action.entry.name, onDismiss, losesEdits) {
+        is TreeAction.Rename -> NameDialog(R.string.files_rename, R.string.action_save, action.entry.name, siblings - action.entry.name, onDismiss) {
             if (it == action.entry.name) onDismiss() else onConfirm(FileOp.Rename(action.entry.path, it))
         }
         is TreeAction.Upload -> Unit
@@ -49,7 +49,6 @@ internal fun FileOpDialog(action: TreeAction, siblings: List<String>, losesEdits
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     if (action.entry.isDirectory) Text(stringResource(R.string.files_delete_folder_note))
-                    if (losesEdits) Text(stringResource(R.string.files_discard_body))
                     Text(stringResource(R.string.files_delete_irreversible))
                 }
             },
@@ -71,7 +70,6 @@ private fun NameDialog(
     initial: String,
     siblings: List<String>,
     onDismiss: () -> Unit,
-    losesEdits: Boolean = false,
     onConfirm: (String) -> Unit,
 ) {
     // 名前の変更では、拡張子の前までを選んだ状態で始める
@@ -86,7 +84,6 @@ private fun NameDialog(
         title = { Text(stringResource(title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-            if (losesEdits) Text(stringResource(R.string.files_discard_body))
             OutlinedTextField(
                 value = value,
                 onValueChange = { value = it },

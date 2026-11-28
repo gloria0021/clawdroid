@@ -12,7 +12,6 @@ import jp.miyavi.android.sumahoclaw.core.data.FileOpsRepository
 import jp.miyavi.android.sumahoclaw.core.data.FileRoot
 import jp.miyavi.android.sumahoclaw.core.data.FileSource
 import jp.miyavi.android.sumahoclaw.core.data.OpenedFile
-import jp.miyavi.android.sumahoclaw.core.database.FileDraftDao
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,16 +39,6 @@ sealed interface OpenedState {
         val file: OpenedFile,
         /** 読むときの色分け（ViewModel で一度だけ作る）。 */
         val spans: List<TokenSpan>,
-        /** 編集中の内容（null なら読んでいる）。 */
-        val editText: String? = null,
-        val cursor: Int = 0,
-        /** 編集を始めたときのハッシュ（下書きから戻したときは下書きのもの）。 */
-        val baseHash: String? = file.hash,
-        val saving: Boolean = false,
-        /** 保存したときに Gateway 側で書き換えられていた。 */
-        val conflict: Boolean = false,
-        /** 下書きから戻した。 */
-        val restoredDraft: Boolean = false,
         /** Markdown / HTML ならプレビューできる。 */
         val preview: PreviewFormat? = null,
         /** HTML のプレビュー用に、相対の CSS・JS・画像を埋め込んだもの（無ければ元の文字）。 */
@@ -64,8 +53,6 @@ sealed interface OpenedState {
         val refreshing: Boolean = false,
     ) : OpenedState {
         override val path: String get() = file.path
-        val editing: Boolean get() = editText != null
-        val dirty: Boolean get() = editText != null && editText != file.text
     }
 }
 
@@ -79,8 +66,6 @@ data class FilesUiState(
     /** 作業フォルダの絶対パス（ファイルの操作に使う。ワークスペースでは null）。 */
     val rootPath: String? = null,
     val opened: OpenedState? = null,
-    /** 戻るで変更を捨てるかの確認を出している。 */
-    val confirmDiscard: Boolean = false,
     /** ファイルの作成・削除・名前の変更ができる（作業フォルダで、ターミナルを開ける接続。spec 005 FR-065・066）。 */
     val canModify: Boolean = false,
     /** 操作の途中のパス（その行に進み具合を出す）。 */
@@ -90,9 +75,9 @@ data class FilesUiState(
     /** アップロードの途中（何件目か）。 */
     val upload: UploadStatus? = null,
 ) {
-    /** 画面の中だけで済む「戻る」（確認・検索・編集）があるか。 */
+    /** 画面の中だけで済む「戻る」（検索）があるか。 */
     val handlesBackInPage: Boolean
-        get() = confirmDiscard || (opened as? OpenedState.Ready)?.let { it.search != null || it.editing } == true
+        get() = (opened as? OpenedState.Ready)?.search != null
 
     val rows: List<TreeRow> get() = flattenTree(tree)
 }
@@ -106,9 +91,9 @@ sealed interface FilesEvent {
      * [failed] はそれ以外で置けなかった件数、[cancelled] は途中で止めた。
      */
     data class Uploaded(val done: Int, val failed: Int, val tooLarge: List<String> = emptyList(), val cancelled: Boolean = false) : FilesEvent
-    data object Saved : FilesEvent
-    data class SaveFailed(val message: String?) : FilesEvent
     data object FileGone : FilesEvent
+    /** 編集はエディターの画面で行う（spec 008）。画面がエディターを開く。 */
+    data class OpenEditor(val file: OpenedFile) : FilesEvent
     /** 読み直しに失敗した（表示は前のまま）。[tree] ならツリー（引き下げ）、そうでなければ開いたファイル（読み直すボタン）。 */
     data class RefreshFailed(val tree: Boolean) : FilesEvent
     /** 開いたファイルを読み直せた。[changed] なら中身が変わっていた。 */
@@ -118,13 +103,12 @@ sealed interface FilesEvent {
 }
 
 /**
- * ファイルビューア（spec 002 US1〜US3）。一覧・開く・編集・保存・衝突・下書き・ダウンロード。
+ * ファイルビューア（spec 002 US1〜US3）。一覧・開く・ダウンロード。編集・保存・下書きはエディターの画面（spec 008）。
  * 色分けの解析は Default のスレッドで一度だけ（AGENTS.md 1）。
  */
 class FilesViewModel(
     private val files: FileSource,
     private val downloader: FileDownloads,
-    private val drafts: FileDraftDao,
     sessionKey: String,
     agentId: String,
     /** 会話に作業フォルダがあるか（無ければワークスペースから始める）。 */
@@ -137,6 +121,8 @@ class FilesViewModel(
     private val settings: jp.miyavi.android.sumahoclaw.core.settings.SettingsStore? = null,
     /** 最後に開いていたファイルと展開を、アプリを閉じても覚えておく所（会話ごと）。 */
     private val memory: FileViewMemory? = null,
+    /** エディターで保存した結果（開いているファイルを差し替える。spec 008）。 */
+    editorResults: kotlinx.coroutines.flow.Flow<jp.miyavi.android.sumahoclaw.feature.editor.EditorResult>? = null,
 ) : ViewModel() {
     init {
         // 前回の続き（最後に開いたファイル・展開していたフォルダ）から始める
@@ -177,7 +163,6 @@ class FilesViewModel(
     private val opened = OpenedFileController(
         scope = viewModelScope,
         files = files,
-        drafts = drafts,
         read = { _state.value.opened },
         write = { block -> _state.update { it.copy(opened = block(it.opened)) } },
         emit = { _events.tryEmit(it) },
@@ -187,12 +172,17 @@ class FilesViewModel(
         _state.value.tree.needsLoad().forEach(::load)
         saved.get<String>(KEY_OPENED)?.let { opened.open(_state.value.root, it) }
         updateCanModify()
+        editorResults?.let { flow ->
+            viewModelScope.launch {
+                flow.collect { r -> if (r is jp.miyavi.android.sumahoclaw.feature.editor.EditorResult.Saved) opened.applySaved(r.file) }
+            }
+        }
     }
 
     fun selectRoot(root: FileRoot) {
         if (root == _state.value.root) return
         opened.close()
-        _state.update { it.copy(root = root, tree = FileTreeState(), rootPath = null, opened = null, confirmDiscard = false) }
+        _state.update { it.copy(root = root, tree = FileTreeState(), rootPath = null, opened = null) }
         store(KEY_WORKSPACE, root is FileRoot.Workspace)
         persistTree()
         store(KEY_OPENED, null)
@@ -224,7 +214,7 @@ class FilesViewModel(
         _state.value.tree.needsLoad().forEach(::load)
     }
 
-    /** 開いているファイルを読み直す（引き下げ。編集中は何もしない）。 */
+    /** 開いているファイルを読み直す。 */
     fun refreshOpened() = opened.refresh()
 
     /**
@@ -248,24 +238,11 @@ class FilesViewModel(
 
     /** 戻る操作。true なら処理した（false なら画面を閉じてよい）。 */
     fun back(): Boolean {
-        val s = _state.value
-        val current = s.opened
+        val current = _state.value.opened
         return when {
-            s.confirmDiscard -> { _state.update { it.copy(confirmDiscard = false) }; true }
             current is OpenedState.Ready && current.search != null -> { closeSearch(); true }
-            current is OpenedState.Ready && current.dirty -> { _state.update { it.copy(confirmDiscard = true) }; true }
-            // 変更していない編集は、そのまま読む表示に戻る
-            current is OpenedState.Ready && current.editing -> { opened.stopEditing(); true }
             else -> false
         }
-    }
-
-    fun dismissDiscard() = _state.update { it.copy(confirmDiscard = false) }
-
-    /** 変更を捨てて、読む表示（プレビュー / コード）に戻る（下書きも消す）。 */
-    fun discardAndClose() {
-        _state.update { it.copy(confirmDiscard = false) }
-        opened.stopEditing()
     }
 
     fun closeFile() {
@@ -417,15 +394,6 @@ class FilesViewModel(
     fun closeSearch() = opened.closeSearch()
     fun setSearchQuery(query: String) = opened.setSearchQuery(query)
     fun moveMatch(step: Int) = opened.moveMatch(step)
-    fun edit(text: String, cursor: Int) = opened.edit(text, cursor)
-
-    /** 保存（FR-008）。`overwrite` は衝突のあと「上書き」を選んだとき。 */
-    fun save(overwrite: Boolean = false) = opened.save(overwrite)
-
-    /** 衝突のあと「読み直し」: 変更を捨てて最新を開く。 */
-    fun reloadDiscarding() = opened.reloadDiscarding()
-
-    fun dismissConflict() = opened.dismissConflict()
 
     private fun childPath(parent: String, name: String) = if (parent.isEmpty()) name else "$parent/$name"
 

@@ -78,6 +78,11 @@ class AppContainer(app: Application) {
     /** ランチャーのショートカット（spec 007）。 */
     val shortcuts = jp.miyavi.android.sumahoclaw.core.shortcut.ShortcutPublisher(app, settings, sessions, gateway, secrets, foreground, avatarBitmaps, appScope)
 
+    /** エディター（spec 008）: 読み込み済みの中身の受け渡し・保存の結果・開いている対象。 */
+    val editorHandoff = jp.miyavi.android.sumahoclaw.feature.editor.EditorHandoff()
+    val editorResults = jp.miyavi.android.sumahoclaw.feature.editor.EditorResults()
+    val openEditors = jp.miyavi.android.sumahoclaw.feature.editor.OpenEditors()
+
     /** アプリ全体のダウンロード（ファイルビューアを閉じても、画面を消しても続く）。 */
     val downloads = jp.miyavi.android.sumahoclaw.core.data.DownloadCenter(
         context = app,

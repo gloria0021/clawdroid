@@ -3,6 +3,7 @@ package jp.miyavi.android.sumahoclaw.core.database
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -38,6 +39,13 @@ data class FileDraftEntity(
     val baseHash: String,
     val cursor: Int,
     val updatedAt: Long,
+    /** 文字コード（spec 008。`TextCharset` の名前）。 */
+    @ColumnInfo(defaultValue = "UTF_8") val charset: String = "UTF_8",
+    @ColumnInfo(defaultValue = "0") val bom: Boolean = false,
+    /** 改行（`LineSeparator` の名前）。 */
+    @ColumnInfo(defaultValue = "LF") val lineSeparator: String = "LF",
+    /** 添付を一度保存したときの Downloads の URI（2 回目からはそこを書き換える）。 */
+    val savedUri: String? = null,
 )
 
 @Dao
@@ -75,10 +83,10 @@ interface ReadingPositionDao {
 
 @Database(
     entities = [DraftEntity::class, ReadingPositionEntity::class, FileDraftEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
-    // 版 2: file_drafts を追加しただけ
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    // 版 2: file_drafts を追加しただけ。版 3: file_drafts に書式の列を足しただけ（spec 008）
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class SumahoClawDatabase : RoomDatabase() {
     abstract fun drafts(): DraftDao

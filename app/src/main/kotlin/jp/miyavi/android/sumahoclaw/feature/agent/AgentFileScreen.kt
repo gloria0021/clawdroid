@@ -43,25 +43,29 @@ import jp.miyavi.android.sumahoclaw.feature.chat.message.ImageOverlay
 import jp.miyavi.android.sumahoclaw.feature.files.FileControls
 import jp.miyavi.android.sumahoclaw.feature.files.FileControlsActions
 import jp.miyavi.android.sumahoclaw.feature.files.FileControlsState
-import jp.miyavi.android.sumahoclaw.feature.files.FileDialogs
 import jp.miyavi.android.sumahoclaw.feature.files.FilePage
 import jp.miyavi.android.sumahoclaw.feature.files.FilesEvent
 import jp.miyavi.android.sumahoclaw.feature.files.HtmlFindState
 import jp.miyavi.android.sumahoclaw.feature.files.OpenedState
+import jp.miyavi.android.sumahoclaw.feature.editor.EditTarget
+import jp.miyavi.android.sumahoclaw.feature.editor.HandoffContent
+import jp.miyavi.android.sumahoclaw.feature.editor.openEditor
 
 /** エージェントのファイル 1 つ（spec 004 US1、contracts/ui.md）。002 のファイルの画面と同じ部品で描く。 */
 @Composable
 fun AgentFileScreen(viewModel: AgentFileViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val saved = stringResource(R.string.files_saved)
-    val saveFailed = stringResource(R.string.files_save_failed)
     val gone = stringResource(R.string.files_gone)
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                FilesEvent.Saved -> snackbar.showSnackbar(saved)
-                is FilesEvent.SaveFailed -> snackbar.showSnackbar(event.message?.let { "$saveFailed: $it" } ?: saveFailed)
+                // 編集はエディターの画面で（spec 008）
+                is FilesEvent.OpenEditor -> context.openEditor(
+                    EditTarget.GatewayFile(event.file.root, event.file.path),
+                    HandoffContent.Gateway(event.file),
+                )
                 FilesEvent.FileGone -> snackbar.showSnackbar(gone, duration = SnackbarDuration.Long)
                 // エージェントのファイルでは作成・削除をしない
                 is FilesEvent.Operated -> Unit
@@ -76,13 +80,6 @@ fun AgentFileScreen(viewModel: AgentFileViewModel, onBack: () -> Unit) {
         onBack = { if (!viewModel.back()) onBack() },
         onRetry = viewModel::retry,
         onStartEditing = viewModel::startEditing,
-        onEdit = viewModel::edit,
-        onSave = { viewModel.save() },
-        onDiscard = { if (!viewModel.discard()) onBack() },
-        onDismissDiscard = viewModel::dismissDiscard,
-        onOverwrite = { viewModel.save(overwrite = true) },
-        onReload = viewModel::reloadDiscarding,
-        onDismissConflict = viewModel::dismissConflict,
         onToggleCode = viewModel::toggleCode,
         onOpenSearch = viewModel::openSearch,
         onSearchQuery = viewModel::setSearchQuery,
@@ -98,13 +95,6 @@ internal fun AgentFileContent(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onStartEditing: () -> Unit,
-    onEdit: (String, Int) -> Unit,
-    onSave: () -> Unit,
-    onDiscard: () -> Unit,
-    onDismissDiscard: () -> Unit,
-    onOverwrite: () -> Unit,
-    onReload: () -> Unit,
-    onDismissConflict: () -> Unit,
     onToggleCode: () -> Unit,
     onOpenSearch: () -> Unit,
     onSearchQuery: (String) -> Unit,
@@ -114,7 +104,7 @@ internal fun AgentFileContent(
     val hazeState = rememberHazeState()
     val htmlFind = remember { HtmlFindState() }
     val ready = state.opened as? OpenedState.Ready
-    // 確認・検索・編集はページの中で戻す。それ以外は画面の重なり（予測型「戻る」）に任せる
+    // 検索はページの中で戻す。それ以外は画面の重なり（予測型「戻る」）に任せる
     BackHandler(enabled = state.handlesBackInPage, onBack = onBack)
     var overlayImage by remember { mutableStateOf<MessagePart.Image?>(null) }
     ProvideScreenHaze(hazeState) {
@@ -128,21 +118,15 @@ internal fun AgentFileContent(
                         FloatingIconButton(hazeState, painterResource(R.drawable.ic_huge_chevron_left), stringResource(R.string.back_cd), onBack,
                             modifier = Modifier.padding(start = Spacing.s))
                     },
-                    actions = {
-                        if (ready?.editing == true) {
-                            IconButton(onClick = onSave, enabled = ready.dirty && !ready.saving) {
-                                Icon(painterResource(R.drawable.ic_huge_check), stringResource(R.string.files_save_cd))
-                            }
-                        }
-                    },
+                    actions = {},
                 )
             },
             snackbarHost = { GlassSnackbarHost(snackbar, Modifier.navigationBarsPadding()) },
         ) { padding ->
-            val showControls = ready != null && !ready.editing && ready.file.text != null
+            val showControls = ready != null && ready.file.text != null
             Box(Modifier.fillMaxSize()) {
                 // WebView（HTML のプレビュー）はガラスの透かしに取り込まない（取り込むと描画のスレッドで落ちる）
-                val showsWebView = ready != null && ready.preview == jp.miyavi.android.sumahoclaw.feature.files.PreviewFormat.HTML && !ready.showCode && !ready.editing
+                val showsWebView = ready != null && ready.preview == jp.miyavi.android.sumahoclaw.feature.files.PreviewFormat.HTML && !ready.showCode
                 Column(Modifier.fillMaxSize().then(if (showsWebView) Modifier else Modifier.hazeSource(hazeState))) {
                     val controlsSpace = if (showControls) Dimens.floatingButtonSize + Spacing.l else 0.dp
                     // 大きすぎて編集できないときは、本文の上に理由を 1 行（FR-024）
@@ -163,7 +147,6 @@ internal fun AgentFileContent(
                         ),
                         htmlFind = htmlFind,
                         onRetry = onRetry,
-                        onEdit = onEdit,
                         onOpenImage = { overlayImage = it },
                         onDownload = {},
                     )
@@ -196,13 +179,4 @@ internal fun AgentFileContent(
         }
     }
     ImageOverlay(overlayImage) { overlayImage = null }
-    FileDialogs(
-        confirmDiscard = state.confirmDiscard,
-        conflict = ready?.conflict == true,
-        onDiscard = onDiscard,
-        onDismissDiscard = onDismissDiscard,
-        onOverwrite = onOverwrite,
-        onReload = onReload,
-        onDismissConflict = onDismissConflict,
-    )
 }

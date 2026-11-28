@@ -131,6 +131,7 @@ dependencies {
     // ターミナルの表示（Termux、001 research R9 で承認）とコードの色分け（R10 で承認）
     implementation(libs.termux.terminal.view)
     implementation(libs.highlights)
+    implementation(libs.sora.editor)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 

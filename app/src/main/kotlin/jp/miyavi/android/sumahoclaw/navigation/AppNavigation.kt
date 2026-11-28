@@ -220,6 +220,7 @@ private fun MainNavigation(container: AppContainer) {
                                     DateUtils.formatDateTime(context, ms, DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_ALL)
                                 },
                                 foreground = container.foreground,
+                                editorResults = container.editorResults.results,
                             )
                         }
                     },
@@ -427,7 +428,6 @@ private fun MainNavigation(container: AppContainer) {
                                 jp.miyavi.android.sumahoclaw.feature.files.FilesViewModel(
                                     files = files,
                                     downloader = container.downloads,
-                                    drafts = container.database.fileDrafts(),
                                     sessionKey = route.sessionKey,
                                     agentId = route.agentId,
                                     // 会話には必ず Gateway の作業フォルダ（無ければエージェントのワークスペース）がある
@@ -449,6 +449,7 @@ private fun MainNavigation(container: AppContainer) {
                                         context.getSharedPreferences("file_view", android.content.Context.MODE_PRIVATE),
                                         "${route.sessionKey}|${route.agentId}",
                                     ),
+                                    editorResults = container.editorResults.results,
                                 )
                             }
                         },
@@ -495,7 +496,7 @@ private fun MainNavigation(container: AppContainer) {
                 val vm: jp.miyavi.android.sumahoclaw.feature.agent.AgentFileViewModel = viewModel(
                     factory = viewModelFactory {
                         initializer {
-                            jp.miyavi.android.sumahoclaw.feature.agent.AgentFileViewModel(route.agentId, route.name, files, container.database.fileDrafts())
+                            jp.miyavi.android.sumahoclaw.feature.agent.AgentFileViewModel(route.agentId, route.name, files, container.editorResults.results)
                         }
                     },
                 )
@@ -510,7 +511,6 @@ private fun MainNavigation(container: AppContainer) {
                             jp.miyavi.android.sumahoclaw.feature.files.FilesViewModel(
                                 files = files,
                                 downloader = container.downloads,
-                                drafts = container.database.fileDrafts(),
                                 sessionKey = "",
                                 agentId = route.agentId,
                                 hasWorkingFolder = false,

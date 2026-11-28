@@ -60,7 +60,7 @@ import kotlinx.coroutines.flow.drop
 
 /**
  * 開いたファイル（spec 002 FR-005〜008）。Markdown / HTML はふだんプレビュー、コードのボタンで元の文字。
- * 文字は行番号付きの等幅・色分け（読む・編集とも。spec 005 US5）、
+ * 文字は行番号付きの等幅・色分け（spec 005 US5。編集はエディターの画面で行う。spec 008）、
  * 画像はプレビューを押すと全画面、表示できないファイルは種類・大きさとダウンロード。
  */
 @Composable
@@ -68,23 +68,21 @@ internal fun FileViewer(
     state: OpenedState.Ready,
     contentPadding: PaddingValues,
     htmlFind: HtmlFindState,
-    onEdit: (String, Int) -> Unit,
     onOpenImage: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 編集中の入力欄（画面の上で持つ。無ければここで作る）。 */
-    editor: TextFieldState? = null,
     wrap: Boolean = true,
+    /** 読んでいる行（コードを読んでいるとき。エディターをその行から開く。spec 008 FR-003）。 */
+    readingLine: androidx.compose.runtime.MutableIntState? = null,
 ) {
     val file = state.file
     when {
-        state.editing -> CodeEditorField(editor ?: rememberEditorState(state, onEdit), file.name, contentPadding, modifier.imePadding())
         file.kind == PreviewKind.TEXT && file.text != null -> when {
             !state.showCode && state.preview == PreviewFormat.MARKDOWN ->
                 MarkdownPreview(state.blocks, state.search, contentPadding, modifier)
             !state.showCode && state.preview == PreviewFormat.HTML ->
                 HtmlPreview(state.htmlInline ?: file.text, state.search?.query.orEmpty(), htmlFind, contentPadding, modifier)
-            else -> CodeReader(file.text, state.spans, state.search, wrap, contentPadding, modifier)
+            else -> CodeReader(file.text, state.spans, state.search, wrap, contentPadding, modifier, readingLine)
         }
         file.kind == PreviewKind.IMAGE -> {
             val bitmap = file.image ?: rememberBase64Bitmap(file.imageBase64)
@@ -118,21 +116,6 @@ internal fun AnnotatedString.withMatches(matches: List<Int>, length: Int, curren
             if (start < end) addStyle(if (index == current) focused else match, start, end)
         }
     }.toAnnotatedString()
-}
-
-/**
- * 編集の入力欄の状態（開いたファイルごと）。入力は ViewModel に知らせ、下書きに残す。
- * ViewModel の値で毎回作り直さない（入力中のカーソルを失わない）。
- */
-@Composable
-internal fun rememberEditorState(state: OpenedState.Ready, onEdit: (String, Int) -> Unit): TextFieldState {
-    val initial = state.editText.orEmpty()
-    val field = remember(state.file.path) { TextFieldState(initial, TextRange(state.cursor.coerceIn(0, initial.length))) }
-    val latest by rememberUpdatedState(onEdit)
-    LaunchedEffect(field) {
-        snapshotFlow { field.text.toString() to field.selection.start }.drop(1).collect { (text, cursor) -> latest(text, cursor) }
-    }
-    return field
 }
 
 @Composable

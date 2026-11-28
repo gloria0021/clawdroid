@@ -37,12 +37,15 @@ object CodeHighlighter {
         mark = TokenKind.PUNCTUATION.marker,
     )
 
-    fun spans(fileName: String, text: String): List<TokenSpan> {
+    fun spans(fileName: String, text: String): List<TokenSpan> = languageFor(fileName)?.let { spans(it, text) }.orEmpty()
+
+    /** 言語を決めて分ける（エディターで選び直したとき。spec 008 FR-015）。 */
+    fun spans(language: CodeLanguage, text: String): List<TokenSpan> {
         // highlights が持たない言語（XML・YAML・TOML・CSS・Markdown など）は、手元の簡単な規則で分ける
-        markupOf(fileName)?.let { return MarkupHighlighter.spans(it, text) }
-        val language = languageOf(fileName) ?: return emptyList()
+        language.markup?.let { return MarkupHighlighter.spans(it, text) }
+        val syntax = language.syntax ?: return emptyList()
         val base = runCatching {
-            Highlights.Builder().code(text).language(language).theme(markerTheme).build().getHighlights()
+            Highlights.Builder().code(text).language(syntax).theme(markerTheme).build().getHighlights()
                 .mapNotNull { highlight ->
                     val color = highlight as? ColorHighlight ?: return@mapNotNull null
                     val kind = TokenKind.entries.firstOrNull { it.marker == color.rgb } ?: return@mapNotNull null
@@ -54,6 +57,11 @@ object CodeHighlighter {
         // highlights は型と関数を分けないので、文字列・コメントの外の「大文字で始まる名前」を型、「名前(」を関数として足す
         return base + identifierSpans(text, base)
     }
+
+    /** 拡張子から言語を決める（無ければ色分けしない）。 */
+    fun languageFor(fileName: String): CodeLanguage? =
+        markupOf(fileName)?.let { m -> CodeLanguage.entries.first { it.markup == m } }
+            ?: languageOf(fileName)?.let { l -> CodeLanguage.entries.first { it.syntax == l } }
 
     private val TYPE_NAME = Regex("\\b[A-Z][A-Za-z0-9_]*\\b")
     private val FUNCTION_CALL = Regex("\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()")
@@ -132,6 +140,32 @@ fun highlighted(text: String, spans: List<TokenSpan>, colors: ColorScheme): Anno
 }
 
 enum class Markup { XML, YAML, CONFIG, CSS, MARKDOWN }
+
+/** 色分けの言語（エディターで選び直せるもの）。名前は `strings.xml`（訳さない）。 */
+enum class CodeLanguage(@androidx.annotation.StringRes val label: Int, val syntax: SyntaxLanguage? = null, val markup: Markup? = null) {
+    KOTLIN(jp.miyavi.android.sumahoclaw.R.string.lang_kotlin, SyntaxLanguage.KOTLIN),
+    JAVA(jp.miyavi.android.sumahoclaw.R.string.lang_java, SyntaxLanguage.JAVA),
+    JAVASCRIPT(jp.miyavi.android.sumahoclaw.R.string.lang_javascript, SyntaxLanguage.JAVASCRIPT),
+    TYPESCRIPT(jp.miyavi.android.sumahoclaw.R.string.lang_typescript, SyntaxLanguage.TYPESCRIPT),
+    PYTHON(jp.miyavi.android.sumahoclaw.R.string.lang_python, SyntaxLanguage.PYTHON),
+    RUBY(jp.miyavi.android.sumahoclaw.R.string.lang_ruby, SyntaxLanguage.RUBY),
+    RUST(jp.miyavi.android.sumahoclaw.R.string.lang_rust, SyntaxLanguage.RUST),
+    GO(jp.miyavi.android.sumahoclaw.R.string.lang_go, SyntaxLanguage.GO),
+    SWIFT(jp.miyavi.android.sumahoclaw.R.string.lang_swift, SyntaxLanguage.SWIFT),
+    C(jp.miyavi.android.sumahoclaw.R.string.lang_c, SyntaxLanguage.C),
+    CPP(jp.miyavi.android.sumahoclaw.R.string.lang_cpp, SyntaxLanguage.CPP),
+    CSHARP(jp.miyavi.android.sumahoclaw.R.string.lang_csharp, SyntaxLanguage.CSHARP),
+    DART(jp.miyavi.android.sumahoclaw.R.string.lang_dart, SyntaxLanguage.DART),
+    PHP(jp.miyavi.android.sumahoclaw.R.string.lang_php, SyntaxLanguage.PHP),
+    PERL(jp.miyavi.android.sumahoclaw.R.string.lang_perl, SyntaxLanguage.PERL),
+    SHELL(jp.miyavi.android.sumahoclaw.R.string.lang_shell, SyntaxLanguage.SHELL),
+    COFFEESCRIPT(jp.miyavi.android.sumahoclaw.R.string.lang_coffeescript, SyntaxLanguage.COFFEESCRIPT),
+    XML(jp.miyavi.android.sumahoclaw.R.string.lang_xml, markup = Markup.XML),
+    YAML(jp.miyavi.android.sumahoclaw.R.string.lang_yaml, markup = Markup.YAML),
+    CONFIG(jp.miyavi.android.sumahoclaw.R.string.lang_config, markup = Markup.CONFIG),
+    CSS(jp.miyavi.android.sumahoclaw.R.string.lang_css, markup = Markup.CSS),
+    MARKDOWN(jp.miyavi.android.sumahoclaw.R.string.lang_markdown, markup = Markup.MARKDOWN),
+}
 
 /** XML・YAML・設定ファイル・CSS・Markdown の簡単な色分け（正規表現で、重なる区間は先に見つけた方を残す）。 */
 internal object MarkupHighlighter {

@@ -205,6 +205,10 @@ interface InboundImageSource {
     /** 添付の文字のファイルの中身（会話の中で開いて見る）。取れなければ null。 */
     suspend fun text(source: String, messageScope: String, maxBytes: Long): String? = null
 
+    /** 取るときに使う会話とエージェント（エディターが自分で取り直すため。spec 008 US5）。 */
+    val sessionKey: String? get() = null
+    val agentId: String? get() = null
+
     /** 添付ファイルの保存先の記録の鍵（接続先・会話・メッセージ・場所で区別する）。 */
     suspend fun storageKey(source: String, messageId: String): String = "$messageId|$source"
 
