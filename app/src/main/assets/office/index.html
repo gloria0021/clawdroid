@@ -135,7 +135,8 @@ function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; l
 // 描画の土台
 // ============================================================
 const hero = document.getElementById('hero');
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
+// ?shot: 画面を撮って確かめるとき（描いた絵を残す。ふだんは残さない）
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power', preserveDrawingBuffer: new URLSearchParams(location.search).has('shot') });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -703,8 +704,18 @@ function buildQuad(p) {
   const tail = new THREE.Group(); tail.position.set(0, h * 0.75, 0); body.add(tail);
   switch (p.tail) {
     case 'curl': box(tail, null, 0.07, 0.14, 0.07, 0, 0, 0.02, coat); box(tail, null, 0.07, 0.07, 0.12, 0, 0.12, -0.04, light); break;
-    case 'long': { const t = box(tail, null, 0.045, 0.045, 0.36, 0, 0, 0.16, coat); t.rotation.x = 0.7; t.position.set(0, 0.12, 0.12); break; }
-    case 'thin': { const t = box(tail, null, 0.04, 0.04, 0.28, 0, 0, 0.12, coat); t.rotation.x = 0.35; t.position.set(0, 0.04, 0.12); break; }
+    case 'long': {   // 付け根から後ろ上へ伸び、先が上を向く（2 つの箱を付け根でつなぐ）
+      const base = new THREE.Group(); base.rotation.x = -0.75; tail.add(base);
+      box(base, null, 0.05, 0.05, 0.24, 0, -0.025, 0.11, coat);
+      const tip = new THREE.Group(); tip.position.set(0, 0, 0.22); tip.rotation.x = -0.7; base.add(tip);
+      box(tip, null, 0.05, 0.05, 0.18, 0, -0.025, 0.08, coat);
+      break;
+    }
+    case 'thin': {
+      const base = new THREE.Group(); base.rotation.x = -0.35; tail.add(base);
+      box(base, null, 0.04, 0.04, 0.28, 0, -0.02, 0.13, coat);
+      break;
+    }
     default: box(tail, null, 0.06, 0.06, 0.05, 0, -0.02, 0.02, coat);   // stub
   }
   // 頭（体の前、少し上）
@@ -731,7 +742,7 @@ function buildQuad(p) {
   }
   if (p.name === 'bulldog') for (const s of [-1, 1]) box(head, null, 0.08, 0.08, 0.04, s * 0.08, -0.04, -hd / 2 - 0.02, light);   // ほお
   return {
-    kind: 'quad', root, body, legs, arms, head, bodyZ,
+    kind: 'quad', root, body, legs, arms, head, bodyZ, longBody: len > 0.7,
     typeBase: 0.15,
     // 座面（高さ 0.5）にお尻が乗る・ベッド（0.48）に伏せる高さ
     sitDy: 0.43 - legH * ANIMAL_SCALE, lieDy: 0.48 - legH * ANIMAL_SCALE - 0.6, lieDz: -0.05, lieRot: 0,
@@ -763,7 +774,8 @@ function poseSit(c) {
   poseStand(c);
   c.legs.forEach((l) => (l.rotation.x = Math.PI / 2));
   c.arms.forEach((a) => (a.rotation.x = c.typeBase));
-  if (c.kind === 'quad') { c.body.rotation.x = 1.2; c.body.position.z = 0.02; }   // お座りして、前脚をキーボードへ
+  // お座りして、前脚をキーボードへ。胴の長い犬は立ち上がりすぎないよう浅く
+  if (c.kind === 'quad') { c.body.rotation.x = c.longBody ? 0.75 : 1.2; c.body.position.z = 0.02; }
 }
 function poseLie(c) {
   poseStand(c);
@@ -771,6 +783,18 @@ function poseLie(c) {
     c.legs.forEach((l) => (l.rotation.x = -1.3)); c.arms.forEach((a) => (a.rotation.x = 1.3)); c.head.rotation.x = 0.15;
   } else c.body.rotation.x = Math.PI / 2;
 }
+// ============================================================
+// 状態 → 居場所。歩く道: ベッド ⇔ 仮眠室の通路 ⇔ 出入口 ⇔ 手前の通路 ⇔ デスク
+// ============================================================
+const people = new Map();
+let reduced = false, paused = false, firstSet = true, dirty = true, lastTime = 0;
+const hashId = (id) => { let h = 0; for (const ch of id) h = (h * 31 + ch.codePointAt(0)) | 0; return Math.abs(h); };
+const V = (x, z) => new THREE.Vector3(x, 0, z);
+function routeBedToDesk(slot) {
+  const b = beds[slot].stand, d = desks[slot].stand;
+  return [b.clone(), V(AISLE.napX, AISLE.napZ), V(DOOR.x, AISLE.napZ), V(DOOR.x, AISLE.frontZ), V(AISLE.officeX, d.z), d.clone()];
+}
+
 function placeAt(p, place) {
   const c = p.c;
   // 姿勢を先に決めてから置く（姿勢を戻すときに高さを 0 に戻すので、逆だとベッドの中に沈む）
