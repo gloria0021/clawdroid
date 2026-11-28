@@ -183,13 +183,11 @@ fun decodeImageScaled(bytes: ByteArray, maxSide: Int = MAX_IMAGE_SIDE_PX): Image
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
 }.getOrNull()
 
-/** 文字のファイルのバイト列を UTF-8 の文字にする（先頭の BOM は外す）。NUL を含めば文字ではないとみなして null。 */
-fun decodeText(bytes: ByteArray): String? {
-    if (bytes.any { it == 0.toByte() }) return null
-    return String(bytes, Charsets.UTF_8).removePrefix(BYTE_ORDER_MARK)
-}
-
-private const val BYTE_ORDER_MARK = "\uFEFF"
+/**
+ * 文字のファイルのバイト列を文字にする。エディターと同じ判定（UTF-8・UTF-16・Shift_JIS・EUC-JP、BOM を外し改行を LF に）で読み、
+ * どれでも読めなければ null（化けた文字を見せない。CJ レビュー 2026-11-28）。
+ */
+fun decodeText(bytes: ByteArray): String? = jp.miyavi.android.sumahoclaw.core.text.TextDecoding.detect(bytes)?.text
 
 /** 今開いている会話で、会話の画像を取る口。 */
 interface InboundImageSource {

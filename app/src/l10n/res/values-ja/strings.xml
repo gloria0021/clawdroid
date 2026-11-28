@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d分%2$d秒</string>
     <string name="chat_elapsed_seconds">%1$d秒</string>
     <string name="chat_empty_title">何をしましょうか</string>
+    <string name="chat_file_copy_too_long">長いのでコピーできません。ダウンロードして開いてください</string>
     <string name="chat_file_failed">保存できませんでした</string>
     <string name="chat_file_kind">ファイル</string>
     <string name="chat_file_open">開く</string>
@@ -394,7 +395,7 @@
     <string name="editor_language_none">なし（色分けしない）</string>
     <string name="editor_launcher_label">テキストエディタ</string>
     <string name="editor_leave_body">閉じる前に保存しますか？</string>
-    <string name="editor_leave_discard">捨てる</string>
+    <string name="editor_leave_discard">破棄</string>
     <string name="editor_leave_keep">続ける</string>
     <string name="editor_leave_save">保存する</string>
     <string name="editor_leave_title">保存していない変更があります</string>
@@ -434,7 +435,7 @@
     <string name="exec_mode_full">すべて許可</string>
     <string name="files_conflict_body">開いたあとに、このファイルが Gateway 側で変更されました。どうしますか？</string>
     <string name="files_conflict_overwrite">上書きする</string>
-    <string name="files_conflict_reload">変更を捨てて読み直す</string>
+    <string name="files_conflict_reload">変更を破棄して読み直す</string>
     <string name="files_conflict_title">ほかで書き換えられています</string>
     <string name="files_create">作成</string>
     <string name="files_delete">削除</string>
@@ -442,8 +443,8 @@
     <string name="files_delete_irreversible">元に戻せません。Git で管理していないファイルは復元できません。</string>
     <string name="files_delete_title">「%1$s」を削除しますか？</string>
     <string name="files_discard_body">保存していない変更は失われます。</string>
-    <string name="files_discard_confirm">捨てる</string>
-    <string name="files_discard_title">変更を捨てますか？</string>
+    <string name="files_discard_confirm">破棄</string>
+    <string name="files_discard_title">変更を破棄しますか？</string>
     <string name="files_download_cancel_cd">ダウンロードを中止</string>
     <string name="files_download_cancelled">ダウンロードを中止しました</string>
     <string name="files_download_cd">ダウンロード</string>
@@ -918,7 +919,7 @@
     <string name="thinking_phrases_more_cd">その他の操作</string>
     <string name="thinking_phrases_preview">見え方</string>
     <string name="thinking_phrases_reset">既定に戻す</string>
-    <string name="thinking_phrases_reset_body">書き換えたひとりごとは失われ、アプリに入っている一覧に戻ります。</string>
+    <string name="thinking_phrases_reset_body">エディタの中身を、アプリに入っている一覧に入れ替えます。保存するまでは反映されません。</string>
     <string name="thinking_phrases_reset_title">既定に戻しますか？</string>
     <string name="tool_profile_coding">コーディング</string>
     <string name="tool_profile_full">すべて</string>

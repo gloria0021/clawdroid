@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d 分 %2$d 秒</string>
     <string name="chat_elapsed_seconds">%1$d 秒</string>
     <string name="chat_empty_title">需要我做点什么？</string>
+    <string name="chat_file_copy_too_long">内容过长，无法复制。请下载后打开</string>
     <string name="chat_file_failed">无法保存</string>
     <string name="chat_file_kind">文件</string>
     <string name="chat_file_open">打开</string>
@@ -394,7 +395,7 @@
     <string name="editor_language_none">无（不着色）</string>
     <string name="editor_launcher_label">文本编辑器</string>
     <string name="editor_leave_body">关闭前要保存吗？</string>
-    <string name="editor_leave_discard">放弃</string>
+    <string name="editor_leave_discard">舍弃</string>
     <string name="editor_leave_keep">继续编辑</string>
     <string name="editor_leave_save">保存</string>
     <string name="editor_leave_title">有未保存的更改</string>
@@ -434,7 +435,7 @@
     <string name="exec_mode_full">全部允许</string>
     <string name="files_conflict_body">此文件在你打开后已在 Gateway 端被修改。要如何处理？</string>
     <string name="files_conflict_overwrite">覆盖</string>
-    <string name="files_conflict_reload">放弃更改并重新加载</string>
+    <string name="files_conflict_reload">舍弃更改并重新加载</string>
     <string name="files_conflict_title">已在其他位置被修改</string>
     <string name="files_create">创建</string>
     <string name="files_delete">删除</string>
@@ -442,8 +443,8 @@
     <string name="files_delete_irreversible">此操作无法撤销。未由 Git 管理的文件无法恢复。</string>
     <string name="files_delete_title">删除“%1$s”？</string>
     <string name="files_discard_body">未保存的更改将会丢失。</string>
-    <string name="files_discard_confirm">放弃</string>
-    <string name="files_discard_title">放弃更改？</string>
+    <string name="files_discard_confirm">舍弃</string>
+    <string name="files_discard_title">要舍弃更改吗？</string>
     <string name="files_download_cancel_cd">取消下载</string>
     <string name="files_download_cancelled">已取消下载</string>
     <string name="files_download_cd">下载</string>
@@ -918,7 +919,7 @@
     <string name="thinking_phrases_more_cd">更多选项</string>
     <string name="thinking_phrases_preview">预览</string>
     <string name="thinking_phrases_reset">恢复默认</string>
-    <string name="thinking_phrases_reset_body">你修改过的自言自语将丢失，并恢复为应用内置的列表。</string>
+    <string name="thinking_phrases_reset_body">将编辑器内容替换为应用内置的列表。保存后才会生效。</string>
     <string name="thinking_phrases_reset_title">要恢复默认吗？</string>
     <string name="tool_profile_coding">编程</string>
     <string name="tool_profile_full">全部</string>

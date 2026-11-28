@@ -31,7 +31,7 @@ Termux `terminal-view`（＋ `terminal-emulator`、jitpack v0.118.3）と `dev.s
 
 **Constraints**: 色分けの解析は ViewModel で一度だけ（AGENTS.md 1）。動きは motionScheme のトークンだけ。ガラスはタイトルバー・下部のピル・シート・Snackbar だけ（AGENTS.md 2.10）
 
-**Scale/Scope**: 画面 2 つ（ファイル・ターミナル）＋ダイアログ 2 つ（衝突・捨てる確認）。ストーリー 4 本、要件 FR-001〜031
+**Scale/Scope**: 画面 2 つ（ファイル・ターミナル）＋ダイアログ 2 つ（衝突・破棄の確認）。ストーリー 4 本、要件 FR-001〜031
 
 ## Constitution Check
 
@@ -99,7 +99,7 @@ app/src/test/kotlin/jp/miyavi/android/sumahoclaw/
 
 1. **土台**: 依存の追加（Termux・highlights）、`file_drafts`（DB 版 2）、Hugeicons の不足分、文言
 2. **US1 読む**: FilesRepository（list / get / workspace）→ FilesViewModel → 一覧・パス・ルートの切り替え → 読む（色分け）・画像・表示できない
-3. **US2 直す**: 編集・保存・衝突・捨てる確認・下書き
+3. **US2 直す**: 編集・保存・衝突・破棄の確認・下書き
 4. **US3 ダウンロード**: download → FileDownloader → Snackbar の「開く」
 5. **US4 ターミナル**: RemoteTerminalSession の成立確認（R6 のリスク）→ TerminalRepository → 画面・特殊キー → つなぎ直し・状態の表示
 6. 仕上げ: 大画面の list-detail、文字 200%、AGENTS.md 第 4 章、quickstart

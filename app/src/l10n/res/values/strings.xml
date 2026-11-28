@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d min %2$d s</string>
     <string name="chat_elapsed_seconds">%1$d s</string>
     <string name="chat_empty_title">What can I help with?</string>
+    <string name="chat_file_copy_too_long">Too long to copy. Download and open it instead</string>
     <string name="chat_file_failed">Couldn\'t save</string>
     <string name="chat_file_kind">File</string>
     <string name="chat_file_open">Open</string>
@@ -435,7 +436,7 @@
     <string name="exec_mode_full">Allow all</string>
     <string name="files_conflict_body">This file was changed on the Gateway after you opened it. What do you want to do?</string>
     <string name="files_conflict_overwrite">Overwrite</string>
-    <string name="files_conflict_reload">Discard and reload</string>
+    <string name="files_conflict_reload">Discard changes and reload</string>
     <string name="files_conflict_title">Changed elsewhere</string>
     <string name="files_create">Create</string>
     <string name="files_delete">Delete</string>
@@ -921,7 +922,7 @@
     <string name="thinking_phrases_more_cd">More options</string>
     <string name="thinking_phrases_preview">Preview</string>
     <string name="thinking_phrases_reset">Reset to default</string>
-    <string name="thinking_phrases_reset_body">Your edited lines will be lost and the app\'s built-in list will be restored.</string>
+    <string name="thinking_phrases_reset_body">Replaces the editor contents with the app\'s built-in list. Changes apply only after you save.</string>
     <string name="thinking_phrases_reset_title">Reset to default?</string>
     <string name="tool_profile_coding">Coding</string>
     <string name="tool_profile_full">All</string>

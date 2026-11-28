@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d Min. %2$d Sek.</string>
     <string name="chat_elapsed_seconds">%1$d Sek.</string>
     <string name="chat_empty_title">Wobei kann ich helfen?</string>
+    <string name="chat_file_copy_too_long">Zu lang zum Kopieren. Lade die Datei stattdessen herunter und öffne sie</string>
     <string name="chat_file_failed">Speichern fehlgeschlagen</string>
     <string name="chat_file_kind">Datei</string>
     <string name="chat_file_open">Öffnen</string>
@@ -435,7 +436,7 @@
     <string name="exec_mode_full">Alles erlauben</string>
     <string name="files_conflict_body">Diese Datei wurde auf dem Gateway geändert, nachdem du sie geöffnet hast. Was möchtest du tun?</string>
     <string name="files_conflict_overwrite">Überschreiben</string>
-    <string name="files_conflict_reload">Verwerfen und neu laden</string>
+    <string name="files_conflict_reload">Änderungen verwerfen und neu laden</string>
     <string name="files_conflict_title">Anderswo geändert</string>
     <string name="files_create">Erstellen</string>
     <string name="files_delete">Löschen</string>
@@ -921,7 +922,7 @@
     <string name="thinking_phrases_more_cd">Weitere Optionen</string>
     <string name="thinking_phrases_preview">Vorschau</string>
     <string name="thinking_phrases_reset">Auf Standard zurücksetzen</string>
-    <string name="thinking_phrases_reset_body">Deine bearbeiteten Zeilen gehen verloren und die integrierte Liste der App wird wiederhergestellt.</string>
+    <string name="thinking_phrases_reset_body">Ersetzt den Inhalt des Editors durch die in der App enthaltene Liste. Änderungen werden erst nach dem Speichern übernommen.</string>
     <string name="thinking_phrases_reset_title">Auf Standard zurücksetzen?</string>
     <string name="tool_profile_coding">Coding</string>
     <string name="tool_profile_full">Alle</string>

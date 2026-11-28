@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d분 %2$d초</string>
     <string name="chat_elapsed_seconds">%1$d초</string>
     <string name="chat_empty_title">무엇을 할까요?</string>
+    <string name="chat_file_copy_too_long">너무 길어서 복사할 수 없습니다. 다운로드해서 여세요</string>
     <string name="chat_file_failed">저장하지 못했습니다</string>
     <string name="chat_file_kind">파일</string>
     <string name="chat_file_open">열기</string>
@@ -434,7 +435,7 @@
     <string name="exec_mode_full">모두 허용</string>
     <string name="files_conflict_body">파일을 연 뒤 Gateway에서 이 파일이 변경되었습니다. 어떻게 할까요?</string>
     <string name="files_conflict_overwrite">덮어쓰기</string>
-    <string name="files_conflict_reload">변경 사항을 버리고 다시 불러오기</string>
+    <string name="files_conflict_reload">변경사항 삭제 후 다시 로드</string>
     <string name="files_conflict_title">다른 곳에서 수정됨</string>
     <string name="files_create">만들기</string>
     <string name="files_delete">삭제</string>
@@ -443,7 +444,7 @@
     <string name="files_delete_title">\"%1$s\"을(를) 삭제할까요?</string>
     <string name="files_discard_body">저장하지 않은 변경 사항은 사라집니다.</string>
     <string name="files_discard_confirm">삭제</string>
-    <string name="files_discard_title">변경 사항을 삭제할까요?</string>
+    <string name="files_discard_title">변경사항을 삭제하시겠습니까?</string>
     <string name="files_download_cancel_cd">다운로드 취소</string>
     <string name="files_download_cancelled">다운로드를 취소했습니다</string>
     <string name="files_download_cd">다운로드</string>
@@ -918,7 +919,7 @@
     <string name="thinking_phrases_more_cd">옵션 더보기</string>
     <string name="thinking_phrases_preview">미리보기</string>
     <string name="thinking_phrases_reset">기본값으로 재설정</string>
-    <string name="thinking_phrases_reset_body">수정한 혼잣말은 사라지고 앱에 기본으로 들어 있는 목록으로 돌아갑니다.</string>
+    <string name="thinking_phrases_reset_body">편집기 내용을 앱에 기본으로 들어 있는 목록으로 바꿉니다. 저장해야 적용됩니다.</string>
     <string name="thinking_phrases_reset_title">기본값으로 재설정할까요?</string>
     <string name="tool_profile_coding">코딩</string>
     <string name="tool_profile_full">전체</string>

@@ -1,6 +1,10 @@
 package jp.miyavi.android.sumahoclaw.feature.chat.message
 
 import android.content.ClipData
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,7 +88,8 @@ private sealed interface PreviewContent {
 /**
  * 文字の添付の中身（共通のボトムシート。AGENTS.md 2.5）。入力欄の「コピーしたテキスト」のタイルと同じ形で、
  * 送ったあとの .txt / .md も会話の中ですぐ確かめられるようにする。長ければ中の面だけをスクロールする。
- * 下の行は コピー ｜ ダウンロード（保存できたあとは 開く）。
+ * 下の行は コピー ｜ ダウンロード（保存中は進みと中止、保存できたあとは 開く）。
+ * コピーは [COPY_MAX_CHARS] 文字まで（それより長いとアプリ間の受け渡しの上限を超えうるので、理由を出して保存へ導く。CJ レビュー 2026-11-28）。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -94,6 +99,11 @@ internal fun FilePreviewSheet(
     messageId: String,
     meta: String,
     saved: Boolean,
+    /** 保存中か。押すと中止になるので、ボタンに進みと「中止」を出す。 */
+    saving: Boolean,
+    /** 保存の進み（0〜1。分からなければ null）。 */
+    progress: Float?,
+    /** 保存を始める。保存中に押すと中止。 */
     onSave: () -> Unit,
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
@@ -169,27 +179,68 @@ internal fun FilePreviewSheet(
                 is PreviewContent.Plain -> c.text
                 else -> null
             }
+            val tooLong = text != null && text.length > COPY_MAX_CHARS
+            if (tooLong) {
+                Text(
+                    stringResource(R.string.chat_file_copy_too_long),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                )
+            }
             TextButton(
-                enabled = text != null,
+                enabled = text != null && !tooLong,
                 onClick = { text?.let { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(file.name, it))) } } },
             ) { Text(stringResource(R.string.action_copy)) }
-            if (saved) {
-                FilledTonalButton(onClick = onOpen) { Text(stringResource(R.string.chat_file_open)) }
-            } else {
-                FilledTonalButton(onClick = onSave) { Text(stringResource(R.string.chat_file_save_cd)) }
+            when {
+                saved -> FilledTonalButton(onClick = onOpen) { Text(stringResource(R.string.chat_file_open)) }
+                saving -> FilledTonalButton(onClick = onSave) {
+                    if (progress != null) {
+                        val shown by animateFloatAsState(progress, MaterialTheme.motionScheme.fastSpatialSpec(), label = "previewSaveProgress")
+                        CircularWavyProgressIndicator(progress = { shown }, modifier = Modifier.size(Dimens.smallIcon))
+                    } else {
+                        LoadingIndicator(Modifier.size(Dimens.smallIcon))
+                    }
+                    Spacer(Modifier.width(Spacing.s))
+                    Text(stringResource(R.string.files_download_cancel_cd))
+                }
+                else -> FilledTonalButton(onClick = onSave) { Text(stringResource(R.string.chat_file_save_cd)) }
             }
         }
     }
 }
 
-/** 長い文字を行のまとまりに分ける（一覧の 1 項目を軽く保つ。1 つの Text に全部を載せない）。 */
-internal fun plainChunks(text: String, linesPerChunk: Int = LINES_PER_CHUNK): List<String> {
-    val lines = text.trimEnd('\n').split('\n')
-    return lines.chunked(linesPerChunk) { it.joinToString("\n") }
+/**
+ * 長い文字を一覧の項目に分ける（1 つの Text に全部を載せない）。[linesPerChunk] 行か [charsPerChunk] 文字で区切り、
+ * 改行の無い長い行（1 行の JSON など）も [charsPerChunk] 文字ずつに分ける（CJ レビュー 2026-11-28）。
+ */
+internal fun plainChunks(text: String, linesPerChunk: Int = LINES_PER_CHUNK, charsPerChunk: Int = CHARS_PER_CHUNK): List<String> {
+    val chunks = ArrayList<String>()
+    val current = StringBuilder()
+    var lines = 0
+    fun flush() {
+        if (lines > 0) chunks += current.toString()
+        current.setLength(0)
+        lines = 0
+    }
+    for (line in text.trimEnd('\n').split('\n')) {
+        val pieces = if (line.length <= charsPerChunk) listOf(line) else line.chunked(charsPerChunk)
+        for (piece in pieces) {
+            if (lines >= linesPerChunk || (lines > 0 && current.length + piece.length + 1 > charsPerChunk)) flush()
+            if (lines > 0) current.append('\n')
+            current.append(piece)
+            lines++
+        }
+    }
+    flush()
+    return chunks
 }
 
 /** 会話の中で開いて見る文字の添付の上限（これより大きければ保存して外のアプリで開く）。 */
 internal const val TEXT_PREVIEW_MAX_BYTES = 2L * 1024 * 1024
 private const val LINES_PER_CHUNK = 40
+private const val CHARS_PER_CHUNK = 4_000
+/** クリップボードに写せる長さ（UTF-16 で約 200 KB。アプリ間の受け渡しの上限 1 MB を共有するため余裕を取る）。 */
+internal const val COPY_MAX_CHARS = 100_000
 private val MARKDOWN_EXTENSIONS = setOf("md", "markdown")
 private val PLAIN_EXTENSIONS = setOf("txt", "text", "log", "csv", "tsv", "json", "jsonl", "yaml", "yml", "toml", "xml", "ini", "cfg", "conf")

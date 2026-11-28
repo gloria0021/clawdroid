@@ -117,7 +117,7 @@ internal fun ThinkingPhrasesScreen(initial: List<String>?, onSave: (List<String>
                         IconButton(onClick = ::save, enabled = dirty && phrases.isNotEmpty()) {
                             Icon(painterResource(R.drawable.ic_huge_check), stringResource(R.string.files_save_cd))
                         }
-                        MoreMenu(enabled = baseline != null || dirty, onReset = { confirmReset = true })
+                        MoreMenu(enabled = phrases != defaults, onReset = { confirmReset = true })
                     },
                 )
             },
@@ -185,10 +185,9 @@ internal fun ThinkingPhrasesScreen(initial: List<String>?, onSave: (List<String>
             text = { Text(stringResource(R.string.thinking_phrases_reset_body)) },
             confirmButton = {
                 TextButton(onClick = {
+                    // エディタの中身を入れ替えるだけ。反映は保存のときだけ（screens.md。CJ レビュー 2026-11-28）
                     confirmReset = false
                     editor.setTextAndPlaceCursorAtEnd(ThinkingPhrases.format(defaults))
-                    onSave(null)
-                    baseline = null
                 }) { Text(stringResource(R.string.thinking_phrases_reset)) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.action_cancel)) } },

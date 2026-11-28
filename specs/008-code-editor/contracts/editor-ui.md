@@ -47,7 +47,7 @@
 - `editor_save_cd`「保存」、`editor_search_cd`「検索」
 - `editor_menu_wrap`「折り返す」、`editor_menu_language`「言語」、`editor_menu_charset`「文字コード」、`editor_menu_save_as`「別の名前で保存」
 - `editor_status_selected`「選択 %1$s 文字」、`editor_status_chars`「%1$s 文字」、`editor_status_lines`「%1$s 行」
-- `editor_leave_title`「保存していない変更があります」、`editor_leave_save`「保存する」、`editor_leave_discard`「捨てる」、`editor_leave_keep`「続ける」
+- `editor_leave_title`「保存していない変更があります」、`editor_leave_save`「保存する」、`editor_leave_discard`「破棄」、`editor_leave_keep`「続ける」
 - `editor_line_separator_confirm`「改行を %1$s にそろえて保存します」
 - `editor_unmappable`「%1$s では保存できない文字があります」
 - `editor_too_large`「%1$s を超えるので保存できません」

@@ -142,6 +142,8 @@ internal fun FileAttachment(
             messageId = messageId,
             meta = meta,
             saved = state is FileState.Saved,
+            saving = state is FileState.Saving,
+            progress = (state as? FileState.Saving)?.let { s -> if (s.total > 0) (s.read.toFloat() / s.total).coerceIn(0f, 1f) else null },
             onSave = { save(openAfter = false) },
             onOpen = { (state as? FileState.Saved)?.let { open(it.uri) } },
             onDismiss = { previewing = false },

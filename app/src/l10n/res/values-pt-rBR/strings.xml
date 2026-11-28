@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d min %2$d s</string>
     <string name="chat_elapsed_seconds">%1$d s</string>
     <string name="chat_empty_title">Em que posso ajudar?</string>
+    <string name="chat_file_copy_too_long">Longo demais para copiar. Baixe e abra o arquivo</string>
     <string name="chat_file_failed">Não foi possível salvar</string>
     <string name="chat_file_kind">Arquivo</string>
     <string name="chat_file_open">Abrir</string>
@@ -436,7 +437,7 @@
     <string name="exec_mode_full">Permitir tudo</string>
     <string name="files_conflict_body">Este arquivo foi alterado no Gateway depois que você o abriu. O que deseja fazer?</string>
     <string name="files_conflict_overwrite">Substituir</string>
-    <string name="files_conflict_reload">Descartar e recarregar</string>
+    <string name="files_conflict_reload">Descartar alterações e recarregar</string>
     <string name="files_conflict_title">Alterado em outro lugar</string>
     <string name="files_create">Criar</string>
     <string name="files_delete">Excluir</string>
@@ -924,7 +925,7 @@
     <string name="thinking_phrases_more_cd">Mais opções</string>
     <string name="thinking_phrases_preview">Prévia</string>
     <string name="thinking_phrases_reset">Restaurar padrão</string>
-    <string name="thinking_phrases_reset_body">As frases que você editou serão perdidas e a lista padrão do app será restaurada.</string>
+    <string name="thinking_phrases_reset_body">Substitui o conteúdo do editor pela lista incluída no app. As alterações só valem depois que você salvar.</string>
     <string name="thinking_phrases_reset_title">Restaurar padrão?</string>
     <string name="tool_profile_coding">Programação</string>
     <string name="tool_profile_full">Todas</string>

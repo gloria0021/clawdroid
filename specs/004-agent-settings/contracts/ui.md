@@ -39,7 +39,7 @@
 
 ## AgentFileRoute(agentId, name) — 新しい画面
 
-- 002 のファイルの画面と同じ骨格（共通の TopAppBar、`FileViewer`、下部の `FileControls`、衝突の `AlertDialog`、捨てる確認）
+- 002 のファイルの画面と同じ骨格（共通の TopAppBar、`FileViewer`、下部の `FileControls`、衝突の `AlertDialog`、破棄の確認）
 - タイトルはファイルの名前、サブタイトルなし（ホストのパスは出さない）
 - 2 MiB を超えるとき: 編集のボタンを出さず、本文の上に理由を 1 行
 

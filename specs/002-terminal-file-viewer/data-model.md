@@ -41,7 +41,7 @@
 | `cursor` | INTEGER | カーソルの位置 |
 | `updatedAt` | INTEGER | 時刻 |
 
-保存に成功したら消す。「変更を捨てる」でも消す。
+保存に成功したら消す。「変更を破棄」でも消す。
 
 ## TerminalState
 

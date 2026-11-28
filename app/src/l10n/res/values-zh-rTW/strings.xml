@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d 分 %2$d 秒</string>
     <string name="chat_elapsed_seconds">%1$d 秒</string>
     <string name="chat_empty_title">要做什麼呢？</string>
+    <string name="chat_file_copy_too_long">內容過長，無法複製。請下載後開啟</string>
     <string name="chat_file_failed">無法儲存</string>
     <string name="chat_file_kind">檔案</string>
     <string name="chat_file_open">開啟</string>
@@ -918,7 +919,7 @@
     <string name="thinking_phrases_more_cd">更多選項</string>
     <string name="thinking_phrases_preview">預覽</string>
     <string name="thinking_phrases_reset">重設為預設值</string>
-    <string name="thinking_phrases_reset_body">你編輯過的自言自語將會遺失，並還原為應用程式內建的清單。</string>
+    <string name="thinking_phrases_reset_body">將編輯器內容替換為應用程式內建的清單。儲存後才會套用。</string>
     <string name="thinking_phrases_reset_title">要重設為預設值嗎？</string>
     <string name="tool_profile_coding">程式開發</string>
     <string name="tool_profile_full">全部</string>

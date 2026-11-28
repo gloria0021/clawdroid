@@ -185,6 +185,7 @@
     <string name="chat_elapsed_minutes_seconds">%1$d min %2$d s</string>
     <string name="chat_elapsed_seconds">%1$d s</string>
     <string name="chat_empty_title">Que puis-je faire pour vous ?</string>
+    <string name="chat_file_copy_too_long">Trop long pour être copié. Téléchargez-le et ouvrez-le</string>
     <string name="chat_file_failed">Enregistrement impossible</string>
     <string name="chat_file_kind">Fichier</string>
     <string name="chat_file_open">Ouvrir</string>
@@ -396,7 +397,7 @@
     <string name="editor_language_none">Aucune (sans coloration)</string>
     <string name="editor_launcher_label">Éditeur de texte</string>
     <string name="editor_leave_body">Enregistrer avant de fermer ?</string>
-    <string name="editor_leave_discard">Abandonner</string>
+    <string name="editor_leave_discard">Supprimer</string>
     <string name="editor_leave_keep">Continuer</string>
     <string name="editor_leave_save">Enregistrer</string>
     <string name="editor_leave_title">Modifications non enregistrées</string>
@@ -436,7 +437,7 @@
     <string name="exec_mode_full">Tout autoriser</string>
     <string name="files_conflict_body">Ce fichier a été modifié sur Gateway après son ouverture. Que souhaitez-vous faire ?</string>
     <string name="files_conflict_overwrite">Écraser</string>
-    <string name="files_conflict_reload">Abandonner et recharger</string>
+    <string name="files_conflict_reload">Annuler les modifications et recharger</string>
     <string name="files_conflict_title">Modifié ailleurs</string>
     <string name="files_create">Créer</string>
     <string name="files_delete">Supprimer</string>
@@ -444,8 +445,8 @@
     <string name="files_delete_irreversible">Cette action est irréversible. Les fichiers non suivis par Git ne peuvent pas être restaurés.</string>
     <string name="files_delete_title">Supprimer « %1$s » ?</string>
     <string name="files_discard_body">Les modifications non enregistrées seront perdues.</string>
-    <string name="files_discard_confirm">Abandonner</string>
-    <string name="files_discard_title">Abandonner les modifications ?</string>
+    <string name="files_discard_confirm">Supprimer</string>
+    <string name="files_discard_title">Annuler les modifications ?</string>
     <string name="files_download_cancel_cd">Annuler le téléchargement</string>
     <string name="files_download_cancelled">Téléchargement annulé</string>
     <string name="files_download_cd">Télécharger</string>
@@ -924,7 +925,7 @@
     <string name="thinking_phrases_more_cd">Plus d\'options</string>
     <string name="thinking_phrases_preview">Aperçu</string>
     <string name="thinking_phrases_reset">Rétablir les valeurs par défaut</string>
-    <string name="thinking_phrases_reset_body">Vos phrases modifiées seront perdues et la liste intégrée à l\'application sera rétablie.</string>
+    <string name="thinking_phrases_reset_body">Remplace le contenu de l\'éditeur par la liste intégrée à l\'application. Les modifications ne s\'appliquent qu\'après l\'enregistrement.</string>
     <string name="thinking_phrases_reset_title">Rétablir les valeurs par défaut ?</string>
     <string name="tool_profile_coding">Code</string>
     <string name="tool_profile_full">Tout</string>
