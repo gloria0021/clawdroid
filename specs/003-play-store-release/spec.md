@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-24
 
-**Status**: 進行中（2026-11-24 に保留。2026-11-27 に名前を SumahoClaw に変えて 0.2.0 を GitHub Release に出し、Play Console に上げる AAB を `scripts/release.sh` で作った）
+**Status**: 審査中（2026-11-24 に保留。2026-11-27 に名前を SumahoClaw に変えて 0.2.0 を GitHub Release に出した。2026-11-28 に 0.3.1（versionCode 5）を Play の製品版の審査に出した。0.3.0 の AAB は Play のアプリ署名鍵を決める前に上げたため使えず、0.3.1 で上げ直した。アプリ署名鍵は GitHub の APK と同じ鍵）
 
 **Input**: User description: "新しくspecを切って。playストアRelease対応したい"
 

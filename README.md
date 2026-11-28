@@ -38,6 +38,7 @@ Enter your Gateway URL and token, then approve the connection. Tailscale is reco
 - Switch between Chat and Dev modes.
 - Check Git diffs, branches, and worktrees in Dev mode.
 - Quickly switch between up to four agents using tabs.
+- (Experimental) Turn the top of the panel into a virtual office where your agents work and sleep.
 
 <p>
   <img src="docs/media/side-panel-chat.png" width="220" alt="Chat list">
