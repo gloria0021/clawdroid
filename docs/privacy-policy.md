@@ -1,6 +1,6 @@
 # SumahoClaw プライバシーポリシー / Privacy Policy
 
-最終更新日 / Last updated: 2026-11-24
+最終更新日 / Last updated: 2026-11-28
 
 [日本語](#日本語) ・ [English](#english)
 
@@ -31,7 +31,7 @@ SumahoClaw（以下「本アプリ」）は、利用者が自分で運用して�
 本アプリは、利用者の操作に応じて、次の相手とだけ通信します。
 
 - 利用者が指定した OpenClaw Gateway：会話・添付ファイル・ファイルの読み書き・ターミナルの入出力・自動化の設定のやり取り。これらの情報の扱いは、Gateway を運用する利用者自身の設定に従います。
-- 会話の中のリンク：利用者が押したときだけ、端末のブラウザ（アプリ内のブラウザを含む）で開きます。
+- 会話の中のリンク：リンクのタイトルとアイコンを表示するため、本アプリがリンク先のページの先頭の一部とファビコンを端末から直接読み込みます。このとき、リンク先のサーバーには通常のウェブの閲覧と同じく端末の IP アドレスなどが伝わります。家庭内・端末内の宛先（プライベートアドレスなど）には接続しません。リンクを押したときは、端末のブラウザ（アプリ内のブラウザを含む）で開きます。
 
 ### 音声入力
 
@@ -40,8 +40,11 @@ SumahoClaw（以下「本アプリ」）は、利用者が自分で運用して�
 ### 権限
 
 - マイク：音声入力のため（ボタンを押したときにだけ許可を求めます）
-- 通知：ファイルのダウンロードの進み具合と完了を知らせるため
+- 通知：エージェントの応答の完了・承認待ち、ファイルのダウンロードの進み具合と完了を知らせるため
 - ネットワーク：Gateway との通信のため
+- 常時接続（フォアグラウンドサービス）：設定で「常時接続」をオンにしたときだけ、アプリを閉じていても Gateway との接続を保ち、通知を受け取ります。接続中は常駐の通知を表示します。初期値はオフです
+- 端末の起動時の処理：常時接続がオンのとき、端末の再起動後に接続を再開するため
+- 電池の最適化の除外：常時接続がオンのとき、設定の項目から利用者が任意で許可できます。本アプリから自動で求めることはありません
 
 ### 子どもの利用
 
@@ -82,7 +85,7 @@ The token and device key are never carried over by device backups or device tran
 The app communicates only with the following, in response to your actions:
 
 - The OpenClaw Gateway you specify: conversations, attachments, reading and writing files, terminal input and output, and automation settings. How this information is handled is governed by the Gateway you operate.
-- Links in conversations: opened in a browser on your device (including the in-app browser) only when you tap them.
+- Links in conversations: to show a link's title and icon, the app reads the beginning of the linked page and its favicon directly from your device. As with normal web browsing, the linked server can see your device's IP address. The app never connects to addresses inside your home network or device (such as private addresses) for this. When you tap a link, it opens in a browser on your device (including the in-app browser).
 
 ### Voice input
 
@@ -91,8 +94,11 @@ The microphone is used only when you tap the voice input button. Audio is passed
 ### Permissions
 
 - Microphone: for voice input (requested only when you tap the button)
-- Notifications: to show the progress and completion of file downloads
+- Notifications: to notify you when an agent finishes a reply or needs an approval, and to show the progress and completion of file downloads
 - Network: to communicate with your Gateway
+- Always connected (foreground service): only when you turn on "Always connected" in Settings, the app keeps its connection to your Gateway while closed so it can deliver notifications. An ongoing notification is shown while connected. Off by default
+- Run at startup: to resume the connection after your device restarts, only when "Always connected" is on
+- Battery optimization exemption: when "Always connected" is on, you can choose to grant it from a row in Settings. The app never asks for it automatically
 
 ### Children
 
