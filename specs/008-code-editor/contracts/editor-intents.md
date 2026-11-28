@@ -6,20 +6,16 @@
 
 | extra | 型 | 必須 | 中身 |
 |---|---|---|---|
-| `editor.kind` | String | ○ | `session` / `agent` / `attachment` / `paste` |
-| `editor.agentId` | String | session・agent・attachment | |
-| `editor.sessionKey` | String | session・attachment | |
+| `editor.kind` | String | ○ | `session` / `agent` / `paste` |
+| `editor.agentId` | String | session・agent | |
+| `editor.sessionKey` | String | session | |
 | `editor.path` | String | session・agent | ルートからの相対パス（agent はファイル名） |
-| `editor.source` | String | attachment | 添付の source（URL） |
-| `editor.messageId` | String | attachment | |
-| `editor.name` | String | attachment | 表示と保存の名前 |
-| `editor.mime` | String | — | attachment |
 | `editor.chatKey` | String | paste | 会話の下書きの鍵 |
 | `editor.textId` | String | paste | タイルの ID |
 | `editor.handoff` | String | — | `EditorHandoff` の ID（読み込み済みの中身。無ければ読み直す） |
 | `editor.line` | Int | — | 開いたときに見せる行（0 始まり。ビューアで読んでいた位置） |
 
-- 呼び出し元: ファイルビューア（`FilesScreen`・`AgentFileScreen` の「編集」、新しいファイルを作った直後）、添付のシート（`FilePreviewSheet`）、コピーしたテキストのシート
+- 呼び出し元: ファイルビューア（`FilesScreen`・`AgentFileScreen` の「編集」、新しいファイルを作った直後）、コピーしたテキストのシート
 - 組み立てと読み取りは `EditorIntents`（1 か所）で行い、単体テストする
 
 ## ほかのアプリから開く

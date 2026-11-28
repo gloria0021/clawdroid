@@ -96,7 +96,7 @@ data class StatusLine(line: Int, column: Int, chars: Int, selectedChars: Int?, l
 
 ```text
 EditorHandoff   put(content: HandoffContent): String（ID）/ take(id): HandoffContent?   # プロセスのメモリだけ。取り出したら消す
-HandoffContent  = GatewayFile の OpenedFile（本文・ハッシュ・source・workspace）| PastedText の本文 | Attachment のバイト
+HandoffContent  = GatewayFile の OpenedFile（本文・ハッシュ・source・workspace）| PastedText の本文
 EditorResults   SharedFlow<EditorResult>
 EditorResult    = Saved(target, OpenedFile?) | PasteEdited(chatKey, textId, text)
 OpenEditors     register(key, closeAndKeepDraft: () -> Unit) / unregister(key)   # FR-007
