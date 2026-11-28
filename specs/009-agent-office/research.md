@@ -51,7 +51,7 @@
 | [ZeroneX01/openclaw-office2](https://github.com/ZeroneX01/openclaw-office2) | SVG の斜め見下ろし ＋ React Three Fiber の 3D | Gateway の WebSocket | 記載あり（未確認） | 「エージェント = 社員、セッション = 机」という見立て。管理の画面付き |
 | [wickedapp/openclaw-office](https://github.com/wickedapp/openclaw-office) | AI で作った部屋の絵 ＋ アニメーション | Gateway | 記載あり（未確認） | 部屋の絵を Gemini で作り、机の位置を Claude の画像認識で取る |
 | [madhavsomani/agent-space](https://github.com/madhavsomani/agent-space) | Leaflet の地図風 | Gateway | MIT | オフィスの地図とカードの切り替え |
-| [Franzferdinan51/agent-isometric-office](https://github.com/Franzferdinan51/agent-isometric-office) | Three.js の 3D・斜め見下ろし（家具も人も、絵を使わずに図形を組んで作る） | 別のダッシュボードの API（Gateway には直接つながらない） | README に MIT（LICENSE のファイルは無い） | HTML 1 枚。デモの動画は無く、同梱のスクリーンショットは真っ黒（2026-11-28 確認）。つながらないと見本のデータで動く。影・ちりの粒・常に動く飾りが多く、スマホの帯には重い |
+| [Franzferdinan51/agent-isometric-office](https://github.com/Franzferdinan51/agent-isometric-office) | Three.js の 3D・斜め見下ろし（家具も人も、絵を使わずに図形を組んで作る） | 別のダッシュボードの API（Gateway には直接つながらない） | README に MIT（LICENSE のファイルは無い） | HTML 1 枚。デモの動画は無く、同梱のスクリーンショットは真っ黒（2026-11-28 確認）。原因は、読み込む Three.js が r128 なのに、r139 からの `CapsuleGeometry` で人を作っていること（初期化が途中で止まり、一度も描かない）。r147 に替えると直る見込み。つながらないと見本のデータで動く。影・ちりの粒・常に動く飾りが多く、スマホの帯には重い |
 | [0xMerl99/MyClaw3D](https://github.com/0xmerl99/myclaw3d) | React + Three.js | Gateway | MIT | 部屋の中で会話もする |
 | [jeaho92/openclaw-office](https://github.com/jeaho92/openclaw-office) | PixiJS（a16z の ai-town が元） | 独自 | MIT | 3 体の決まったチーム向け |
 
