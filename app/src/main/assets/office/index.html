@@ -591,7 +591,11 @@ function grawlixSprites() {
 // ------------------------------------------------------------
 // 人と動物の組み立て。どちらも root（床）→ body（体の向き）→ head、脚は legs、腕・前脚は arms。顔は -z を向く
 // ------------------------------------------------------------
+const SIT_HEAD_TILT = 0.15;   // 座った動物の首のうつむき
 const ANIMAL_SCALE = 1.25;   // 動物は少し大きく（小さな枠でも見分けられるように）
+const BED_LIE_Y = 0.6, BED_LIE_DZ = 0.3;   // ベッドの寝る位置（beds の lie。ベッドの中心から）
+const LIE_BACK_TOP = 0.7;                  // 伏せた動物の背中の高さ（膨らんだ布団の上面 0.76 より下）
+const LIE_HEAD_Z = -0.55;                  // 伏せた動物の頭の位置（ベッドの中心から。布団の端 -0.33 と枕 -0.76 のあいだ）
 function lambert(color) { return new THREE.MeshLambertMaterial({ color, flatShading: true }); }
 function cone(p, color, r, h, x, y, z, rx = 0, rz = 0) {   // 4 角すい（とがった耳）。y は底
   const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 4), lambert(color));
@@ -743,9 +747,12 @@ function buildQuad(p) {
   if (p.name === 'bulldog') for (const s of [-1, 1]) box(head, null, 0.08, 0.08, 0.04, s * 0.08, -0.04, -hd / 2 - 0.02, light);   // ほお
   return {
     kind: 'quad', root, body, legs, arms, head, bodyZ, longBody: len > 0.7,
-    typeBase: 0.15,
-    // 座面（高さ 0.5）にお尻が乗る・ベッド（0.48）に伏せる高さ
-    sitDy: 0.43 - legH * ANIMAL_SCALE, lieDy: 0.48 - legH * ANIMAL_SCALE - 0.6, lieDz: -0.05, lieRot: 0,
+    typeBase: 0.15, tail,
+    // 座面（高さ 0.5）にお尻が乗る高さ
+    sitDy: 0.43 - legH * ANIMAL_SCALE,
+    // ベッドでは、背中が布団（上面 0.76）の下に収まる高さに伏せ、頭が布団の端から出て枕に乗るよう前へずらす
+    lieDy: LIE_BACK_TOP - (h + legH) * ANIMAL_SCALE - BED_LIE_Y,
+    lieDz: LIE_HEAD_Z - ANIMAL_SCALE * (-0.58 * len - 0.3 * hd) - BED_LIE_DZ, lieRot: 0,
   };
 }
 
@@ -768,6 +775,7 @@ function poseStand(c) {
   c.body.rotation.set(0, 0, 0); c.body.scale.set(1, 1, 1); c.head.rotation.set(0, 0, 0);
   c.legs.forEach((l) => l.rotation.set(0, 0, 0)); c.arms.forEach((a) => a.rotation.set(0, 0, 0));
   c.body.position.z = c.bodyZ;
+  if (c.tail) c.tail.visible = true;
   c.root.position.y = 0;
 }
 function poseSit(c) {
@@ -775,12 +783,17 @@ function poseSit(c) {
   c.legs.forEach((l) => (l.rotation.x = Math.PI / 2));
   c.arms.forEach((a) => (a.rotation.x = c.typeBase));
   // お座りして、前脚をキーボードへ。胴の長い犬は立ち上がりすぎないよう浅く
-  if (c.kind === 'quad') { c.body.rotation.x = c.longBody ? 0.75 : 1.2; c.body.position.z = 0.02; }
+  if (c.kind === 'quad') {
+    c.body.rotation.x = c.longBody ? 0.75 : 1.2; c.body.position.z = 0.02;
+    // 首はパソコンへ向ける（胴を起こした分だけ戻し、少しうつむく）。ダックスは胴が長いので起こしたままが面白い（マスター指定 2026-11-28）
+    if (!c.longBody) c.head.rotation.x = -c.body.rotation.x + SIT_HEAD_TILT;
+  }
 }
 function poseLie(c) {
   poseStand(c);
   if (c.kind === 'quad') {   // 伏せて、脚をたたむ
     c.legs.forEach((l) => (l.rotation.x = -1.3)); c.arms.forEach((a) => (a.rotation.x = 1.3)); c.head.rotation.x = 0.15;
+    if (c.tail) c.tail.visible = false;   // 布団の中
   } else c.body.rotation.x = Math.PI / 2;
 }
 // ============================================================
