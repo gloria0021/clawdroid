@@ -1,5 +1,6 @@
 package jp.miyavi.android.sumahoclaw.feature.chat.sidebar
 
+import kotlinx.coroutines.launch
 import jp.miyavi.android.sumahoclaw.core.designsystem.GlassTint
 import jp.miyavi.android.sumahoclaw.core.designsystem.TITLE_BAR_OPACITY
 import jp.miyavi.android.sumahoclaw.core.designsystem.hazeSurface
@@ -502,6 +503,7 @@ private fun PinnedAction(session: SessionSummary, selected: Boolean, onClick: ()
             ),
         )
         GlassDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            CopySessionInfoItem(session) { menuOpen = false }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.session_menu_unpin)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_huge_pin_off), contentDescription = null) },
@@ -1101,7 +1103,37 @@ private val TreeStroke = 2.dp
 private val TreeCornerRadius = Spacing.s
 private val TreeChildStart = PanelTextInset + Dimens.smallIcon / 2 + Spacing.m
 
-/** セッションの長押しメニュー（名前を変更・ワークツリーで分岐・アーカイブ・削除）。 */
+/**
+ * クリップボードに写すセッションの情報（マスター指定 2026-11-28）。`sessions_history` などで会話を指すときに使う。
+ * ID は Gateway のセッション ID（無ければ空）、Key は会話の鍵、Name は表示名（無ければ [untitled]）。
+ */
+internal fun sessionInfoText(session: SessionSummary, untitled: String): String = listOf(
+    "SessionID: ${session.sessionId.orEmpty()}",
+    "SessionKey: ${session.key}",
+    "SessionName: ${session.title ?: untitled}",
+).joinToString("\n")
+
+/** 「セッション情報をコピー」の項目（長押しメニューの先頭）。 */
+@Composable
+private fun CopySessionInfoItem(session: SessionSummary, onDismiss: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboard.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val untitled = stringResource(R.string.session_untitled)
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.session_menu_copy_info)) },
+        leadingIcon = { Icon(painterResource(R.drawable.ic_huge_copy), contentDescription = null) },
+        onClick = {
+            val text = sessionInfoText(session, untitled)
+            onDismiss()
+            // 端末が「コピーしました」を出すので、アプリからは知らせない（Android 13 以上）
+            scope.launch {
+                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText(session.title ?: untitled, text)))
+            }
+        },
+    )
+}
+
+/** セッションの長押しメニュー（情報をコピー・名前を変更・ワークツリーで分岐・アーカイブ・削除）。 */
 @Composable
 private fun SessionMenu(
     session: SessionSummary,
@@ -1113,6 +1145,7 @@ private fun SessionMenu(
     onDelete: () -> Unit,
 ) {
     GlassDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        CopySessionInfoItem(session, onDismiss)
         DropdownMenuItem(
             text = { Text(stringResource(R.string.session_menu_rename)) },
             leadingIcon = { Icon(painterResource(R.drawable.ic_huge_edit), contentDescription = null) },

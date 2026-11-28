@@ -663,6 +663,7 @@
     <string name="session_diff_title">更改量</string>
     <string name="session_diff_unavailable">目前无法查看更改</string>
     <string name="session_menu_archive">归档</string>
+    <string name="session_menu_copy_info">复制会话信息</string>
     <string name="session_menu_delete">删除</string>
     <string name="session_menu_diff">更改量</string>
     <string name="session_menu_finish">结束并行开发</string>

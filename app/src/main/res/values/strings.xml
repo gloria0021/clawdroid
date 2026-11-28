@@ -94,6 +94,7 @@
     <string name="sidebar_empty_body">新規チャットから始めましょう</string>
     <string name="session_running_cd">実行中</string>
     <string name="session_unread_cd">未読</string>
+    <string name="session_menu_copy_info">セッション情報をコピー</string>
     <string name="session_menu_rename">名前を変更</string>
     <string name="session_menu_archive">アーカイブ</string>
     <string name="session_menu_unarchive">アーカイブを解除</string>

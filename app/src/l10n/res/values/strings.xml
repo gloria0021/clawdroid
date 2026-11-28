@@ -666,6 +666,7 @@
     <string name="session_diff_title">Changes</string>
     <string name="session_diff_unavailable">Changes aren\'t available right now</string>
     <string name="session_menu_archive">Archive</string>
+    <string name="session_menu_copy_info">Copy session info</string>
     <string name="session_menu_delete">Delete</string>
     <string name="session_menu_diff">Changes</string>
     <string name="session_menu_finish">End parallel development</string>

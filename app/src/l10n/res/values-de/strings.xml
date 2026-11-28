@@ -666,6 +666,7 @@
     <string name="session_diff_title">Änderungen</string>
     <string name="session_diff_unavailable">Änderungen sind derzeit nicht verfügbar</string>
     <string name="session_menu_archive">Archivieren</string>
+    <string name="session_menu_copy_info">Sitzungsinfo kopieren</string>
     <string name="session_menu_delete">Löschen</string>
     <string name="session_menu_diff">Änderungen</string>
     <string name="session_menu_finish">Parallelentwicklung beenden</string>

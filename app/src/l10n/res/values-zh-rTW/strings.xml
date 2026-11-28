@@ -663,6 +663,7 @@
     <string name="session_diff_title">變更</string>
     <string name="session_diff_unavailable">目前無法確認變更</string>
     <string name="session_menu_archive">封存</string>
+    <string name="session_menu_copy_info">複製工作階段資訊</string>
     <string name="session_menu_delete">刪除</string>
     <string name="session_menu_diff">變更</string>
     <string name="session_menu_finish">結束平行開發</string>

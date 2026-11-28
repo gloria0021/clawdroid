@@ -663,6 +663,7 @@
     <string name="session_diff_title">変更量</string>
     <string name="session_diff_unavailable">いまは変更を確かめられません</string>
     <string name="session_menu_archive">アーカイブ</string>
+    <string name="session_menu_copy_info">セッション情報をコピー</string>
     <string name="session_menu_delete">削除</string>
     <string name="session_menu_diff">変更量</string>
     <string name="session_menu_finish">並行開発を終える</string>

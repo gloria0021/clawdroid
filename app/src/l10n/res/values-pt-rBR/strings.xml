@@ -669,6 +669,7 @@
     <string name="session_diff_title">Alterações</string>
     <string name="session_diff_unavailable">As alterações não estão disponíveis agora</string>
     <string name="session_menu_archive">Arquivar</string>
+    <string name="session_menu_copy_info">Copiar informações da sessão</string>
     <string name="session_menu_delete">Excluir</string>
     <string name="session_menu_diff">Alterações</string>
     <string name="session_menu_finish">Encerrar desenvolvimento paralelo</string>
