@@ -168,12 +168,6 @@ open class EditorActivity : ComponentActivity() {
         val handoff = container.editorHandoff.take(launch.handoff)
         return when (val t = launch.target) {
             is EditTarget.GatewayFile -> GatewayDocument(FilesRepository(container.gateway), t, (handoff as? HandoffContent.Gateway)?.file)
-            is EditTarget.Attachment -> AttachmentDocument(
-                target = t,
-                bytes = { container.inboundImages.loadBytes(t.source, t.sessionKey, t.agentId) },
-                resolver = contentResolver,
-                savedUri = null,
-            )
             is EditTarget.PastedText -> PastedTextDocument(t, (handoff as? HandoffContent.Text)?.text, container.editorResults)
             is EditTarget.LocalDocument -> LocalDocumentSource(t, contentResolver, LocalDocumentSource.grantedWrite(intent))
         }

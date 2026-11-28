@@ -417,7 +417,6 @@
     <string name="editor_reload_title">인코딩을 바꿔 다시 불러올까요?</string>
     <string name="editor_restored_draft">저장하지 않은 변경사항을 복원했습니다</string>
     <string name="editor_retry">재시도</string>
-    <string name="editor_saved_to_downloads">%1$s을(를) Download에 저장했습니다</string>
     <string name="editor_status_bom">%1$s(BOM)</string>
     <string name="editor_status_chars">%1$s자</string>
     <string name="editor_status_lines">%1$s줄</string>

@@ -21,8 +21,6 @@ class EditorIntentsTest {
         listOf(
             EditorLaunch(EditTarget.GatewayFile(FileRoot.Session("agent:a:s1", "a"), "src/a.kt"), handoff = "h", line = 42),
             EditorLaunch(EditTarget.GatewayFile(FileRoot.AgentFile("a"), "AGENTS.md")),
-            EditorLaunch(EditTarget.Attachment("media://inbound/x.md", "m1", "agent:a:s1", "a", "x.md", "text/markdown")),
-            EditorLaunch(EditTarget.Attachment("media://inbound/y.txt", "m2", "agent:a:s1", null, "y.txt", null)),
             EditorLaunch(EditTarget.PastedText("agent:a:s1", "t1")),
         ).forEach { assertEquals(it, roundTrip(it)) }
     }

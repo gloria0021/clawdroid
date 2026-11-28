@@ -418,7 +418,6 @@
     <string name="editor_reload_title">Reload with a different encoding?</string>
     <string name="editor_restored_draft">Unsaved changes restored</string>
     <string name="editor_retry">Retry</string>
-    <string name="editor_saved_to_downloads">Saved %1$s to Download</string>
     <string name="editor_status_bom">%1$s (BOM)</string>
     <string name="editor_status_chars">%1$s chars</string>
     <string name="editor_status_lines">%1$s lines</string>

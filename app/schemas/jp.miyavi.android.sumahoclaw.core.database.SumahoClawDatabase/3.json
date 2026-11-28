@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "4fb32f9c9450ac64b6e4adf2539b4804",
+    "identityHash": "383272be49f3f5297a3de06d1ad057d5",
     "entities": [
       {
         "tableName": "drafts",
@@ -72,7 +72,7 @@
       },
       {
         "tableName": "file_drafts",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `content` TEXT NOT NULL, `baseHash` TEXT NOT NULL, `cursor` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `charset` TEXT NOT NULL DEFAULT 'UTF_8', `bom` INTEGER NOT NULL DEFAULT 0, `lineSeparator` TEXT NOT NULL DEFAULT 'LF', `savedUri` TEXT, PRIMARY KEY(`key`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `content` TEXT NOT NULL, `baseHash` TEXT NOT NULL, `cursor` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `charset` TEXT NOT NULL DEFAULT 'UTF_8', `bom` INTEGER NOT NULL DEFAULT 0, `lineSeparator` TEXT NOT NULL DEFAULT 'LF', PRIMARY KEY(`key`))",
         "fields": [
           {
             "fieldPath": "key",
@@ -124,11 +124,6 @@
             "affinity": "TEXT",
             "notNull": true,
             "defaultValue": "'LF'"
-          },
-          {
-            "fieldPath": "savedUri",
-            "columnName": "savedUri",
-            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -141,7 +136,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4fb32f9c9450ac64b6e4adf2539b4804')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '383272be49f3f5297a3de06d1ad057d5')"
     ]
   }
 }

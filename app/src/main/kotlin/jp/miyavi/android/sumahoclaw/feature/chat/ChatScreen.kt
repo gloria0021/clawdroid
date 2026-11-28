@@ -458,8 +458,6 @@ fun ChatContent(
     val imageSource = remember(inboundImages, imageSessionKey, imageAgentId) {
         if (inboundImages == null || imageSessionKey == null) null
         else object : InboundImageSource {
-            override val sessionKey: String get() = imageSessionKey
-            override val agentId: String? get() = imageAgentId
             override suspend fun load(source: String, messageScope: String) = inboundImages.load(source, imageSessionKey, imageAgentId, messageScope)
             override suspend fun bytes(source: String) = inboundImages.loadBytes(source, imageSessionKey, imageAgentId)
             override val progress get() = inboundImages.progress

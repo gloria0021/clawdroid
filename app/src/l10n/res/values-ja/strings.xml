@@ -417,7 +417,6 @@
     <string name="editor_reload_title">文字コードを変えて読み直しますか？</string>
     <string name="editor_restored_draft">保存していない変更を戻しました</string>
     <string name="editor_retry">再試行</string>
-    <string name="editor_saved_to_downloads">%1$s を Download に保存しました</string>
     <string name="editor_status_bom">%1$s（BOM）</string>
     <string name="editor_status_chars">%1$s 文字</string>
     <string name="editor_status_lines">%1$s 行</string>

@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import jp.miyavi.android.sumahoclaw.core.data.AGENT_FILE_MAX_BYTES
-import jp.miyavi.android.sumahoclaw.core.data.DownloadsStore
 import jp.miyavi.android.sumahoclaw.core.data.FileRoot
 import jp.miyavi.android.sumahoclaw.core.data.FileSource
 import jp.miyavi.android.sumahoclaw.core.data.OpenResult
@@ -63,7 +62,7 @@ interface DocumentSource {
     suspend fun save(text: String, format: DocumentFormat, baseHash: String?, overwrite: Boolean): SaveOutcome
 }
 
-/** 2 MB（添付のシート・端末のファイル。research R8・R9）。 */
+/** 2 MB（端末のファイル。今のビューア・添付のシートと同じ上限。research R8）。 */
 const val EDITOR_MAX_BYTES = 2L * 1024 * 1024
 
 /** Gateway の作業フォルダが文字として扱う上限（Gateway 2026.11.10 の `WORKSPACE_PREVIEW_MAX_BYTES`。research R4）。 */
@@ -123,43 +122,6 @@ class GatewayDocument(
     }
 }
 
-/** 会話の添付。保存は端末の Downloads（2 回目からは同じ場所を書き換える）。 */
-class AttachmentDocument(
-    private val target: EditTarget.Attachment,
-    private val bytes: suspend () -> ByteArray?,
-    private val resolver: ContentResolver,
-    /** 前に保存した場所（下書きに残しておいたもの）。 */
-    var savedUri: Uri?,
-) : DocumentSource {
-    override val canChangeCharset = true
-    override val writable = true
-
-    override suspend fun load(): LoadResult {
-        val data = runCatchingNonCancel { bytes() } ?: return LoadResult.Failed
-        if (data.size > EDITOR_MAX_BYTES) return LoadResult.TooLarge
-        val decoded = withContext(Dispatchers.Default) { TextDecoding.detect(data) } ?: return LoadResult.NotText
-        return LoadResult.Loaded(decoded, null, data)
-    }
-
-    override suspend fun save(text: String, format: DocumentFormat, baseHash: String?, overwrite: Boolean): SaveOutcome {
-        val encoded = when (val r = withContext(Dispatchers.Default) { TextDecoding.encode(text, format) }) {
-            is EncodeResult.Ok -> r.bytes
-            is EncodeResult.Unmappable -> return SaveOutcome.Unmappable(r.offset)
-        }
-        val mime = target.mime?.takeIf(String::isNotBlank) ?: "text/plain"
-        // 2 回目からは同じ場所を書き換える。消されていたら作り直す
-        savedUri?.let { uri ->
-            val ok = runCatching { withContext(Dispatchers.IO) { resolver.openOutputStream(uri, "wt")?.use { it.write(encoded) } != null } }.getOrDefault(false)
-            if (ok) return SaveOutcome.Saved(null, name = displayName(resolver, uri) ?: target.name)
-        }
-        val uri = DownloadsStore.create(resolver, target.name, mime) ?: return SaveOutcome.Failed(null)
-        val ok = runCatching { withContext(Dispatchers.IO) { resolver.openOutputStream(uri, "wt")?.use { it.write(encoded) } != null } }.getOrDefault(false)
-        val saved = DownloadsStore.finish(resolver, uri, ok, target.name, mime) ?: return SaveOutcome.Failed(null)
-        savedUri = saved.uri
-        return SaveOutcome.Saved(null, name = saved.displayName)
-    }
-}
-
 /** 入力欄の「コピーしたテキスト」のタイル。保存は呼び出し元（ChatViewModel）に返す。 */
 class PastedTextDocument(
     private val target: EditTarget.PastedText,
@@ -192,6 +154,9 @@ class LocalDocumentSource(
         private set
 
     override suspend fun load(): LoadResult = withContext(Dispatchers.IO) {
+        // 読む許可だけで渡されても、書けることがある（自分で Download に保存した添付を「開く」から開いたときなど）。
+        // "rw" は切り詰めずに開くだけなので、確かめても中身は変わらない
+        if (!writable) writable = runCatching { resolver.openFileDescriptor(target.uri, "rw")?.use { true } ?: false }.getOrDefault(false)
         val size = runCatching { querySize(resolver, target.uri) }.getOrNull()
         if (size != null && size > EDITOR_MAX_BYTES) return@withContext LoadResult.TooLarge
         val data = try {

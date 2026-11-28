@@ -950,7 +950,6 @@
     <string name="editor_open_failed">開けませんでした</string>
     <string name="editor_read_only">このファイルは書き換えられません。別の名前で保存できます</string>
     <string name="editor_paste_gone">元のタイルがありません。全文をコピーできます</string>
-    <string name="editor_saved_to_downloads">%1$s を Download に保存しました</string>
     <string name="editor_copied">全文をコピーしました</string>
     <string name="editor_restored_draft">保存していない変更を戻しました</string>
     <string name="editor_retry">再試行</string>

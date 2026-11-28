@@ -418,7 +418,6 @@
     <string name="editor_reload_title">Mit anderer Zeichenkodierung neu laden?</string>
     <string name="editor_restored_draft">Nicht gespeicherte Änderungen wiederhergestellt</string>
     <string name="editor_retry">Wiederholen</string>
-    <string name="editor_saved_to_downloads">%1$s in Download gespeichert</string>
     <string name="editor_status_bom">%1$s (BOM)</string>
     <string name="editor_status_chars">%1$s Zeichen</string>
     <string name="editor_status_lines">%1$s Zeilen</string>

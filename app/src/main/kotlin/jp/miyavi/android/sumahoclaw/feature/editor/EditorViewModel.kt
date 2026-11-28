@@ -163,7 +163,6 @@ class EditorViewModel(
                 draft.content to draft.format(DocumentFormat())
             }
         }
-        if (draft?.savedUri != null && source is AttachmentDocument) source.savedUri = Uri.parse(draft.savedUri)
         cursor = draft?.cursor ?: 0
         val content = withContext(Dispatchers.Default) { Content(text) }
         val languages = prefs.languages.first()
@@ -255,7 +254,6 @@ class EditorViewModel(
                         charset = s.format.charset.name,
                         bom = s.format.bom,
                         lineSeparator = s.format.lineSeparator.name,
-                        savedUri = (source as? AttachmentDocument)?.savedUri?.toString(),
                     ),
                 )
             }
@@ -314,11 +312,7 @@ class EditorViewModel(
                     )
                 }
                 if (target is EditTarget.GatewayFile && outcome.file != null) results.emit(EditorResult.Saved(target, outcome.file))
-                val name = outcome.name
-                _events.emit(
-                    if (target is EditTarget.Attachment && name != null) EditorEvent.Message(R.string.editor_saved_to_downloads, listOf(name))
-                    else EditorEvent.Message(R.string.files_saved),
-                )
+                _events.emit(EditorEvent.Message(R.string.files_saved))
                 if (closeAfterSave) _events.emit(EditorEvent.Close)
             }
             SaveOutcome.Conflict -> _state.update { it.copy(dialog = EditorDialog.Conflict) }

@@ -12,10 +12,6 @@ object EditorIntents {
     private const val AGENT = "editor.agentId"
     private const val SESSION = "editor.sessionKey"
     private const val PATH = "editor.path"
-    private const val SOURCE = "editor.source"
-    private const val MESSAGE = "editor.messageId"
-    private const val NAME = "editor.name"
-    private const val MIME = "editor.mime"
     private const val CHAT = "editor.chatKey"
     private const val TEXT = "editor.textId"
     private const val HANDOFF = "editor.handoff"
@@ -32,13 +28,6 @@ object EditorIntents {
                 is FileRoot.AgentFile -> { putExtra(KIND, "agent"); putExtra(AGENT, root.agentId) }
                 is FileRoot.Workspace -> error("ワークスペースは読むだけ")
             }.also { putExtra(PATH, t.path) }
-            is EditTarget.Attachment -> {
-                putExtra(KIND, "attachment")
-                putExtra(SOURCE, t.source); putExtra(MESSAGE, t.messageId); putExtra(SESSION, t.sessionKey)
-                t.agentId?.let { putExtra(AGENT, it) }
-                putExtra(NAME, t.name)
-                t.mime?.let { putExtra(MIME, it) }
-            }
             is EditTarget.PastedText -> { putExtra(KIND, "paste"); putExtra(CHAT, t.chatKey); putExtra(TEXT, t.textId) }
             is EditTarget.LocalDocument -> error("端末のファイルはほかのアプリから開く")
         }
@@ -67,14 +56,6 @@ object EditorIntents {
                 intent.getStringExtra(PATH) ?: return null,
             )
             "agent" -> EditTarget.GatewayFile(FileRoot.AgentFile(intent.getStringExtra(AGENT) ?: return null), intent.getStringExtra(PATH) ?: return null)
-            "attachment" -> EditTarget.Attachment(
-                source = intent.getStringExtra(SOURCE) ?: return null,
-                messageId = intent.getStringExtra(MESSAGE) ?: return null,
-                sessionKey = intent.getStringExtra(SESSION) ?: return null,
-                agentId = intent.getStringExtra(AGENT),
-                name = intent.getStringExtra(NAME) ?: return null,
-                mime = intent.getStringExtra(MIME),
-            )
             "paste" -> EditTarget.PastedText(intent.getStringExtra(CHAT) ?: return null, intent.getStringExtra(TEXT) ?: return null)
             else -> return null
         }

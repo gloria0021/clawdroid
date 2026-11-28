@@ -44,8 +44,6 @@ data class FileDraftEntity(
     @ColumnInfo(defaultValue = "0") val bom: Boolean = false,
     /** 改行（`LineSeparator` の名前）。 */
     @ColumnInfo(defaultValue = "LF") val lineSeparator: String = "LF",
-    /** 添付を一度保存したときの Downloads の URI（2 回目からはそこを書き換える）。 */
-    val savedUri: String? = null,
 )
 
 @Dao

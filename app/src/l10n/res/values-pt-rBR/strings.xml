@@ -419,7 +419,6 @@
     <string name="editor_reload_title">Recarregar com outra codificação?</string>
     <string name="editor_restored_draft">Alterações não salvas restauradas</string>
     <string name="editor_retry">Tentar novamente</string>
-    <string name="editor_saved_to_downloads">%1$s salvo em Download</string>
     <string name="editor_status_bom">%1$s (BOM)</string>
     <string name="editor_status_chars">%1$s caracteres</string>
     <string name="editor_status_lines">%1$s linhas</string>

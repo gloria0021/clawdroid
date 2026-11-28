@@ -26,17 +26,6 @@ sealed interface EditTarget {
         override val name: String get() = path.substringAfterLast('/')
     }
 
-    data class Attachment(
-        val source: String,
-        val messageId: String,
-        val sessionKey: String,
-        val agentId: String?,
-        override val name: String,
-        val mime: String?,
-    ) : EditTarget {
-        override val draftKey: String get() = "attachment:$messageId:$source"
-    }
-
     /** 入力欄の「コピーしたテキスト」のタイル。 */
     data class PastedText(val chatKey: String, val textId: String) : EditTarget {
         override val draftKey: String get() = "paste:$chatKey:$textId"

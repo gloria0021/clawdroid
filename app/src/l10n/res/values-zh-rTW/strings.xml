@@ -417,7 +417,6 @@
     <string name="editor_reload_title">要變更字元編碼並重新載入嗎？</string>
     <string name="editor_restored_draft">已還原尚未儲存的變更</string>
     <string name="editor_retry">重試</string>
-    <string name="editor_saved_to_downloads">已將 %1$s 儲存到 Download</string>
     <string name="editor_status_bom">%1$s（BOM）</string>
     <string name="editor_status_chars">%1$s 個字元</string>
     <string name="editor_status_lines">%1$s 行</string>

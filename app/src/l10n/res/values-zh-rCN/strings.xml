@@ -417,7 +417,6 @@
     <string name="editor_reload_title">更改字符编码并重新加载？</string>
     <string name="editor_restored_draft">已恢复未保存的更改</string>
     <string name="editor_retry">重试</string>
-    <string name="editor_saved_to_downloads">已将 %1$s 保存到 Download</string>
     <string name="editor_status_bom">%1$s（BOM）</string>
     <string name="editor_status_chars">%1$s 个字符</string>
     <string name="editor_status_lines">%1$s 行</string>

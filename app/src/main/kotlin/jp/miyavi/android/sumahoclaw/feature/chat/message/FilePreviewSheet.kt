@@ -39,7 +39,6 @@ import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.sumahoclaw.R
-import jp.miyavi.android.sumahoclaw.feature.editor.openEditor
 import jp.miyavi.android.sumahoclaw.core.data.LocalInboundImages
 import jp.miyavi.android.sumahoclaw.core.data.MessagePart
 import jp.miyavi.android.sumahoclaw.core.designsystem.AppBottomSheet
@@ -169,26 +168,6 @@ internal fun FilePreviewSheet(
                 is PreviewContent.Markdown -> c.text
                 is PreviewContent.Plain -> c.text
                 else -> null
-            }
-            // エディターで開いて直す（spec 008 US5。保存先は端末の Download。元の添付は変えない）
-            val sessionKey = source?.sessionKey
-            if (sessionKey != null) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                TextButton(
-                    enabled = text != null,
-                    onClick = {
-                        context.openEditor(
-                            jp.miyavi.android.sumahoclaw.feature.editor.EditTarget.Attachment(
-                                source = file.url,
-                                messageId = messageId,
-                                sessionKey = sessionKey,
-                                agentId = source.agentId,
-                                name = file.name,
-                                mime = file.mimeType,
-                            ),
-                        )
-                    },
-                ) { Text(stringResource(R.string.files_paste_edit)) }
             }
             TextButton(
                 enabled = text != null,
