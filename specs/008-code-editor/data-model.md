@@ -7,7 +7,6 @@
 ```text
 sealed interface EditTarget
 ├── GatewayFile(root: FileRoot.Session | FileRoot.AgentFile, path: String)
-├── Attachment(source: String, messageId: String, sessionKey: String, agentId: String?, name: String, mime: String?)
 ├── PastedText(chatKey: String, textId: String)   # 入力欄のタイル（chatKey = 会話の下書きの鍵）
 └── LocalDocument(uri: Uri)                       # ほかのアプリから
 ```
@@ -16,7 +15,6 @@ sealed interface EditTarget
 |---|---|---|---|---|
 | GatewayFile（作業フォルダ） | `session:<sessionKey>:<path>`（既存と同じ） | `sessions.files.set` | UTF-8 だけ（BOM は保つ） | 256 KiB（Gateway） |
 | GatewayFile（エージェント） | `agent:<agentId>:<path>`（既存と同じ） | `agents.files.set` | UTF-8 だけ | 2 MiB |
-| Attachment | `attachment:<messageId>:<source>` | 端末の Downloads（MediaStore） | 開いたときのもの | 2 MB |
 | PastedText | `paste:<chatKey>:<textId>` | 入力欄のタイル（メモリ） | UTF-8（文字列のまま） | 既存のタイルと同じ |
 | LocalDocument | `uri:<uri>` | 元の URI（書ければ） / 別の名前で保存 | 開いたときのもの | 2 MB |
 
@@ -85,7 +83,6 @@ data class StatusLine(line: Int, column: Int, chars: Int, selectedChars: Int?, l
 | `charset` | TEXT | `'UTF_8'` | 追加 |
 | `bom` | INTEGER | `0` | 追加 |
 | `lineSeparator` | TEXT | `'LF'` | 追加 |
-| `savedUri` | TEXT | `NULL` | 追加。添付を一度保存したときの Downloads の URI |
 
 ## エディターの好み（`SettingsStore`）
 
