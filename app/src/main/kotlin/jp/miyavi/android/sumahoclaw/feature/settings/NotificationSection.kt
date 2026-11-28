@@ -91,17 +91,13 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
     SwitchItem(R.drawable.ic_huge_connection, R.string.settings_notify_background, R.string.settings_notify_background_desc, settings.backgroundConnection) {
         onChange(settings.copy(backgroundConnection = it))
     }
-    SwitchItem(R.drawable.ic_huge_ai_chat, R.string.settings_notify_replies, null, settings.notifyReplies) { onChange(settings.copy(notifyReplies = it)) }
-    SwitchItem(R.drawable.ic_huge_check_circle, R.string.settings_notify_approvals, null, settings.notifyApprovals) { onChange(settings.copy(notifyApprovals = it)) }
-    SwitchItem(R.drawable.ic_huge_automation, R.string.settings_notify_automation, null, settings.notifyAutomationFailures) {
-        onChange(settings.copy(notifyAutomationFailures = it))
-    }
-    // ロック画面での内容の出し方は端末の設定に任せる（アプリの項目は置かない。マスター指定 2026-11-26）
-    // 状態の行（電池の最適化）と導線
-    // 電池の最適化が効くのは常時接続のときだけ（オフなら裏では接続を休む）
-    if (settings.backgroundConnection) StatusItem(
+    // 電池の最適化は常時接続の子の行として、すぐ下に常に出す（オフのときに消すと、どこにあるか迷う。マスター指定 2026-11-28）。
+    // 最適化が効くのは常時接続のときだけ（オフなら裏では接続を休む）なので、赤い注意はオンのときだけ
+    StatusItem(
         R.drawable.ic_huge_alert_circle, R.string.settings_notify_battery,
-        if (optimized) R.string.settings_notify_battery_on else R.string.settings_notify_battery_off, warn = optimized,
+        if (optimized) R.string.settings_notify_battery_on else R.string.settings_notify_battery_off,
+        warn = optimized && settings.backgroundConnection,
+        child = true,
         // 権限は残す（Play Protect の警告は出てよい。OSS とストアの公開で透明性を担保する。マスター指定 2026-11-26）
         onClick = if (optimized) ({
             @android.annotation.SuppressLint("BatteryLife")
@@ -114,6 +110,12 @@ private fun NotificationSection(settings: NotificationSettings, onChange: (Notif
                 .onFailure { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)) }
         }),
     )
+    SwitchItem(R.drawable.ic_huge_ai_chat, R.string.settings_notify_replies, null, settings.notifyReplies) { onChange(settings.copy(notifyReplies = it)) }
+    SwitchItem(R.drawable.ic_huge_check_circle, R.string.settings_notify_approvals, null, settings.notifyApprovals) { onChange(settings.copy(notifyApprovals = it)) }
+    SwitchItem(R.drawable.ic_huge_automation, R.string.settings_notify_automation, null, settings.notifyAutomationFailures) {
+        onChange(settings.copy(notifyAutomationFailures = it))
+    }
+    // ロック画面での内容の出し方は端末の設定に任せる（アプリの項目は置かない。マスター指定 2026-11-26）
     StatusItem(R.drawable.ic_huge_settings, R.string.settings_notify_channels, R.string.settings_notify_channels_desc, warn = false, onClick = appNotificationSettings)
     StatusItem(R.drawable.ic_huge_send, R.string.settings_notify_test, null, warn = false, onClick = if (permitted) onTest else null)
 }
@@ -131,7 +133,7 @@ private fun SwitchItem(icon: Int, title: Int, description: Int?, checked: Boolea
 }
 
 @Composable
-private fun StatusItem(icon: Int, title: Int, value: Int?, warn: Boolean, onClick: (() -> Unit)?) {
+private fun StatusItem(icon: Int, title: Int, value: Int?, warn: Boolean, onClick: (() -> Unit)?, child: Boolean = false) {
     ListItem(
         leadingContent = {
             Icon(painterResource(icon), contentDescription = null, tint = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -139,7 +141,9 @@ private fun StatusItem(icon: Int, title: Int, value: Int?, warn: Boolean, onClic
         headlineContent = { Text(stringResource(title)) },
         supportingContent = value?.let { { Text(stringResource(it), color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } },
         colors = transparentItem(),
-        modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier,
+        modifier = (if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            // 子の行は、親のアイコンの幅だけ右へ下げる（押せる範囲は行いっぱいのまま）
+            .then(if (child) Modifier.padding(start = jp.miyavi.android.sumahoclaw.core.designsystem.Dimens.listLeading) else Modifier),
     )
 }
 
