@@ -11,7 +11,6 @@ import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,23 +105,21 @@ internal fun AgentOffice(
     val still = remember(context) {
         android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
-    var ready by remember { mutableStateOf(false) }
-    // 読み込めたら、オフィスをフェードで出す（読み込むまでの白い面を見せない）
-    val opacity = remember { Animatable(0f) }
+    // WebView と「デスクに残る」の記録は、画面の出し入れ・作り直しを越えて 1 つを使い続ける（作り直すと部屋を読み込み直し、
+    // 歩いている人が一瞬で席に移り、20 秒の待ちも忘れてしまう。マスター指摘 2026-11-28）
+    val webView = remember(context) { OfficeHost.view(context) }
+    val ready = webView.ready
+    // 読み込めたら、オフィスをフェードで出す（読み込むまでの白い面を見せない）。読み込み済みならそのまま出す
+    val opacity = remember { Animatable(if (ready) 1f else 0f) }
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     LaunchedEffect(ready) { if (ready) opacity.animateTo(1f, fadeSpec) }
-
-    val webView = remember {
-        OfficeWebView(context) { ready = true }
-    }
-    DisposableEffect(webView) { onDispose { webView.web.destroy() } }
     LifecycleResumeEffect(webView) {
         webView.web.onResume()
         onPauseOrDispose { webView.web.onPause() }
     }
 
     // デスクにいるか: 動いている、または最後の動きから 20 秒以内。残り時間が切れたら数え直す
-    val tracker = remember { DeskTracker() }
+    val tracker = OfficeHost.tracker
     var tick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     val observedAt = remember(agents) { android.os.SystemClock.elapsedRealtime().also { tracker.observe(agents, it) } }
     LaunchedEffect(observedAt, tick) {
@@ -145,7 +142,8 @@ internal fun AgentOffice(
             },
         ).toString()
     }
-    LaunchedEffect(ready, payload) { if (ready) webView.call("office.setAgents($payload)") }
+    // 読み込み中・つなぎ直しの途中で一時的に空になった一覧は送らない（全員を消して、戻ったときに一瞬で席に置き直してしまう）
+    LaunchedEffect(ready, payload) { if (ready && agents.isNotEmpty()) webView.call("office.setAgents($payload)") }
     LaunchedEffect(ready, dark, accent) {
         if (ready) webView.call("office.setTheme(${buildJsonObject { put("dark", dark); put("accent", accent) }})")
     }
@@ -158,7 +156,8 @@ internal fun AgentOffice(
     }
 
     AndroidView(
-        factory = { webView.also { it.web.setBackgroundColor(background) } },
+        // 前の画面に付いたままなら外してから付け直す（同じ WebView を使い続けるため）
+        factory = { webView.also { (it.parent as? android.view.ViewGroup)?.removeView(it); it.web.setBackgroundColor(background) } },
         update = { it.web.setBackgroundColor(background) },
         modifier = modifier
             .semantics { hideFromAccessibility() }
@@ -166,9 +165,29 @@ internal fun AgentOffice(
     )
 }
 
+/**
+ * プロセスに 1 つの WebView と記録。設定でオフにしたら [release] で捨てる。
+ * WebView はアプリの Context で作る（Activity を作り直しても使い続けるため。ダイアログなどは使わない）。
+ */
+internal object OfficeHost {
+    val tracker = DeskTracker()
+    private var instance: OfficeWebView? = null
+
+    fun view(context: Context): OfficeWebView = instance ?: OfficeWebView(context.applicationContext).also { instance = it }
+
+    fun release() {
+        instance?.let { (it.parent as? android.view.ViewGroup)?.removeView(it); it.web.destroy() }
+        instance = null
+    }
+}
+
 /** オフィスを入れる枠。タッチを受けない（[dispatchTouchEvent] が false なので、下の部品へ渡る）。 */
 @SuppressLint("SetJavaScriptEnabled", "ViewConstructor")
-private class OfficeWebView(context: Context, onReady: () -> Unit) : FrameLayout(context) {
+internal class OfficeWebView(context: Context) : FrameLayout(context) {
+    /** 部屋を読み込み終えたか。 */
+    var ready by mutableStateOf(false)
+        private set
+
     val web = WebView(context).apply {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         isFocusable = false
@@ -187,7 +206,7 @@ private class OfficeWebView(context: Context, onReady: () -> Unit) : FrameLayout
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse =
                 assetResponse(view.context, request)
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
-            override fun onPageFinished(view: WebView, url: String) = onReady()
+            override fun onPageFinished(view: WebView, url: String) { ready = true }
         }
         loadUrl("$OFFICE_ORIGIN/office/index.html?embed")
     }

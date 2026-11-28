@@ -191,6 +191,8 @@ private fun MainNavigation(container: AppContainer) {
     val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
     // バーチャルオフィス（実験機能。spec 009）。サイドパネルの看板が読む
     val virtualOffice by container.settings.virtualOffice.collectAsStateWithLifecycle(false)
+    // オフにしたら、使い続けていた WebView を捨てる
+    LaunchedEffect(virtualOffice) { if (!virtualOffice) jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficeHost.release() }
     CompositionLocalProvider(
         jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases,
         jp.miyavi.android.sumahoclaw.feature.chat.sidebar.LocalVirtualOffice provides virtualOffice,
