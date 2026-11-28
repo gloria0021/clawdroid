@@ -68,7 +68,7 @@ import jp.miyavi.android.sumahoclaw.feature.chat.message.ThinkingIndicator
 import kotlinx.coroutines.launch
 
 /**
- * 考え中のひとこと（設定 → エージェント）。1 行 = 1 つのひとことのエディタで、まとめて書き換える（マスター指定 2026-11-28）。
+ * 考え中のひとりごと（設定 → エージェント）。1 行 = 1 つのひとりごとのエディタで、まとめて書き換える（マスター指定 2026-11-28。名前は「ひとりごと」）。
  * 誤って消さないよう、反映は「保存」を押したときだけ。保存していない変更があれば戻る前に確かめる。⋮ から既定に戻せる。
  * 上の見え方は、カーソルのある行を会話と同じ考え中の表示で出す。
  *
@@ -139,7 +139,7 @@ internal fun ThinkingPhrasesScreen(initial: List<String>?, onSave: (List<String>
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = Spacing.s),
                     )
-                    // 見え方: カーソルのある行（空の行なら最初のひとこと）を、会話と同じ表示で
+                    // 見え方: カーソルのある行（空の行なら最初のひとりごと）を、会話と同じ表示で
                     val current by remember {
                         derivedStateOf {
                             val text = editor.text
@@ -216,7 +216,7 @@ private fun MoreMenu(enabled: Boolean, onReset: () -> Unit) {
 }
 
 /**
- * 1 行 = 1 つのひとことのエディタ。本文の下地の角丸の面に、論理行の先頭にだけ行番号を付ける
+ * 1 行 = 1 つのひとりごとのエディタ。本文の下地の角丸の面に、論理行の先頭にだけ行番号を付ける
  * （折り返した行には付けない。番号は描画の中で位置を読み、入力のたびに組み立て直さない）。
  */
 @Composable

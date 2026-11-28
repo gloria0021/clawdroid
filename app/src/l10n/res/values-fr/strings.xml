@@ -878,11 +878,11 @@
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">L\'emblème d\'OpenClaw</string>
     <string name="thinking_phrases_empty">Ajoutez au moins une phrase</string>
-    <string name="thinking_phrases_hint">Courtes phrases affichées dans la conversation pendant que l\'agent travaille. Chaque ligne est une phrase. Elles s\'affichent dans un ordre aléatoire. Les points de suspension « … » sont ajoutés automatiquement à la fin.</string>
+    <string name="thinking_phrases_hint">Phrases affichées dans la conversation pendant que l\'agent travaille. Une phrase par ligne ; elles alternent au hasard. Les « … » finaux sont ajoutés automatiquement.</string>
     <string name="thinking_phrases_more_cd">Plus d\'options</string>
     <string name="thinking_phrases_preview">Aperçu</string>
     <string name="thinking_phrases_reset">Rétablir les valeurs par défaut</string>
-    <string name="thinking_phrases_reset_body">Les phrases que vous avez modifiées seront perdues et la liste intégrée sera rétablie.</string>
+    <string name="thinking_phrases_reset_body">Vos phrases modifiées seront perdues et la liste intégrée à l\'application sera rétablie.</string>
     <string name="thinking_phrases_reset_title">Rétablir les valeurs par défaut ?</string>
     <string name="tool_profile_coding">Code</string>
     <string name="tool_profile_full">Tout</string>

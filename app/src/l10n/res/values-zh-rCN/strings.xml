@@ -698,7 +698,7 @@
     <string name="settings_surface_blur">模糊</string>
     <string name="settings_surface_glass">玻璃</string>
     <string name="settings_surface_style">透明效果</string>
-    <string name="settings_thinking_phrases">思考中提示语</string>
+    <string name="settings_thinking_phrases">思考中的自言自语</string>
     <string name="settings_thinking_phrases_count">%1$d 条</string>
     <string name="settings_thinking_phrases_default">默认</string>
     <string name="settings_title">设置</string>
@@ -872,11 +872,11 @@
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">OpenClaw 的象征</string>
     <string name="thinking_phrases_empty">请至少添加一条</string>
-    <string name="thinking_phrases_hint">智能体工作时在对话中显示的短语。每行一条，随机轮换。末尾的“…”会自动添加。</string>
+    <string name="thinking_phrases_hint">智能体工作时在对话中显示的自言自语。每行一条，随机轮换。末尾的“…”会自动添加。</string>
     <string name="thinking_phrases_more_cd">更多选项</string>
     <string name="thinking_phrases_preview">预览</string>
     <string name="thinking_phrases_reset">恢复默认</string>
-    <string name="thinking_phrases_reset_body">你编辑过的提示语将丢失，并恢复为应用内置列表。</string>
+    <string name="thinking_phrases_reset_body">你修改过的自言自语将丢失，并恢复为应用内置的列表。</string>
     <string name="thinking_phrases_reset_title">要恢复默认吗？</string>
     <string name="tool_profile_coding">编程</string>
     <string name="tool_profile_full">全部</string>

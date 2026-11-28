@@ -187,7 +187,7 @@ private fun MainNavigation(container: AppContainer) {
         { ms -> DateUtils.getRelativeTimeSpanString(ms, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString() }
     }
 
-    // 考え中のひとこと（設定で書き換えたもの）。会話の考え中の表示が読む
+    // 考え中のひとりごと（設定で書き換えたもの）。会話の考え中の表示が読む
     val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
     CompositionLocalProvider(jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases) {
     NavDisplay(

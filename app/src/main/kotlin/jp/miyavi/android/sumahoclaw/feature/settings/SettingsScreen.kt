@@ -90,7 +90,7 @@ data class SettingsState(
     val languages: List<String> = emptyList(),
     /** 選んでいる言語のタグ。null なら端末の言語。 */
     val language: String? = null,
-    /** 書き換えた考え中のひとことの数。null なら既定のまま。 */
+    /** 書き換えた考え中のひとりごとの数。null なら既定のまま。 */
     val thinkingPhrases: Int? = null,
 )
 
@@ -250,7 +250,7 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             value = stringResource(R.string.settings_shortcuts_value, state.shortcuts, jp.miyavi.android.sumahoclaw.core.shortcut.MAX_SHORTCUTS),
                             onClick = actions.openShortcuts,
                         )
-                        // 会話の考え中に出すひとこと（マスター指定 2026-11-28）
+                        // 会話の考え中に出すひとりごと（マスター指定 2026-11-28）
                         ChoiceItem(
                             icon = R.drawable.ic_huge_ai_chat,
                             title = stringResource(R.string.settings_thinking_phrases),

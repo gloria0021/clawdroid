@@ -169,7 +169,7 @@ class SettingsStore(context: Context) {
     }
 
     /**
-     * 考え中のひとこと（設定 → エージェント）。null なら既定（言語ごとの訳の一覧）。
+     * 考え中のひとりごと（設定 → エージェント）。null なら既定（言語ごとの訳の一覧）。
      * 保存した一覧は、どの言語でもそのまま使う。
      */
     val thinkingPhrases: Flow<List<String>?> = store.data.map { p ->

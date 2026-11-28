@@ -1,7 +1,7 @@
 package jp.miyavi.android.sumahoclaw.core.settings
 
 /**
- * 考え中のひとこと（設定 → エージェント → 考え中のひとこと）。編集は 1 行 = 1 つのひとこと。
+ * 考え中のひとりごと（設定 → エージェント → 考え中のひとりごと）。編集は 1 行 = 1 つのひとりごと。
  * 末尾の「…」はアプリが回る点として付けるので、持たない（打っても外す）。
  */
 object ThinkingPhrases {
@@ -12,7 +12,7 @@ object ThinkingPhrases {
     /** 一覧をエディタの文字にする（1 行に 1 つ）。 */
     fun format(phrases: List<String>): String = phrases.map(::normalize).filter(String::isNotEmpty).joinToString("\n")
 
-    /** 1 つのひとことを、保存する形にそろえる。 */
+    /** 1 つのひとりごとを、保存する形にそろえる。 */
     fun normalize(phrase: String): String {
         var s = phrase.trim()
         while (true) {

@@ -282,15 +282,15 @@
     <!-- ランチャーのショートカット（spec 007） -->
     <string name="settings_shortcuts">ランチャーのショートカット</string>
     <string name="settings_shortcuts_value">%1$d / %2$d 個</string>
-    <string name="settings_thinking_phrases">考え中のひとこと</string>
+    <string name="settings_thinking_phrases">考え中のひとりごと</string>
     <string name="settings_thinking_phrases_default">既定</string>
     <string name="settings_thinking_phrases_count">%1$d 個</string>
-    <string name="thinking_phrases_hint">エージェントが作業しているあいだ、会話に出すひとことです。1 行が 1 つのひとことで、ランダムに入れ替わります。末尾の「…」は自動で付きます。</string>
+    <string name="thinking_phrases_hint">エージェントが作業しているあいだ、会話に出すひとりごとです。1 行が 1 つのひとりごとで、ランダムに入れ替わります。末尾の「…」は自動で付きます。</string>
     <string name="thinking_phrases_preview">見え方</string>
     <string name="thinking_phrases_empty">1 つ以上書いてください</string>
     <string name="thinking_phrases_reset">既定に戻す</string>
     <string name="thinking_phrases_reset_title">既定に戻しますか？</string>
-    <string name="thinking_phrases_reset_body">書き換えたひとことは失われ、アプリに入っている一覧に戻ります。</string>
+    <string name="thinking_phrases_reset_body">書き換えたひとりごとは失われ、アプリに入っている一覧に戻ります。</string>
     <string name="thinking_phrases_more_cd">その他の操作</string>
     <string name="shortcuts_hint">ホーム画面で SumahoClaw のアイコンを長押ししたときに出る項目です。4 つまで置けます。右の持ち手を長押しして上下に動かすと並び替えられます。行き先のセッションがアーカイブ・削除されると、自動で外れます。</string>
     <string name="shortcuts_empty">まだありません。下の「追加」から作れます。</string>

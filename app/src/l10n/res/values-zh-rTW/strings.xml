@@ -698,7 +698,7 @@
     <string name="settings_surface_blur">模糊</string>
     <string name="settings_surface_glass">玻璃</string>
     <string name="settings_surface_style">透明效果</string>
-    <string name="settings_thinking_phrases">思考中提示語</string>
+    <string name="settings_thinking_phrases">思考中的自言自語</string>
     <string name="settings_thinking_phrases_count">%1$d 則</string>
     <string name="settings_thinking_phrases_default">預設</string>
     <string name="settings_title">設定</string>
@@ -872,11 +872,11 @@
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">OpenClaw 的象徵</string>
     <string name="thinking_phrases_empty">請至少輸入一則</string>
-    <string name="thinking_phrases_hint">代理程式工作時在對話中顯示的提示語。每行一則，會隨機輪替顯示。結尾的「…」會自動加上。</string>
+    <string name="thinking_phrases_hint">代理程式工作時，在對話中顯示的自言自語。每行一句，會隨機輪替。結尾的「…」會自動加上。</string>
     <string name="thinking_phrases_more_cd">更多選項</string>
     <string name="thinking_phrases_preview">預覽</string>
     <string name="thinking_phrases_reset">重設為預設值</string>
-    <string name="thinking_phrases_reset_body">你編輯過的提示語將會遺失，並還原為應用程式內建的清單。</string>
+    <string name="thinking_phrases_reset_body">你編輯過的自言自語將會遺失，並還原為應用程式內建的清單。</string>
     <string name="thinking_phrases_reset_title">要重設為預設值嗎？</string>
     <string name="tool_profile_coding">程式開發</string>
     <string name="tool_profile_full">全部</string>

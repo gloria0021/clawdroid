@@ -698,7 +698,7 @@
     <string name="settings_surface_blur">흐림</string>
     <string name="settings_surface_glass">유리</string>
     <string name="settings_surface_style">투명 효과</string>
-    <string name="settings_thinking_phrases">생각 중 문구</string>
+    <string name="settings_thinking_phrases">생각 중 혼잣말</string>
     <string name="settings_thinking_phrases_count">문구 %1$d개</string>
     <string name="settings_thinking_phrases_default">기본값</string>
     <string name="settings_title">설정</string>
@@ -872,11 +872,11 @@
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">OpenClaw의 상징</string>
     <string name="thinking_phrases_empty">문구를 하나 이상 입력하세요</string>
-    <string name="thinking_phrases_hint">에이전트가 작업하는 동안 대화에 표시되는 짧은 문구입니다. 한 줄이 문구 하나이며, 무작위로 바뀝니다. 끝의 \"…\"는 자동으로 붙습니다.</string>
+    <string name="thinking_phrases_hint">에이전트가 작업하는 동안 대화에 표시되는 혼잣말입니다. 한 줄에 하나씩 쓰며, 무작위로 바뀝니다. 끝의 \"…\"는 자동으로 붙습니다.</string>
     <string name="thinking_phrases_more_cd">옵션 더보기</string>
     <string name="thinking_phrases_preview">미리보기</string>
     <string name="thinking_phrases_reset">기본값으로 재설정</string>
-    <string name="thinking_phrases_reset_body">수정한 문구가 삭제되고 앱에 기본 제공되는 목록으로 돌아갑니다.</string>
+    <string name="thinking_phrases_reset_body">수정한 혼잣말은 사라지고 앱에 기본으로 들어 있는 목록으로 돌아갑니다.</string>
     <string name="thinking_phrases_reset_title">기본값으로 재설정할까요?</string>
     <string name="tool_profile_coding">코딩</string>
     <string name="tool_profile_full">전체</string>

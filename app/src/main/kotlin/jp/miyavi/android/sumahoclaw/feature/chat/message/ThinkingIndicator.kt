@@ -36,7 +36,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
-/** 設定で書き換えた考え中のひとこと（null なら既定の訳の一覧）。 */
+/** 設定で書き換えた考え中のひとりごと（null なら既定の訳の一覧）。 */
 val LocalThinkingPhrases = androidx.compose.runtime.compositionLocalOf<List<String>?> { null }
 
 /**

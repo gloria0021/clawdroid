@@ -704,7 +704,7 @@
     <string name="settings_surface_blur">Desenfoque</string>
     <string name="settings_surface_glass">Cristal</string>
     <string name="settings_surface_style">Efecto de transparencia</string>
-    <string name="settings_thinking_phrases">Frases de espera</string>
+    <string name="settings_thinking_phrases">Frases mientras piensa</string>
     <string name="settings_thinking_phrases_count">%1$d frases</string>
     <string name="settings_thinking_phrases_default">Predeterminado</string>
     <string name="settings_title">Ajustes</string>
@@ -878,11 +878,11 @@
     <string name="theme_openclaw">OpenClaw</string>
     <string name="theme_openclaw_desc">El emblema de OpenClaw</string>
     <string name="thinking_phrases_empty">Añade al menos una frase</string>
-    <string name="thinking_phrases_hint">Frases cortas que se muestran en el chat mientras el agente trabaja. Cada línea es una frase y van rotando al azar. Los puntos suspensivos \"…\" finales se añaden automáticamente.</string>
+    <string name="thinking_phrases_hint">Frases que aparecen en el chat mientras el agente trabaja. Una frase por línea; se alternan al azar. El \"…\" final se añade automáticamente.</string>
     <string name="thinking_phrases_more_cd">Más opciones</string>
     <string name="thinking_phrases_preview">Vista previa</string>
     <string name="thinking_phrases_reset">Restablecer valores predeterminados</string>
-    <string name="thinking_phrases_reset_body">Se perderán las frases que hayas editado y se restaurará la lista integrada.</string>
+    <string name="thinking_phrases_reset_body">Se perderán las frases que editaste y se restaurará la lista incluida en la app.</string>
     <string name="thinking_phrases_reset_title">¿Restablecer valores predeterminados?</string>
     <string name="tool_profile_coding">Programación</string>
     <string name="tool_profile_full">Todas</string>
