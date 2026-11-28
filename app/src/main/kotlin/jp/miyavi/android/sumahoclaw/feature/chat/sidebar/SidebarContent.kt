@@ -246,8 +246,8 @@ fun SidePanel(
                                 office,
                                 active = panelVisible,
                                 modifier = Modifier.overhangTop(liftRange).hazeSource(hazeState, zIndex = HERO_HAZE_Z),
-                                // 部屋は、上にはみ出した分・ステータスバー・閉じるボタンの行の下に収める（閉じるボタンと重ねない）
-                                topInset = liftRange + statusTop + closeRow,
+                                // デスクと寝室は、見えている枠（上にはみ出した分を除く）の真ん中に置く（マスター指定 2026-11-28）
+                                topInset = liftRange,
                             )
                         } else currentAgent?.let { agent ->
                             jp.miyavi.android.sumahoclaw.feature.chat.AgentHero(
