@@ -41,9 +41,15 @@ internal fun SymbolRow(
     onRedo: () -> Unit,
     onInsert: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** 先頭に置く主操作（エディターの保存。キーボードが出ているあいだも押せるように）。後ろに縦線で区切る。 */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     GlassPill(hazeState = hazeState, modifier = modifier) {
         Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            if (leading != null) {
+                leading()
+                VerticalDivider(Modifier.height(Spacing.xl))
+            }
             IconButton(onClick = onUndo, enabled = canUndo) {
                 Icon(painterResource(R.drawable.ic_huge_undo), stringResource(R.string.files_undo_cd))
             }

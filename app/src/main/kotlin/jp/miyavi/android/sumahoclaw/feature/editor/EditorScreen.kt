@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,16 +46,11 @@ import jp.miyavi.android.sumahoclaw.R
 import jp.miyavi.android.sumahoclaw.core.designsystem.AppTitleBar
 import jp.miyavi.android.sumahoclaw.core.designsystem.FloatingIconButton
 import jp.miyavi.android.sumahoclaw.core.designsystem.GlassDropdownMenu
-import jp.miyavi.android.sumahoclaw.core.designsystem.GlassMenuDivider
 import jp.miyavi.android.sumahoclaw.core.designsystem.GlassSnackbarHost
 import jp.miyavi.android.sumahoclaw.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.sumahoclaw.core.designsystem.SaveStateIcon
 import jp.miyavi.android.sumahoclaw.core.designsystem.Spacing
 import jp.miyavi.android.sumahoclaw.core.text.TextCharset
-import jp.miyavi.android.sumahoclaw.feature.files.FileControls
-import jp.miyavi.android.sumahoclaw.feature.files.FileControlsActions
-import jp.miyavi.android.sumahoclaw.feature.files.FileControlsState
-import jp.miyavi.android.sumahoclaw.feature.files.FileSearch
 import jp.miyavi.android.sumahoclaw.feature.files.SymbolRow
 import jp.miyavi.android.sumahoclaw.feature.files.indentUnit
 import jp.miyavi.android.sumahoclaw.feature.files.CodeLanguage
@@ -99,8 +93,9 @@ fun EditorContent(
 ) {
     val hazeState = rememberHazeState()
     var menu by remember { mutableStateOf(false) }
-    var languageMenu by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    val canSave = state.phase == EditorPhase.READY && !state.saving && (state.dirty || !state.writable)
+    val writable by androidx.compose.runtime.rememberUpdatedState(state.writable)
     BackHandler(enabled = state.searching || state.dirty || state.dialog != null) {
         if (state.searching) {
             handle.stopSearch()
@@ -122,33 +117,17 @@ fun EditorContent(
                         }
                     },
                     actions = {
-                        // TopAppBar のアイコンは 2 つ ＋ ⋮（AGENTS.md 2.6）: 保存と検索
+                        // 保存・折り返し・言語・検索は下に浮くピル（AGENTS.md 2.7）。TopAppBar には ⋮ だけ（全文をコピー・ダウンロード・別の名前で保存）
                         if (state.phase == EditorPhase.READY) {
-                            IconButton(onClick = if (state.writable) actions.onSave else actions.onSaveAs, enabled = !state.saving && (state.dirty || !state.writable)) {
-                                SaveStateIcon(saving = state.saving, savedTick = state.savedTick) {
-                                    Icon(painterResource(R.drawable.ic_huge_check), stringResource(if (state.writable) R.string.files_save_cd else R.string.editor_menu_save_as))
-                                }
-                            }
-                            IconButton(onClick = { actions.onSearching(true) }) {
-                                Icon(painterResource(R.drawable.ic_huge_search), stringResource(R.string.files_search_cd))
-                            }
                             Box {
                                 IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_huge_more), stringResource(R.string.editor_more_cd)) }
                                 GlassDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.editor_menu_wrap)) },
-                                        trailingIcon = { Checkbox(checked = state.wrap, onCheckedChange = null) },
-                                        onClick = { menu = false; actions.onToggleWrap() },
-                                    )
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.editor_menu_language)) }, onClick = { menu = false; languageMenu = true })
-                                    GlassMenuDivider()
                                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_menu_copy_all)) }, onClick = { menu = false; actions.onCopyAll() })
                                     actions.onDownload?.let { download ->
                                         DropdownMenuItem(text = { Text(stringResource(R.string.files_download_cd)) }, onClick = { menu = false; download() })
                                     }
                                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_menu_save_as)) }, onClick = { menu = false; actions.onSaveAs() })
                                 }
-                                LanguageMenu(languageMenu, { languageMenu = false }, actions.onSelectLanguage)
                             }
                         }
                     },
@@ -200,31 +179,45 @@ fun EditorContent(
                                 }
                             }
                         }
+                        // 下に浮くピル（保存 | 折り返し・言語・検索）。キーボードが出ているあいだは検索中だけ出す
+                        val motion = MaterialTheme.motionScheme
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.phase == EditorPhase.READY && (state.searching || !WindowInsets.isImeVisible),
+                            enter = fadeIn(motion.defaultEffectsSpec()),
+                            exit = fadeOut(motion.fastEffectsSpec()),
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(Spacing.l),
+                        ) {
+                            EditorControls(
+                                hazeState = hazeState,
+                                state = EditorControlsState(
+                                    writable = state.writable,
+                                    canSave = canSave,
+                                    saving = state.saving,
+                                    savedTick = state.savedTick,
+                                    wrap = state.wrap,
+                                    language = state.language,
+                                    searching = state.searching,
+                                    query = query,
+                                    matchIndex = handle.matchIndex,
+                                    matchCount = handle.matchCount,
+                                ),
+                                actions = remember(handle, actions) {
+                                    EditorControlsActions(
+                                        onSave = { if (writable) actions.onSave() else actions.onSaveAs() },
+                                        onToggleWrap = actions.onToggleWrap,
+                                        onSelectLanguage = actions.onSelectLanguage,
+                                        onOpenSearch = { actions.onSearching(true) },
+                                        onQuery = { q -> query = q; handle.search(q) },
+                                        onPrevious = handle::previous,
+                                        onNext = handle::next,
+                                        onCloseSearch = { handle.stopSearch(); actions.onSearching(false) },
+                                    )
+                                },
+                            )
+                        }
                     }
-                    if (state.searching) {
-                        FileControls(
-                            hazeState = hazeState,
-                            state = FileControlsState(
-                                canToggleCode = false,
-                                showCode = true,
-                                editable = false,
-                                search = FileSearch(query = query),
-                                htmlCounts = (handle.matchIndex + 1).coerceAtLeast(0) to handle.matchCount,
-                            ),
-                            actions = remember(handle) {
-                                FileControlsActions(
-                                    onToggleCode = {},
-                                    onEdit = {},
-                                    onOpenSearch = {},
-                                    onQuery = { q -> query = q; handle.search(q) },
-                                    onPrevious = handle::previous,
-                                    onNext = handle::next,
-                                    onCloseSearch = { handle.stopSearch(); actions.onSearching(false) },
-                                )
-                            },
-                            modifier = Modifier.padding(horizontal = Spacing.s, vertical = Spacing.xs),
-                        )
-                    } else if (WindowInsets.isImeVisible && content != null && state.phase == EditorPhase.READY) {
+                    if (!state.searching && WindowInsets.isImeVisible && content != null && state.phase == EditorPhase.READY) {
+                        // キーボードが出ているあいだは、ピルの代わりに記号の行（先頭に保存）
                         val indent = remember(content, state.contentVersion) { indentUnit(content.toString().take(INDENT_SAMPLE_CHARS)) }
                         SymbolRow(
                             hazeState = hazeState,
@@ -235,6 +228,13 @@ fun EditorContent(
                             onRedo = handle::redo,
                             onInsert = handle::insert,
                             modifier = Modifier.padding(horizontal = Spacing.s, vertical = Spacing.xs),
+                            leading = {
+                                IconButton(onClick = if (state.writable) actions.onSave else actions.onSaveAs, enabled = canSave) {
+                                    SaveStateIcon(saving = state.saving, savedTick = state.savedTick) {
+                                        Icon(painterResource(R.drawable.ic_huge_check), stringResource(if (state.writable) R.string.files_save_cd else R.string.editor_menu_save_as))
+                                    }
+                                }
+                            },
                         )
                     }
                     if (state.phase == EditorPhase.READY) {

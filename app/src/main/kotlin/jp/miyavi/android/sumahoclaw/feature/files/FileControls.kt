@@ -123,7 +123,7 @@ private fun ActionRow(state: FileControlsState, actions: FileControlsActions) {
 }
 
 @Composable
-private fun SearchRow(state: FileControlsState, actions: FileControlsActions) {
+internal fun SearchRow(state: FileControlsState, actions: FileControlsActions) {
     val search = state.search ?: FileSearch()
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }

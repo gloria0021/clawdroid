@@ -922,6 +922,7 @@
     <string name="editor_menu_language">言語</string>
     <string name="editor_menu_save_as">別の名前で保存</string>
     <string name="editor_menu_copy_all">全文をコピー</string>
+    <string name="editor_selected_cd">選択中</string>
     <string name="editor_language_none">なし（色分けしない）</string>
     <string name="editor_status_position">%1$d:%2$d</string>
     <string name="editor_status_chars">%1$s 文字</string>

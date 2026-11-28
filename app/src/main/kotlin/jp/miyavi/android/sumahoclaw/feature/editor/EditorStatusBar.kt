@@ -101,7 +101,7 @@ fun EditorStatusBar(
                 StatusText(separator, style, color)
                 Box {
                     StatusText(language, style, color, onClick = { languageMenu = true }, clickLabel = stringResource(R.string.editor_language_cd))
-                    LanguageMenu(languageMenu, { languageMenu = false }, onSelectLanguage)
+                    LanguageMenu(languageMenu, { languageMenu = false }, onSelectLanguage, selected = state.language)
                 }
             },
             modifier = Modifier.weight(1f),
@@ -150,15 +150,4 @@ private fun StatusText(
             .heightIn(min = Dimens.compactTouchTarget)
             .padding(vertical = Spacing.s),
     )
-}
-
-/** 言語を選び直すメニュー（「なし」を先頭に）。 */
-@Composable
-internal fun LanguageMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (CodeLanguage?) -> Unit) {
-    GlassDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.editor_language_none)) }, onClick = { onDismiss(); onSelect(null) })
-        CodeLanguage.entries.forEach { lang ->
-            DropdownMenuItem(text = { Text(stringResource(lang.label)) }, onClick = { onDismiss(); onSelect(lang) })
-        }
-    }
 }

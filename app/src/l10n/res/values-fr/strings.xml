@@ -419,6 +419,7 @@
     <string name="editor_reload_title">Recharger avec un autre encodage ?</string>
     <string name="editor_restored_draft">Modifications non enregistrées restaurées</string>
     <string name="editor_retry">Réessayer</string>
+    <string name="editor_selected_cd">Sélectionné</string>
     <string name="editor_status_bom">%1$s (BOM)</string>
     <string name="editor_status_chars">%1$s car.</string>
     <string name="editor_status_lines">%1$s lignes</string>
