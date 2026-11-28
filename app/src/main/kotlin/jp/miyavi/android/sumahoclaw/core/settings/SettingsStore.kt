@@ -176,6 +176,11 @@ class SettingsStore(context: Context) {
         p[EDITOR_LANGUAGES] = json.encodeToString<Map<String, String>>(next)
     }
 
+    /** バーチャルオフィス（実験機能。spec 009）。既定はオフ（電池を使うため）。 */
+    val virtualOffice: Flow<Boolean> = store.data.map { it[VIRTUAL_OFFICE] ?: false }.distinctUntilChanged()
+
+    suspend fun setVirtualOffice(v: Boolean) = store.edit { it[VIRTUAL_OFFICE] = v }
+
     suspend fun setAgentLayout(layout: AgentLayout) = store.edit { it[AGENT_LAYOUT] = json.encodeToString(layout) }
 
     /** ランチャーのショートカットの枠（spec 007 R7）。読めなければ空。 */
@@ -237,6 +242,7 @@ class SettingsStore(context: Context) {
         val SHORTCUTS = stringPreferencesKey("shortcuts")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val THINKING_PHRASES = stringPreferencesKey("thinking_phrases")
+        val VIRTUAL_OFFICE = booleanPreferencesKey("virtual_office")
     }
 }
 

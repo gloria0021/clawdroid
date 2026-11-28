@@ -752,6 +752,8 @@
     <string name="settings_thinking_phrases_default">Par défaut</string>
     <string name="settings_title">Paramètres</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="settings_virtual_office">Bureau virtuel (fonction expérimentale)</string>
+    <string name="settings_virtual_office_details">Remplace le visage de l\'agent dans le panneau latéral par un bureau où l\'on voit l\'agent travailler. L\'affichage sollicite les performances de l\'appareil, ce qui augmente la consommation de batterie</string>
     <string name="shortcut_archived">Archivée. Désarchiver la session la restaure aussi dans le lanceur</string>
     <string name="shortcut_desc_folder">%1$s · Nouvelle session (%2$s)</string>
     <string name="shortcut_desc_folder_default">%1$s · Nouvelle session</string>

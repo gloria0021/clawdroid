@@ -749,6 +749,8 @@
     <string name="settings_thinking_phrases_default">Default</string>
     <string name="settings_title">Settings</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="settings_virtual_office">Virtual office (experimental)</string>
+    <string name="settings_virtual_office_details">Replaces the agent\'s face in the side panel with an office that shows the agent at work. Drawing it uses device performance, so battery drain increases</string>
     <string name="shortcut_archived">Archived. Unarchiving the session also restores it to the launcher</string>
     <string name="shortcut_desc_folder">%1$s · New session (%2$s)</string>
     <string name="shortcut_desc_folder_default">%1$s · New session</string>

@@ -752,6 +752,8 @@
     <string name="settings_thinking_phrases_default">Predeterminado</string>
     <string name="settings_title">Ajustes</string>
     <string name="settings_version">Versión %1$s</string>
+    <string name="settings_virtual_office">Oficina virtual (función experimental)</string>
+    <string name="settings_virtual_office_details">Sustituye la cara del agente en el panel lateral por una oficina que muestra al agente trabajando. Dibujarla usa el rendimiento del dispositivo, por lo que aumenta el consumo de batería</string>
     <string name="shortcut_archived">Archivada. Al desarchivar la sesión, también se restaura en el launcher</string>
     <string name="shortcut_desc_folder">%1$s · Nueva sesión (%2$s)</string>
     <string name="shortcut_desc_folder_default">%1$s · Nueva sesión</string>

@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -92,6 +93,8 @@ data class SettingsState(
     val language: String? = null,
     /** 書き換えた考え中のひとりごとの数。null なら既定のまま。 */
     val thinkingPhrases: Int? = null,
+    /** バーチャルオフィス（実験機能。spec 009）。 */
+    val virtualOffice: Boolean = false,
 )
 
 data class SettingsActions(
@@ -113,6 +116,7 @@ data class SettingsActions(
     val openNotificationSettings: () -> Unit = {},
     val openShortcuts: () -> Unit = {},
     val openThinkingPhrases: () -> Unit = {},
+    val setVirtualOffice: (Boolean) -> Unit = {},
     val openLicenses: () -> Unit = {},
     /** 言語を切り替える（null なら端末の言語）。 */
     val setLanguage: (String?) -> Unit = {},
@@ -257,6 +261,19 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                             value = state.thinkingPhrases?.let { stringResource(R.string.settings_thinking_phrases_count, it) }
                                 ?: stringResource(R.string.settings_thinking_phrases_default),
                             onClick = actions.openThinkingPhrases,
+                        )
+                        // サイドパネルの看板をバーチャルオフィスに替える（実験機能。spec 009。マスター指定 2026-11-28）
+                        ListItem(
+                            leadingContent = { Icon(painterResource(R.drawable.ic_huge_office), contentDescription = null) },
+                            headlineContent = { Text(stringResource(R.string.settings_virtual_office)) },
+                            supportingContent = { Text(stringResource(R.string.settings_virtual_office_details)) },
+                            trailingContent = { Switch(checked = state.virtualOffice, onCheckedChange = null) },
+                            colors = transparentItem(),
+                            modifier = Modifier.toggleable(
+                                value = state.virtualOffice,
+                                role = Role.Switch,
+                                onValueChange = actions.setVirtualOffice,
+                            ),
                         )
                     }
                 }

@@ -752,6 +752,8 @@
     <string name="settings_thinking_phrases_default">Padrão</string>
     <string name="settings_title">Configurações</string>
     <string name="settings_version">Versão %1$s</string>
+    <string name="settings_virtual_office">Escritório virtual (experimental)</string>
+    <string name="settings_virtual_office_details">Substitui o rosto do agente no painel lateral por um escritório que mostra o agente trabalhando. A renderização usa o desempenho do dispositivo, então o consumo de bateria aumenta</string>
     <string name="shortcut_archived">Arquivada. Desarquivar a sessão também a restaura no launcher</string>
     <string name="shortcut_desc_folder">%1$s · Nova sessão (%2$s)</string>
     <string name="shortcut_desc_folder_default">%1$s · Nova sessão</string>

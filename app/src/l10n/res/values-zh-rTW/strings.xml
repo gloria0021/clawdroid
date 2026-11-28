@@ -746,6 +746,8 @@
     <string name="settings_thinking_phrases_default">預設</string>
     <string name="settings_title">設定</string>
     <string name="settings_version">版本 %1$s</string>
+    <string name="settings_virtual_office">虛擬辦公室（實驗性功能）</string>
+    <string name="settings_virtual_office_details">將側邊面板中的代理程式臉孔，換成呈現代理程式工作情形的辦公室。繪製時會使用裝置效能，因此裝置的耗電量會增加</string>
     <string name="shortcut_archived">已封存。取消封存工作階段後，也會一併還原到啟動器</string>
     <string name="shortcut_desc_folder">%1$s · 新工作階段（%2$s）</string>
     <string name="shortcut_desc_folder_default">%1$s · 新工作階段</string>

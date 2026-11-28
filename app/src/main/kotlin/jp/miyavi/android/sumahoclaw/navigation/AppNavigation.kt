@@ -189,7 +189,12 @@ private fun MainNavigation(container: AppContainer) {
 
     // 考え中のひとりごと（設定で書き換えたもの）。会話の考え中の表示が読む
     val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
-    CompositionLocalProvider(jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases) {
+    // バーチャルオフィス（実験機能。spec 009）。サイドパネルの看板が読む
+    val virtualOffice by container.settings.virtualOffice.collectAsStateWithLifecycle(false)
+    CompositionLocalProvider(
+        jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases,
+        jp.miyavi.android.sumahoclaw.feature.chat.sidebar.LocalVirtualOffice provides virtualOffice,
+    ) {
     NavDisplay(
         backStack = backStack,
         modifier = Modifier.fillMaxSize().clipToBounds().background(MaterialTheme.colorScheme.surface),
@@ -259,6 +264,7 @@ private fun MainNavigation(container: AppContainer) {
                     state = SettingsState(
                         theme, connection, url, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, shown, agentsState.agents.size, notifications, shortcuts.slots.size,
                         languages = languages, language = language, thinkingPhrases = thinkingPhrases?.size,
+                        virtualOffice = virtualOffice,
                     ),
                     snackbar = snackbar,
                     actions = SettingsActions(
@@ -280,6 +286,7 @@ private fun MainNavigation(container: AppContainer) {
                         openNotificationSettings = { gate.run { backStack.push(NotificationSettingsRoute) } },
                         openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
                         openThinkingPhrases = { gate.run { backStack.push(ThinkingPhrasesRoute) } },
+                        setVirtualOffice = { scope.launch { container.settings.setVirtualOffice(it) } },
                         openLicenses = { gate.run { backStack.push(LicensesRoute) } },
                         setLanguage = { jp.miyavi.android.sumahoclaw.core.settings.AppLanguage.set(languageContext, it) },
                     ),

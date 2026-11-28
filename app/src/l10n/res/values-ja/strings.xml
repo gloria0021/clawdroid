@@ -746,6 +746,8 @@
     <string name="settings_thinking_phrases_default">既定</string>
     <string name="settings_title">設定</string>
     <string name="settings_version">バージョン %1$s</string>
+    <string name="settings_virtual_office">バーチャルオフィス（実験機能）</string>
+    <string name="settings_virtual_office_details">サイドパネルのエージェントの顔を、エージェントが働く様子を見せるオフィスに替えます。描画に端末の性能を使うため、端末のバッテリー消費が増えます</string>
     <string name="shortcut_archived">アーカイブ済み。セッションのアーカイブを戻すと、ランチャーにも戻ります</string>
     <string name="shortcut_desc_folder">%1$s · 新規セッション（%2$s）</string>
     <string name="shortcut_desc_folder_default">%1$s · 新規セッション</string>

@@ -287,6 +287,8 @@
     <string name="settings_thinking_phrases">考え中のひとりごと</string>
     <string name="settings_thinking_phrases_default">既定</string>
     <string name="settings_thinking_phrases_count">%1$d 個</string>
+    <string name="settings_virtual_office">バーチャルオフィス（実験機能）</string>
+    <string name="settings_virtual_office_details">サイドパネルのエージェントの顔を、エージェントが働く様子を見せるオフィスに替えます。描画に端末の性能を使うため、端末のバッテリー消費が増えます</string>
     <string name="thinking_phrases_hint">エージェントが作業しているあいだ、会話に出すひとりごとです。1 行が 1 つのひとりごとで、ランダムに入れ替わります。末尾の「…」は自動で付きます。</string>
     <string name="thinking_phrases_preview">見え方</string>
     <string name="thinking_phrases_empty">1 つ以上書いてください</string>

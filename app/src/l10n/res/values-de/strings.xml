@@ -749,6 +749,8 @@
     <string name="settings_thinking_phrases_default">Standard</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="settings_virtual_office">Virtuelles Büro (experimentell)</string>
+    <string name="settings_virtual_office_details">Ersetzt das Gesicht des Agents im Seitenpanel durch ein Büro, in dem du den Agent bei der Arbeit siehst. Das Zeichnen beansprucht die Leistung des Geräts, daher steigt der Akkuverbrauch</string>
     <string name="shortcut_archived">Archiviert. Wenn du die Sitzung wiederherstellst, erscheint sie auch wieder im Launcher</string>
     <string name="shortcut_desc_folder">%1$s · Neue Sitzung (%2$s)</string>
     <string name="shortcut_desc_folder_default">%1$s · Neue Sitzung</string>

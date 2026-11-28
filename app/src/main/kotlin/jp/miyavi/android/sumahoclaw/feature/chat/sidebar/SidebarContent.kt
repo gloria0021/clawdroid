@@ -182,6 +182,8 @@ fun SidePanel(
     contentLift: () -> Float = { 0f },
     /** [contentLift] のいちばん大きい値（看板の画像を上にはみ出させる長さ）。 */
     liftRange: androidx.compose.ui.unit.Dp = Spacing.xl,
+    /** パネルが少しでも見えているか。バーチャルオフィス（spec 009）は、見えていないあいだ描かない。 */
+    panelVisible: Boolean = true,
 ) {
     val hazeState = rememberHazeState()
     val agentsById = remember(agents) { agents.associateBy(Agent::id) }
@@ -231,7 +233,16 @@ fun SidePanel(
                                     .graphicsLayer { alpha = DisabledAlpha },
                             )
                         }
-                        currentAgent?.let { agent ->
+                        if (currentAgent != null && LocalVirtualOffice.current) {
+                            // バーチャルオフィス（実験機能。spec 009）: 顔の代わりに、タブと同じ 4 体が働く・寝るオフィスを枠いっぱいに描く。
+                            // タブを切り替えても同じ部屋なので、エージェントの切り替えのフェードはかけない
+                            val office = remember(agents, sessionsByAgent) { officeAgents(agents, sessionsByAgent) }
+                            AgentOffice(
+                                office,
+                                active = panelVisible,
+                                modifier = Modifier.overhangTop(liftRange).hazeSource(hazeState, zIndex = HERO_HAZE_Z),
+                            )
+                        } else currentAgent?.let { agent ->
                             jp.miyavi.android.sumahoclaw.feature.chat.AgentHero(
                                 agent,
                                 // 浮き上がる分だけ上にはみ出させて、下へずれても上端に隙間を作らない（はみ出した所は画面の外）
