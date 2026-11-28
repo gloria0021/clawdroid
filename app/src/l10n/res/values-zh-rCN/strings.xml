@@ -274,30 +274,30 @@
     <string name="chat_text_remove">移除</string>
     <string name="chat_text_tile_cd">%1$s，%2$d 个字符</string>
     <string-array name="chat_thinking_phrases">
-        <item>正在逆流而上追溯堆栈跟踪…</item>
-        <item>正在重新数括号…</item>
-        <item>正在绞尽脑汁想变量名…</item>
+        <item>正沿着堆栈跟踪逆流而上…</item>
+        <item>正在用钳子重新数括号…</item>
+        <item>正在海里捞一个变量名…</item>
         <item>正在把咖啡转换成 token…</item>
-        <item>正在调查它为什么莫名其妙能跑了…</item>
-        <item>正在揣摩规格书字里行间的意思…</item>
-        <item>正在给未来的自己写注释…</item>
-        <item>正在假装没看见 TODO…</item>
-        <item>正在向脑内的 StackOverflow 提问…</item>
-        <item>正在翻看记忆里的技术博客…</item>
-        <item>正在潮池里等一个最佳答案…</item>
-        <item>正在考虑要不要先清一下缓存…</item>
+        <item>正在调查它为什么居然能跑…</item>
+        <item>正在读规格书的言外之意…</item>
+        <item>正在往漂流瓶里给未来的自己写注释…</item>
+        <item>正在假装没看见那个 TODO…</item>
+        <item>正在向脑内的 Stack Overflow 提问…</item>
+        <item>正在翻阅记忆中的技术博客…</item>
+        <item>正在心中的知乎等一个最佳回答…</item>
+        <item>正在考虑要不要先清个缓存…</item>
         <item>正在试试重启能不能解决…</item>
-        <item>马上就好…大概…</item>
-        <item>进度在心理上已经 90% 了…</item>
+        <item>快好了…大概…</item>
+        <item>心理上的进度已经 90% 了…</item>
         <item>正在重新计算剩余时间…</item>
-        <item>事情比想象的大得多，像整片珊瑚礁…</item>
-        <item>在预料之中。大概…</item>
-        <item>正好到精彩的部分…</item>
-        <item>请让我再想最后一次…</item>
-        <item>终点已经在望了。在很远的地方…</item>
-        <item>说“马上就好”的人是谁呢…</item>
-        <item>正在践行欲速则不达…</item>
-        <item>谢谢你一直等着，钳子都替你夹紧了…</item>
+        <item>这次捞上来的比想象中大…</item>
+        <item>一切尽在掌握。大概…</item>
+        <item>正到精彩的地方…</item>
+        <item>再让我想一次…</item>
+        <item>终点已经看到了。在远方的海平线上…</item>
+        <item>是谁说“很快就好”的…</item>
+        <item>正在像螃蟹一样稳稳地横着走…</item>
+        <item>谢谢你耐心等待…</item>
     </string-array>
     <string name="chat_tool_expand_label">展开工具调用</string>
     <string name="chat_tool_failed">失败</string>

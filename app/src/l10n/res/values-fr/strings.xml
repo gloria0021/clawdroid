@@ -274,30 +274,30 @@
     <string name="chat_text_remove">Retirer</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caractères</string>
     <string-array name="chat_thinking_phrases">
-        <item>Je remonte la stack trace à contre-courant…</item>
+        <item>Je remonte la pile d\'appels à contre-courant…</item>
         <item>Je recompte les parenthèses…</item>
-        <item>J\'essore mon cerveau pour trouver un nom de variable…</item>
-        <item>Je convertis du café en tokens…</item>
-        <item>J\'enquête sur pourquoi ça marche, allez savoir…</item>
-        <item>Je lis entre les lignes du cahier des charges…</item>
-        <item>Je laisse un commentaire à mon futur moi…</item>
-        <item>Je fais semblant de ne pas avoir vu le TODO…</item>
-        <item>Je demande à StackOverflow dans ma carapace…</item>
-        <item>Je feuillette le Stack Overflow de ma mémoire de homard…</item>
-        <item>J\'attends la meilleure réponse depuis la mare à marée…</item>
-        <item>Je me demande si je ne devrais pas vider le cache…</item>
-        <item>Je vérifie si un redémarrage règle ça…</item>
-        <item>Plus que quelques coups de pince… sans doute…</item>
-        <item>La progression est à 90 % dans mon cœur…</item>
+        <item>Je pêche un nom de variable…</item>
+        <item>Je convertis le café en tokens…</item>
+        <item>J\'enquête sur ce miracle qui fonctionne…</item>
+        <item>Je lis entre les lignes de la spec…</item>
+        <item>J\'écris un commentaire pour mon futur moi…</item>
+        <item>Je fais comme si je n\'avais pas vu ce TODO…</item>
+        <item>Je consulte le Stack Overflow dans ma tête…</item>
+        <item>Je feuillette les articles de blog dans ma mémoire…</item>
+        <item>J\'attends la meilleure réponse sur mon forum intérieur…</item>
+        <item>Je me demande s\'il faut juste vider le cache…</item>
+        <item>Je vérifie si un redémarrage règle tout…</item>
+        <item>On y est presque… sans doute…</item>
+        <item>Progression ressentie : 90%…</item>
         <item>Je recalcule le temps restant…</item>
-        <item>C\'est plus gros que tout le récif…</item>
-        <item>Prévu au programme. Sans doute…</item>
-        <item>On est dans le vif du sujet…</item>
-        <item>Laissez-moi réfléchir encore une fois…</item>
-        <item>La fin est en vue. Tout au large…</item>
-        <item>Qui a dit « ce sera vite fait »…</item>
-        <item>Je prends le courant le plus pittoresque…</item>
-        <item>Merci d\'avoir attendu, pinces croisées…</item>
+        <item>Plus gros poisson que prévu…</item>
+        <item>Tout est sous contrôle. Sans doute…</item>
+        <item>J\'arrive au meilleur moment…</item>
+        <item>Laissez-moi y réfléchir encore une fois…</item>
+        <item>Je vois le bout. Tout là-bas, à l\'horizon…</item>
+        <item>Qui a dit que ce serait rapide…</item>
+        <item>Je marche en crabe, c\'est voulu…</item>
+        <item>Merci de votre patience…</item>
     </string-array>
     <string name="chat_tool_expand_label">Ouvrir l\'exécution de l\'outil</string>
     <string name="chat_tool_failed">Échec</string>

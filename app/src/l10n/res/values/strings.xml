@@ -274,30 +274,30 @@
     <string name="chat_text_remove">Remove</string>
     <string name="chat_text_tile_cd">%1$s, %2$d characters</string>
     <string-array name="chat_thinking_phrases">
-        <item>Crawling up the stack trace…</item>
-        <item>Recounting the brackets…</item>
-        <item>Wringing out a variable name…</item>
+        <item>Swimming up the stack trace…</item>
+        <item>Recounting the parentheses…</item>
+        <item>Fishing for a variable name…</item>
         <item>Converting coffee into tokens…</item>
-        <item>Investigating why it works, somehow…</item>
+        <item>Investigating why it somehow works…</item>
         <item>Reading between the lines of the spec…</item>
         <item>Leaving a comment for future me…</item>
-        <item>Pretending I didn\'t see the TODO…</item>
-        <item>Asking the StackOverflow in my head…</item>
-        <item>Flipping through the Stack Overflow in my shell…</item>
-        <item>Waiting for a best answer from the tide pool…</item>
-        <item>Wondering if I should just clear the cache…</item>
-        <item>Checking if a restart fixes it…</item>
+        <item>Pretending I didn\'t see that TODO…</item>
+        <item>Asking the Stack Overflow in my head…</item>
+        <item>Flipping through remembered blog posts…</item>
+        <item>Waiting for a best answer on my inner Q&amp;A board…</item>
+        <item>Wondering whether to just clear the cache…</item>
+        <item>Seeing if a restart fixes it…</item>
         <item>Almost there… probably…</item>
-        <item>Progress is 90% in spirit…</item>
+        <item>Progress feels like 90%…</item>
         <item>Recalculating the time left…</item>
-        <item>Turned out bigger than the whole reef…</item>
-        <item>Totally expected. Probably…</item>
-        <item>Right in the good part…</item>
-        <item>Let me think just one more time…</item>
-        <item>The end is in sight. Far away…</item>
-        <item>Who said \"this\'ll be quick\"…</item>
-        <item>Taking the scenic current…</item>
-        <item>Thanks for waiting, claws crossed…</item>
+        <item>This turned out bigger than expected…</item>
+        <item>All as planned. Probably…</item>
+        <item>Just getting to the good part…</item>
+        <item>Let me think it over one more time…</item>
+        <item>I can see the end. Way out on the horizon…</item>
+        <item>Who said this would be quick…</item>
+        <item>Taking the scenic route on purpose…</item>
+        <item>Thanks for waiting…</item>
     </string-array>
     <string name="chat_tool_expand_label">Open tool call</string>
     <string name="chat_tool_failed">Failed</string>
