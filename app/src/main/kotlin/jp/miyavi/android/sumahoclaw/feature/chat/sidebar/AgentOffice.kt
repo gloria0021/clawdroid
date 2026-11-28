@@ -10,6 +10,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,9 +124,8 @@ internal fun AgentOffice(
     }
     val accent = "#%06X".format(colors.primary.toArgb() and 0xFFFFFF)
     val background = colors.surfaceContainerLow.toArgb()
-    val still = remember(context) {
-        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 端末の「アニメーションを削除」は、アプリに戻るたびに読み直す（設定から戻ったときに切り替えを反映する。CJ レビュー 2026-11-28）
+    var still by remember(context) { androidx.compose.runtime.mutableStateOf(animationsRemoved(context)) }
     // WebView と「デスクに残る」の記録は、画面の出し入れ・作り直しを越えて 1 つを使い続ける（作り直すと部屋を読み込み直し、
     // 歩いている人が一瞬で席に移り、20 秒の待ちも忘れてしまう。マスター指摘 2026-11-28）
     val webView = remember(context) { OfficeHost.view(context) }
@@ -134,16 +134,16 @@ internal fun AgentOffice(
     val opacity = remember { Animatable(if (ready) 1f else 0f) }
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     LaunchedEffect(ready) { if (ready) opacity.animateTo(1f, fadeSpec) }
-    // 止める・再開するのはアプリが前にあるか（RESUMED）だけで決める。ウィンドウのフォーカスは見ない（通知の欄を下ろしても止めない）。
-    // 戻ったら、止めていた次のコマの予約を入れ直す（HTML は止まっているあいだ予約しない。CJ レビュー 2026-11-28）
-    val activeNow by androidx.compose.runtime.rememberUpdatedState(active)
-    LifecycleResumeEffect(webView) {
-        webView.web.onResume()
-        if (webView.ready) webView.call("office.setPaused(${!activeNow})")
-        onPauseOrDispose {
-            if (webView.ready) webView.call("office.setPaused(true)")
-            webView.web.onPause()
-        }
+    // 描くのは「パネルが見えている」かつ「アプリが前にある（RESUMED）」ときだけ。この 1 つの条件で、WebView の再開・止める と
+    // HTML の setPaused を決める（読み込みが終わったときも同じ条件。CJ レビュー 2026-11-28）。
+    // ウィンドウのフォーカスは見ない（通知の欄を下ろしても止めない。マスター指定）。HTML は止まっているあいだ次のコマを予約せず、
+    // setPaused(false) で必ず入れ直す
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val resumed by lifecycle.currentStateFlow.collectAsState()
+    val running = active && resumed.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    LifecycleResumeEffect(context) {
+        still = animationsRemoved(context)
+        onPauseOrDispose { }
     }
 
     // デスクにいるか: 動いている、または最後の動きから 20 秒以内。残り時間が切れたら数え直す
@@ -179,9 +179,9 @@ internal fun AgentOffice(
     // WebView の CSS の 1px は 1dp（端末の密度で拡大される）なので、dp の値をそのまま渡す
     LaunchedEffect(ready, topInset) { if (ready) webView.call("office.setInsets({ top: ${topInset.value} })") }
     LaunchedEffect(ready, still) { if (ready) webView.call("office.setReducedMotion($still)") }
-    LaunchedEffect(ready, active) {
-        if (active) webView.web.onResume() else webView.web.onPause()
-        if (ready) webView.call("office.setPaused(${!active})")
+    LaunchedEffect(ready, running) {
+        if (running) webView.web.onResume() else webView.web.onPause()
+        if (ready) webView.call("office.setPaused(${!running})")
     }
 
     AndroidView(
@@ -193,6 +193,10 @@ internal fun AgentOffice(
             .graphicsLayer { alpha = opacity.value },
     )
 }
+
+/** 端末の「アニメーションを削除」がオンか（アニメーターの再生時間スケールが 0）。 */
+private fun animationsRemoved(context: Context): Boolean =
+    android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
 /**
  * プロセスに 1 つの WebView と記録。設定でオフにしたら [release] で捨てる。
