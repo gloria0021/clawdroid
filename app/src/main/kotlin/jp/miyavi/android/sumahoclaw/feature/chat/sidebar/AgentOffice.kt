@@ -28,15 +28,28 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import jp.miyavi.android.sumahoclaw.core.data.Agent
 import jp.miyavi.android.sumahoclaw.core.data.SessionListState
+import jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings
+import jp.miyavi.android.sumahoclaw.core.settings.OfficeTheme
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * バーチャルオフィス（実験機能。spec 009）を使うか。設定 → エージェント のスイッチ。
- * オンなら、サイドパネルの頭の看板（エージェントの顔）をオフィスに替える。
+ * バーチャルオフィス（実験機能。spec 009）の設定。設定 → エージェント → バーチャルオフィス。
+ * [OfficeSettings.enabled] なら、サイドパネルの頭の看板（エージェントの顔）をオフィスに替える。
  */
-val LocalVirtualOffice = staticCompositionLocalOf { false }
+val LocalOfficeSettings = staticCompositionLocalOf { OfficeSettings() }
+
+/** キャラクターの種類の数（assets/office/index.html の PRESETS と同じ）。 */
+const val OFFICE_AVATAR_COUNT = 4
+
+/** エージェントのキャラクター。選んでいなければ id から決める（試作と同じ計算。開くたびに同じ）。 */
+fun officeAvatarOf(agentId: String, chosen: Map<String, Int>): Int {
+    chosen[agentId]?.takeIf { it in 0 until OFFICE_AVATAR_COUNT }?.let { return it }
+    var h = 0
+    agentId.codePoints().forEach { h = h * 31 + it }
+    return kotlin.math.abs(h % OFFICE_AVATAR_COUNT)
+}
 
 /**
  * オフィスの 1 人（Gateway の写し）。[running] はセッションが 1 つでも動いているか、[updatedAt] はセッションのいちばん新しい更新。
@@ -99,7 +112,13 @@ internal fun AgentOffice(
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    val dark = colors.surface.luminance() < 0.5f
+    val office = LocalOfficeSettings.current
+    // 昼・夜: 自動ならアプリの外観に合わせる
+    val dark = when (office.theme) {
+        OfficeTheme.AUTO -> colors.surface.luminance() < 0.5f
+        OfficeTheme.DAY -> false
+        OfficeTheme.NIGHT -> true
+    }
     val accent = "#%06X".format(colors.primary.toArgb() and 0xFFFFFF)
     val background = colors.surfaceContainerLow.toArgb()
     val still = remember(context) {
@@ -128,13 +147,14 @@ internal fun AgentOffice(
         kotlinx.coroutines.delay(next - now + 1)
         tick++
     }
-    val payload = remember(agents, tick) {
+    val payload = remember(agents, tick, office.avatars) {
         val now = android.os.SystemClock.elapsedRealtime()
         JsonArray(
             agents.map { a ->
                 buildJsonObject {
                     put("id", a.id)
                     put("name", a.name)
+                    put("preset", officeAvatarOf(a.id, office.avatars))
                     put("working", tracker.atDesk(a, now))
                     // 動いているあいだだけ、頭の上に作業中の記号（終わって 20 秒デスクで待つあいだは出さない）
                     put("busy", a.running)

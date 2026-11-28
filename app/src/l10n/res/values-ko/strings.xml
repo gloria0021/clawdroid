@@ -593,6 +593,15 @@
     <string name="notify_reply_image">이미지</string>
     <string name="notify_test_body">SumahoClaw의 알림은 이렇게 표시됩니다</string>
     <string name="notify_test_title">알림 테스트</string>
+    <string name="office_avatar_cd">캐릭터 %1$d</string>
+    <string name="office_avatars">아바타</string>
+    <string name="office_avatars_desc">사이드 패널에 표시된 에이전트별로 오피스 캐릭터를 선택합니다</string>
+    <string name="office_avatars_empty">Gateway에 연결하면 에이전트별로 캐릭터를 선택할 수 있습니다</string>
+    <string name="office_theme">테마</string>
+    <string name="office_theme_auto">자동</string>
+    <string name="office_theme_day">낮</string>
+    <string name="office_theme_desc">자동은 앱의 외관(라이트·다크)에 맞춥니다. 밤에는 조명을 낮춘 오피스가 됩니다</string>
+    <string name="office_theme_night">밤</string>
     <string name="offline_agents_failed">에이전트를 불러오지 못했습니다</string>
     <string name="offline_connecting">Gateway에 연결하는 중입니다</string>
     <string name="offline_desc">연결될 때까지 대화와 세션을 사용할 수 없습니다</string>

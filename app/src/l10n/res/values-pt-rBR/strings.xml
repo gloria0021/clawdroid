@@ -599,6 +599,15 @@
     <string name="notify_reply_image">Imagem</string>
     <string name="notify_test_body">É assim que as notificações do SumahoClaw vão chegar</string>
     <string name="notify_test_title">Notificação de teste</string>
+    <string name="office_avatar_cd">Personagem %1$d</string>
+    <string name="office_avatars">Avatares</string>
+    <string name="office_avatars_desc">Escolha um personagem do escritório para cada agente exibido no painel lateral</string>
+    <string name="office_avatars_empty">Ao se conectar a um Gateway, você poderá escolher um personagem para cada agente</string>
+    <string name="office_theme">Tema</string>
+    <string name="office_theme_auto">Automático</string>
+    <string name="office_theme_day">Dia</string>
+    <string name="office_theme_desc">Automático segue a aparência do app (claro ou escuro). À noite, o escritório fica com as luzes baixas</string>
+    <string name="office_theme_night">Noite</string>
     <string name="offline_agents_failed">Não foi possível carregar os agentes</string>
     <string name="offline_connecting">Conectando ao Gateway</string>
     <string name="offline_desc">Conversas e sessões ficam indisponíveis até a conexão</string>

@@ -593,6 +593,15 @@
     <string name="notify_reply_image">圖片</string>
     <string name="notify_test_body">SumahoClaw 的通知會以這種方式顯示</string>
     <string name="notify_test_title">測試通知</string>
+    <string name="office_avatar_cd">角色 %1$d</string>
+    <string name="office_avatars">頭像</string>
+    <string name="office_avatars_desc">為側邊面板中顯示的每個代理選擇辦公室角色</string>
+    <string name="office_avatars_empty">連線到 Gateway 後，即可為每個代理選擇角色</string>
+    <string name="office_theme">主題</string>
+    <string name="office_theme_auto">自動</string>
+    <string name="office_theme_day">白天</string>
+    <string name="office_theme_desc">自動會依照應用程式的外觀（淺色或深色）切換。夜晚時，辦公室會調暗燈光</string>
+    <string name="office_theme_night">夜晚</string>
     <string name="offline_agents_failed">無法載入代理程式</string>
     <string name="offline_connecting">正在連線至 Gateway</string>
     <string name="offline_desc">連線之前,無法使用對話和工作階段</string>

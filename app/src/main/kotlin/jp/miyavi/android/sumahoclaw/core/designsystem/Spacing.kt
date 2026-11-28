@@ -91,6 +91,8 @@ object Dimens {
     val folderBrowserMaxHeight = 420.dp
     /** 使用量の帯の、使った所の下の縁の線の太さ。 */
     val usageMeterEdge = 4.dp
+    /** 絵で選ぶ切り替えのボタンの高さ（バーチャルオフィスのキャラクター。spec 009）。 */
+    val imageChoiceHeight = 72.dp
     /** サイドパネルの頭の看板の高さ（ステータスバーの下から）。 */
     val agentHeroHeight = 180.dp
     /** Gateway につながっていないときに会話の画面の真ん中に出すマスコットの大きさ。 */

@@ -31,7 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -117,6 +116,7 @@ data class SettingsActions(
     val openShortcuts: () -> Unit = {},
     val openThinkingPhrases: () -> Unit = {},
     val setVirtualOffice: (Boolean) -> Unit = {},
+    val openVirtualOffice: () -> Unit = {},
     val openLicenses: () -> Unit = {},
     /** 言語を切り替える（null なら端末の言語）。 */
     val setLanguage: (String?) -> Unit = {},
@@ -262,18 +262,23 @@ fun SettingsContent(state: SettingsState, actions: SettingsActions, snackbar: Sn
                                 ?: stringResource(R.string.settings_thinking_phrases_default),
                             onClick = actions.openThinkingPhrases,
                         )
-                        // サイドパネルの看板をバーチャルオフィスに替える（実験機能。spec 009。マスター指定 2026-11-28）
+                        // サイドパネルの看板をバーチャルオフィスに替える（実験機能。spec 009。マスター指定 2026-11-28）。
+                        // 通知設定と同じ形: 行を押すと詳しい設定（テーマ・アバター）、区切り線の右のスイッチはオン・オフだけ
                         ListItem(
                             leadingContent = { Icon(painterResource(R.drawable.ic_huge_office), contentDescription = null) },
                             headlineContent = { Text(stringResource(R.string.settings_virtual_office)) },
                             supportingContent = { Text(stringResource(R.string.settings_virtual_office_details)) },
-                            trailingContent = { Switch(checked = state.virtualOffice, onCheckedChange = null) },
+                            trailingContent = {
+                                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                                    androidx.compose.material3.VerticalDivider(
+                                        Modifier.height(Spacing.xl).padding(end = Spacing.l),
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                    )
+                                    Switch(checked = state.virtualOffice, onCheckedChange = actions.setVirtualOffice)
+                                }
+                            },
                             colors = transparentItem(),
-                            modifier = Modifier.toggleable(
-                                value = state.virtualOffice,
-                                role = Role.Switch,
-                                onValueChange = actions.setVirtualOffice,
-                            ),
+                            modifier = Modifier.clickable(role = Role.Button, onClick = actions.openVirtualOffice),
                         )
                     }
                 }

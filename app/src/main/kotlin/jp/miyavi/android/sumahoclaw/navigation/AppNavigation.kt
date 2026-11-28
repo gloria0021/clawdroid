@@ -91,6 +91,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class AutomationDetailRoute(val jobId: String) : NavKey
 @Serializable data object AgentLayoutRoute : NavKey
 @Serializable data object NotificationSettingsRoute : NavKey
+@Serializable data object VirtualOfficeSettingsRoute : NavKey
 @Serializable data object ShortcutSettingsRoute : NavKey
 @Serializable data object ThinkingPhrasesRoute : NavKey
 @Serializable data object LicensesRoute : NavKey
@@ -190,12 +191,13 @@ private fun MainNavigation(container: AppContainer) {
     // 考え中のひとりごと（設定で書き換えたもの）。会話の考え中の表示が読む
     val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
     // バーチャルオフィス（実験機能。spec 009）。サイドパネルの看板が読む
-    val virtualOffice by container.settings.virtualOffice.collectAsStateWithLifecycle(false)
+    val officeSettings by container.settings.office.collectAsStateWithLifecycle(jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings())
+    val virtualOffice = officeSettings.enabled
     // オフにしたら、使い続けていた WebView を捨てる
     LaunchedEffect(virtualOffice) { if (!virtualOffice) jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficeHost.release() }
     CompositionLocalProvider(
         jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases,
-        jp.miyavi.android.sumahoclaw.feature.chat.sidebar.LocalVirtualOffice provides virtualOffice,
+        jp.miyavi.android.sumahoclaw.feature.chat.sidebar.LocalOfficeSettings provides officeSettings,
     ) {
     NavDisplay(
         backStack = backStack,
@@ -289,6 +291,7 @@ private fun MainNavigation(container: AppContainer) {
                         openShortcuts = { gate.run { backStack.push(ShortcutSettingsRoute) } },
                         openThinkingPhrases = { gate.run { backStack.push(ThinkingPhrasesRoute) } },
                         setVirtualOffice = { scope.launch { container.settings.setVirtualOffice(it) } },
+                        openVirtualOffice = { gate.run { backStack.push(VirtualOfficeSettingsRoute) } },
                         openLicenses = { gate.run { backStack.push(LicensesRoute) } },
                         setLanguage = { jp.miyavi.android.sumahoclaw.core.settings.AppLanguage.set(languageContext, it) },
                     ),
@@ -339,6 +342,19 @@ private fun MainNavigation(container: AppContainer) {
                         onBack = { gate.run { backStack.pop() } },
                     )
                 }
+            }
+            entry<VirtualOfficeSettingsRoute> {
+                val gate = rememberNavGate(onBack = { backStack.pop() })
+                val agentsState by container.sessions.agents.collectAsStateWithLifecycle()
+                val agentLayout by container.settings.agentLayout.collectAsStateWithLifecycle(AgentLayout())
+                val shown = remember(agentsState.agents, agentLayout) { agentLayout.visible(agentsState.agents) }
+                jp.miyavi.android.sumahoclaw.feature.settings.VirtualOfficeSettingsScreen(
+                    settings = officeSettings,
+                    agents = shown,
+                    onTheme = { scope.launch { container.settings.setOfficeTheme(it) } },
+                    onAvatar = { id, preset -> scope.launch { container.settings.setOfficeAvatar(id, preset) } },
+                    onBack = { gate.run { backStack.pop() } },
+                )
             }
             entry<NotificationSettingsRoute> {
                 val gate = rememberNavGate(onBack = { backStack.pop() })

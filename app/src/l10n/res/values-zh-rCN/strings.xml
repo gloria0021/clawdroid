@@ -593,6 +593,15 @@
     <string name="notify_reply_image">图片</string>
     <string name="notify_test_body">SumahoClaw 的通知将以这样的形式送达</string>
     <string name="notify_test_title">测试通知</string>
+    <string name="office_avatar_cd">角色 %1$d</string>
+    <string name="office_avatars">头像</string>
+    <string name="office_avatars_desc">为侧边栏中显示的每个智能体选择办公室角色</string>
+    <string name="office_avatars_empty">连接到 Gateway 后，即可为每个智能体选择角色</string>
+    <string name="office_theme">主题</string>
+    <string name="office_theme_auto">自动</string>
+    <string name="office_theme_day">白天</string>
+    <string name="office_theme_desc">自动会跟随应用外观（浅色或深色）。夜晚的办公室灯光会调暗</string>
+    <string name="office_theme_night">夜晚</string>
     <string name="offline_agents_failed">无法加载智能体</string>
     <string name="offline_connecting">正在连接 Gateway</string>
     <string name="offline_desc">连接成功前，无法使用对话和会话</string>

@@ -224,7 +224,7 @@ fun SidePanel(
                     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                     // バーチャルオフィス（spec 009）は、閉じるボタンの行の下に顔の看板と同じ高さの部屋を取る（ボタンを部屋に重ねない。
                     // マスター指定 2026-11-28）。ボタンの行の裏も、奥の壁と床で埋まる
-                    val showOffice = currentAgent != null && LocalVirtualOffice.current
+                    val showOffice = currentAgent != null && LocalOfficeSettings.current.enabled
                     val closeRow = Spacing.s + Dimens.floatingButtonSize
                     val heroHeight = statusTop + Dimens.agentHeroHeight + if (showOffice) closeRow else 0.dp
                     Box(Modifier.fillMaxWidth().height(heroHeight).graphicsLayer { translationY = contentLift() }) {

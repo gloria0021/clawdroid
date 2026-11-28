@@ -289,6 +289,15 @@
     <string name="settings_thinking_phrases_count">%1$d 個</string>
     <string name="settings_virtual_office">バーチャルオフィス（実験機能）</string>
     <string name="settings_virtual_office_details">サイドパネルのエージェントの顔を、エージェントが働く様子を見せるオフィスに替えます。描画に端末の性能を使うため、端末のバッテリー消費が増えます</string>
+    <string name="office_theme">テーマ</string>
+    <string name="office_theme_auto">自動</string>
+    <string name="office_theme_day">昼</string>
+    <string name="office_theme_night">夜</string>
+    <string name="office_theme_desc">自動はアプリの外観（ライト・ダーク）に合わせます。夜は明かりを落としたオフィスになります</string>
+    <string name="office_avatars">アバター</string>
+    <string name="office_avatars_desc">サイドパネルに出しているエージェントごとに、オフィスのキャラクターを選びます</string>
+    <string name="office_avatars_empty">Gateway につながると、エージェントごとにキャラクターを選べます</string>
+    <string name="office_avatar_cd">キャラクター %1$d</string>
     <string name="thinking_phrases_hint">エージェントが作業しているあいだ、会話に出すひとりごとです。1 行が 1 つのひとりごとで、ランダムに入れ替わります。末尾の「…」は自動で付きます。</string>
     <string name="thinking_phrases_preview">見え方</string>
     <string name="thinking_phrases_empty">1 つ以上書いてください</string>

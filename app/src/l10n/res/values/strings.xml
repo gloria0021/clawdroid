@@ -596,6 +596,15 @@
     <string name="notify_reply_image">Image</string>
     <string name="notify_test_body">This is how notifications from SumahoClaw will look</string>
     <string name="notify_test_title">Test notification</string>
+    <string name="office_avatar_cd">Character %1$d</string>
+    <string name="office_avatars">Avatars</string>
+    <string name="office_avatars_desc">Choose an office character for each agent shown in the side panel</string>
+    <string name="office_avatars_empty">Once connected to a Gateway, you can choose a character for each agent</string>
+    <string name="office_theme">Theme</string>
+    <string name="office_theme_auto">Auto</string>
+    <string name="office_theme_day">Day</string>
+    <string name="office_theme_desc">Auto follows the app\'s appearance (light or dark). At night, the office has dimmed lights</string>
+    <string name="office_theme_night">Night</string>
     <string name="offline_agents_failed">Couldn\'t load agents</string>
     <string name="offline_connecting">Connecting to Gateway</string>
     <string name="offline_desc">Chats and sessions are unavailable until connected</string>
