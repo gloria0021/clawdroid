@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-24
 
-**Status**: 保留（2026-11-24 マスター指定。リリースは後回し）
+**Status**: 進行中（2026-11-24 に保留。2026-11-27 に名前を SumahoClaw に変えて 0.2.0 を GitHub Release に出し、Play Console に上げる AAB を `scripts/release.sh` で作った）
 
 **Input**: User description: "新しくspecを切って。playストアRelease対応したい"
 

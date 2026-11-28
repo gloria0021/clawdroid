@@ -61,6 +61,7 @@ Enter your Gateway URL and token, then approve the connection. Tailscale is reco
 - View, edit, and delete files in the file viewer.
 - Use the terminal.
 - Quickly create a worktree with the parallel development button.
+- When you finish parallel development, choose to request a merge or discard the work.
 
 <p>
   <img src="docs/media/file-tree-menu.png" width="220" alt="File tree and actions">
