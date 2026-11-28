@@ -63,7 +63,7 @@ Sora Editor の採用はマスター承認済み（2026-11-28。LGPL-2.1、OSS �
 
 - [x] T028 `docs/design/screens.md` に「エディター」の節（`contracts/editor-ui.md`）。ファイルビューアの節の「編集中は保存とダウンロード」を直す
 - [x] T029 `scripts/translate-strings.py` で訳を作り直す
-- [ ] T030 `./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`、`grep -rn "Color(0x\|\.sp\b" app/src/main`
+- [x] T030 `./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`、`grep -rn "Color(0x\|\.sp\b" app/src/main`
 - [ ] T031 実機で quickstart の受け入れ（1〜9）と AGENTS.md 4
 
 ## Dependencies
