@@ -134,9 +134,16 @@ internal fun AgentOffice(
     val opacity = remember { Animatable(if (ready) 1f else 0f) }
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     LaunchedEffect(ready) { if (ready) opacity.animateTo(1f, fadeSpec) }
+    // 止める・再開するのはアプリが前にあるか（RESUMED）だけで決める。ウィンドウのフォーカスは見ない（通知の欄を下ろしても止めない）。
+    // 戻ったら、止めていた次のコマの予約を入れ直す（HTML は止まっているあいだ予約しない。CJ レビュー 2026-11-28）
+    val activeNow by androidx.compose.runtime.rememberUpdatedState(active)
     LifecycleResumeEffect(webView) {
         webView.web.onResume()
-        onPauseOrDispose { webView.web.onPause() }
+        if (webView.ready) webView.call("office.setPaused(${!activeNow})")
+        onPauseOrDispose {
+            if (webView.ready) webView.call("office.setPaused(true)")
+            webView.web.onPause()
+        }
     }
 
     // デスクにいるか: 動いている、または最後の動きから 20 秒以内。残り時間が切れたら数え直す

@@ -835,7 +835,7 @@ function refreshFurniture() {
   for (const p of people.values()) { if (p.place === 'desk') desks[p.slot].on = true; if (p.place === 'bed') beds[p.slot].used = true; }
   desks.forEach((d) => { d.screen.material.color.set(d.on ? theme.screenOn : theme.screenOff); d.glow.intensity = d.on && theme.night ? d.glow.userData.on : 0; });
   beds.forEach((b) => { b.blanket.position.y = b.used ? 0.7 : 0.49; b.blanket.scale.y = b.used ? 0.12 : 0.06; });
-  dirty = true;
+  invalidate();
 }
 function setAgents(all) {
   const list = all.slice(0, SEATS), seen = new Set();   // タブと同じ並び・同じ 4 体
@@ -932,11 +932,21 @@ function updateGrawlix(c, on, head, t, slot) {
   });
 }
 const anyWalking = () => { for (const p of people.values()) if (p.walk) return true; return false; };
+// 次のコマは、描く必要があるときだけ予約する（CJ レビュー 2026-11-28）。止まっている（パネルが閉じている・アプリが裏・見えない）
+// あいだと、動く物が無く描き直しも要らないあいだは予約しない。再開は schedule() で必ず入れ直す（setPaused(false)・
+// 見えるようになった・状態が変わった＝invalidate）。止める条件にウィンドウのフォーカスは使わない（通知の欄を下ろしただけで止めない）
+let rafId = 0;
+const running = () => !paused && !document.hidden;
+function schedule() { if (!rafId && running()) rafId = requestAnimationFrame(frame); }
+function invalidate() { dirty = true; schedule(); }
+document.addEventListener('visibilitychange', schedule);
 function frame(now) {
-  requestAnimationFrame(frame);
-  if (paused || document.hidden) return;
+  rafId = 0;
+  if (!running()) return;
   const animating = anyWalking() || (!reduced && people.size > 0);
   if (!animating && !dirty) return;
+  // 動いている（または描き直しが要る）あいだは、次のコマを予約し続ける
+  schedule();
   // 画面の更新（120Hz なら 8.3ms ごと）と少しずれても取りこぼさないよう、1.5ms の余裕を見る
   if (!dirty && FPS && now - lastTime < 1000 / FPS - 1.5) return;
   const dt = Math.min(0.1, (now - lastTime) / 1000 || 0);
@@ -945,7 +955,6 @@ function frame(now) {
   fpsCount++;
 }
 let fpsCount = 0;
-setInterval(() => { const el = document.getElementById('fpsV'); if (el) el.textContent = `${fpsCount} fps`; fpsCount = 0; }, 1000);
 
 // ============================================================
 // 枠に合わせる（部屋が収まる大きさに寄せる。外側は壁と床で埋まる）
@@ -971,7 +980,7 @@ function layout() {
   const unit = (Math.max((maxX - minX) / aw, (maxY - minY) / ah) * zoom);   // 1 px あたりの長さ
   const fx = cx - ((insets.left - insets.right) / 2) * unit, fy = cy + ((insets.top - insets.bottom) / 2) * unit;
   Object.assign(camera, { left: fx - (w / 2) * unit, right: fx + (w / 2) * unit, top: fy + (h / 2) * unit, bottom: fy - (h / 2) * unit });
-  camera.updateProjectionMatrix(); dirty = true;
+  camera.updateProjectionMatrix(); invalidate();
 }
 new ResizeObserver(layout).observe(hero);
 
@@ -1009,7 +1018,7 @@ window.office = {
   portraits,
   setAgents, setTheme,
   setReducedMotion(v) { reduced = !!v; setAgents([...people.values()].sort((a, b) => a.slot - b.slot).map((p) => p.agent)); },
-  setPaused(v) { paused = !!v; dirty = true; },
+  setPaused(v) { paused = !!v; if (!paused) invalidate(); },
   setInsets(v) { insets = { top: 0, right: 0, bottom: 0, left: 0, ...v }; layout(); },
 };
 
@@ -1058,6 +1067,8 @@ setTheme({ dark: sysDark.matches });
 document.getElementById('dark').checked = sysDark.matches;
 layout();
 if (!embed) { push(); }
-requestAnimationFrame(frame);
+// 描画回数の計測は試作の画面だけ（アプリの中では動かさない。CJ レビュー 2026-11-28）
+if (!embed) setInterval(() => { const el = document.getElementById('fpsV'); if (el) el.textContent = `${fpsCount} fps`; fpsCount = 0; }, 1000);
+invalidate();
 </script>
 </body>

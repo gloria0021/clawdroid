@@ -191,10 +191,13 @@ private fun MainNavigation(container: AppContainer) {
     // 考え中のひとりごと（設定で書き換えたもの）。会話の考え中の表示が読む
     val thinkingPhrases by container.settings.thinkingPhrases.collectAsStateWithLifecycle(null)
     // バーチャルオフィス（実験機能。spec 009）。サイドパネルの看板が読む
-    val officeSettings by container.settings.office.collectAsStateWithLifecycle(jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings())
+    // 読み込む前は null（「まだ読んでいない」と「オフ」を分ける。CJ レビュー 2026-11-28）
+    val loadedOffice by container.settings.office.collectAsStateWithLifecycle(null)
+    val officeSettings = loadedOffice ?: jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings()
     val virtualOffice = officeSettings.enabled
-    // オフにしたら、使い続けていた WebView を捨てる
-    LaunchedEffect(virtualOffice) { if (!virtualOffice) jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficeHost.release() }
+    // オフにしたら、使い続けていた WebView を捨てる。読み終えてオフだったときだけ（画面の作り直しで、読み込む前の既定のオフを
+    // 見て捨てると、three.js を読み直して歩く人が一瞬で席に移る）
+    LaunchedEffect(loadedOffice?.enabled) { if (loadedOffice?.enabled == false) jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficeHost.release() }
     CompositionLocalProvider(
         jp.miyavi.android.sumahoclaw.feature.chat.message.LocalThinkingPhrases provides thinkingPhrases,
         jp.miyavi.android.sumahoclaw.feature.chat.sidebar.LocalOfficeSettings provides officeSettings,
