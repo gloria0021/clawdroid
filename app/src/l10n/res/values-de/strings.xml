@@ -274,30 +274,30 @@
     <string name="chat_text_remove">Entfernen</string>
     <string name="chat_text_tile_cd">%1$s, %2$d Zeichen</string>
     <string-array name="chat_thinking_phrases">
-        <item>Verfolge den Stacktrace stromaufwärts…</item>
-        <item>Zähle die Klammern noch mal nach…</item>
-        <item>Quetsche einen Variablennamen heraus…</item>
-        <item>Verwandle Kaffee in Tokens…</item>
-        <item>Untersuche, warum es irgendwie läuft…</item>
-        <item>Lese zwischen den Zeilen der Spezifikation…</item>
-        <item>Schreibe einen Kommentar an mein zukünftiges Ich…</item>
-        <item>Tue so, als hätte ich das TODO nicht gesehen…</item>
-        <item>Überlege, ob ich StackOverflow fragen soll…</item>
-        <item>Überlege, ob ich Qiita fragen soll…</item>
-        <item>Überlege, ob ich Yahoo Chiebukuro fragen soll…</item>
-        <item>Überlege, ob ich einfach den Cache leere…</item>
-        <item>Probiere, ob ein Neustart hilft…</item>
+        <item>Ich krabbele den Stacktrace hinauf…</item>
+        <item>Ich zähle die Klammern noch mal nach…</item>
+        <item>Ich winde einen Variablennamen aus mir heraus…</item>
+        <item>Ich verwandle Kaffee in Tokens…</item>
+        <item>Ich untersuche, warum es irgendwie läuft…</item>
+        <item>Ich lese zwischen den Zeilen der Spezifikation…</item>
+        <item>Ich schreibe einen Kommentar an mein zukünftiges Ich…</item>
+        <item>Ich tue so, als hätte ich das TODO nicht gesehen…</item>
+        <item>Ich frage das Stack Overflow in meinem Kopf…</item>
+        <item>Ich blättere im Stack Overflow in meinem Panzer…</item>
+        <item>Ich warte im Gezeitentümpel auf die beste Antwort…</item>
+        <item>Ich überlege, ob ich einfach den Cache leere…</item>
+        <item>Ich prüfe, ob ein Neustart es richtet…</item>
         <item>Gleich geschafft… wahrscheinlich…</item>
-        <item>Fortschritt gefühlt bei 90 %…</item>
-        <item>Berechne die Restzeit neu…</item>
-        <item>Das war größer als gedacht…</item>
-        <item>Alles wie erwartet. Wahrscheinlich…</item>
+        <item>Der Fortschritt liegt gefühlt bei 90 %…</item>
+        <item>Ich berechne die Restzeit neu…</item>
+        <item>Das Ganze ist größer als das ganze Riff…</item>
+        <item>Völlig erwartet. Wahrscheinlich…</item>
         <item>Gerade wird es spannend…</item>
-        <item>Lass mich noch ein letztes Mal nachdenken…</item>
-        <item>Das Ende ist in Sicht. Ganz weit weg…</item>
-        <item>Wer hat noch mal „geht ganz schnell“ gesagt…</item>
-        <item>Der Umweg ist oft der schnellere Weg…</item>
-        <item>Danke fürs Warten…</item>
+        <item>Lass mich nur noch ein einziges Mal nachdenken…</item>
+        <item>Das Ende ist in Sicht. Weit hinten…</item>
+        <item>Wer hat \"geht ganz schnell\" gesagt…</item>
+        <item>Ich nehme die malerische Strömung…</item>
+        <item>Danke fürs Warten, Scheren gedrückt…</item>
     </string-array>
     <string name="chat_tool_expand_label">Tool-Aufruf öffnen</string>
     <string name="chat_tool_failed">Fehlgeschlagen</string>

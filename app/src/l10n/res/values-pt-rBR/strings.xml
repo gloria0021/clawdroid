@@ -274,30 +274,30 @@
     <string name="chat_text_remove">Remover</string>
     <string name="chat_text_tile_cd">%1$s, %2$d caracteres</string>
     <string-array name="chat_thinking_phrases">
-        <item>Subindo o stack trace…</item>
-        <item>Contando os parênteses de novo…</item>
+        <item>Subindo o stack trace pela correnteza…</item>
+        <item>Recontando os parênteses…</item>
         <item>Espremendo um nome de variável…</item>
         <item>Convertendo café em tokens…</item>
-        <item>Investigando por que funciona, sabe-se lá como…</item>
+        <item>Investigando por que funcionou, sabe-se lá como…</item>
         <item>Lendo as entrelinhas da especificação…</item>
-        <item>Escrevendo um comentário para o eu do futuro…</item>
+        <item>Deixando um comentário para o eu do futuro…</item>
         <item>Fingindo que não vi o TODO…</item>
-        <item>Pensando se pergunto ao StackOverflow…</item>
-        <item>Pensando se pergunto ao Qiita…</item>
-        <item>Pensando se pergunto ao Yahoo Chiebukuro…</item>
-        <item>Pensando em simplesmente limpar o cache…</item>
+        <item>Perguntando ao Stack Overflow da minha cabeça…</item>
+        <item>Folheando o Stack Overflow dentro da minha carapaça…</item>
+        <item>Esperando a melhor resposta na poça de maré…</item>
+        <item>Pensando se é melhor limpar o cache…</item>
         <item>Vendo se reiniciar resolve…</item>
         <item>Quase lá… talvez…</item>
         <item>O progresso está em 90% no coração…</item>
         <item>Recalculando o tempo restante…</item>
-        <item>Era um assunto maior do que eu esperava…</item>
+        <item>Era maior que o recife inteiro…</item>
         <item>Já era esperado. Talvez…</item>
         <item>Estou na melhor parte…</item>
-        <item>Deixa eu pensar só mais uma vez…</item>
-        <item>O fim está à vista. Bem longe…</item>
-        <item>Quem foi que disse \"vai ser rápido\"…</item>
-        <item>Devagar e sempre, como dizem…</item>
-        <item>Obrigado por esperar…</item>
+        <item>Deixe-me pensar só mais uma vez…</item>
+        <item>O fim está à vista. Lá longe…</item>
+        <item>Quem foi que disse \"é rapidinho\"…</item>
+        <item>Pegando a correnteza mais longa, que é a mais rápida…</item>
+        <item>Obrigado por esperar, de pinças cruzadas…</item>
     </string-array>
     <string name="chat_tool_expand_label">Abrir execução da ferramenta</string>
     <string name="chat_tool_failed">Falhou</string>
