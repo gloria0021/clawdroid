@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- バーチャルオフィスのキャラクター 1（spec 009）。色は assets/office/index.html の PRESETS[0] と同じ（絵として扱う。AGENTS.md の色の直書きの対象外）。 -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="30dp" android:height="48dp" android:viewportWidth="80" android:viewportHeight="128">
-    <path android:fillColor="#FF3A3F4B" android:pathData="M22.5,86H37.5V128H22.5ZM42.5,86H57.5V128H42.5Z" />
-    <path android:fillColor="#FF4C7BD9" android:pathData="M19,44H61V86H19ZM5.5,48H18.5V80H5.5ZM61.5,48H74.5V80H61.5Z" />
-    <path android:fillColor="#FFF1C7A5" android:pathData="M6,80H18V88H6ZM62,80H74V88H62ZM22,10H58V44H22Z" />
-    <path android:fillColor="#FF2B2421" android:pathData="M20.5,2H59.5V12H20.5ZM20.5,10H23.5V30H20.5ZM56.5,10H59.5V30H56.5Z" />
-    <path android:fillColor="#FF1D1D22" android:pathData="M29.5,23H34.5V29H29.5ZM45.5,23H50.5V29H45.5Z" />
-</vector>

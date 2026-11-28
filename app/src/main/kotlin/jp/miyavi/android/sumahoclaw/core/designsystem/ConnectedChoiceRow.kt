@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -46,7 +47,7 @@ fun <T> ConnectedImageChoiceRow(
     description: @Composable (T) -> String,
     image: @Composable (T) -> Painter,
 ) = ConnectedChoiceRowOf(options, selected, onSelect, modifier, minHeight = Dimens.imageChoiceHeight) {
-    Image(image(it), contentDescription = description(it))
+    Image(image(it), contentDescription = description(it), modifier = Modifier.size(Dimens.avatarLarge))
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

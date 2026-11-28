@@ -1,28 +1,54 @@
 package jp.miyavi.android.sumahoclaw.feature.settings
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import jp.miyavi.android.sumahoclaw.R
 import jp.miyavi.android.sumahoclaw.core.data.Agent
+import jp.miyavi.android.sumahoclaw.core.designsystem.AppBottomSheet
 import jp.miyavi.android.sumahoclaw.core.designsystem.AppTitleBar
 import jp.miyavi.android.sumahoclaw.core.designsystem.ConnectedChoiceRow
 import jp.miyavi.android.sumahoclaw.core.designsystem.ConnectedImageChoiceRow
@@ -30,15 +56,17 @@ import jp.miyavi.android.sumahoclaw.core.designsystem.Dimens
 import jp.miyavi.android.sumahoclaw.core.designsystem.FloatingIconButton
 import jp.miyavi.android.sumahoclaw.core.designsystem.ProvideScreenHaze
 import jp.miyavi.android.sumahoclaw.core.designsystem.Spacing
+import jp.miyavi.android.sumahoclaw.core.designsystem.sheetFieldColor
 import jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings
 import jp.miyavi.android.sumahoclaw.core.settings.OfficeTheme
 import jp.miyavi.android.sumahoclaw.feature.chat.AgentAvatar
-import jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OFFICE_AVATAR_COUNT
+import jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficePortraits
+import jp.miyavi.android.sumahoclaw.feature.chat.sidebar.OfficeWebView
 import jp.miyavi.android.sumahoclaw.feature.chat.sidebar.officeAvatarOf
 
 /**
  * バーチャルオフィスの詳しい設定（設定 → エージェント → バーチャルオフィス。spec 009）。1 段だけ深い画面。
- * テーマ（自動・昼・夜）と、サイドパネルに出しているエージェントごとのキャラクター。
+ * テーマ（自動・昼・夜）と、サイドパネルに出しているエージェントごとのアバター（人 8・犬 4・猫 4 から選ぶ）。
  */
 @Composable
 internal fun VirtualOfficeSettingsScreen(
@@ -50,6 +78,10 @@ internal fun VirtualOfficeSettingsScreen(
     onBack: () -> Unit,
 ) {
     val hazeState = rememberHazeState()
+    var picking by rememberSaveable { mutableStateOf<String?>(null) }
+    val portraits = OfficePortraits.images
+    Box(Modifier.fillMaxSize()) {
+    if (portraits == null) PortraitRenderer()
     ProvideScreenHaze(hazeState) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -95,23 +127,100 @@ internal fun VirtualOfficeSettingsScreen(
                     }
                 }
                 items(agents, key = { "avatar:${it.id}" }) { agent ->
-                    Column(Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth().padding(bottom = Spacing.s)) {
-                        ListItem(
-                            leadingContent = { AgentAvatar(agent) },
-                            headlineContent = { Text(agent.name, maxLines = 2) },
-                            colors = transparentItem(),
-                        )
-                        ConnectedImageChoiceRow(
-                            (0 until OFFICE_AVATAR_COUNT).toList(),
-                            officeAvatarOf(agent.id, settings.avatars),
-                            { onAvatar(agent.id, it) },
-                            Modifier.fillMaxWidth().padding(horizontal = Spacing.l),
-                            description = { stringResource(R.string.office_avatar_cd, it + 1) },
-                        ) { painterResource(AVATAR_IMAGES[it]) }
+                    val chosen = officeAvatarOf(agent.id, settings.avatars)
+                    ListItem(
+                        leadingContent = { AgentAvatar(agent) },
+                        headlineContent = { Text(agent.name, maxLines = 2) },
+                        supportingContent = { Text(avatarName(chosen)) },
+                        trailingContent = { portraits?.getOrNull(chosen)?.let { Portrait(it, size = Dimens.avatarLarge) } },
+                        colors = transparentItem(),
+                        modifier = Modifier.widthIn(max = Dimens.maxReadingWidth).fillMaxWidth()
+                            .clickable(role = Role.Button) { picking = agent.id },
+                    )
+                }
+            }
+        }
+        agents.firstOrNull { it.id == picking }?.let { agent ->
+            AvatarSheet(
+                agent = agent,
+                selected = officeAvatarOf(agent.id, settings.avatars),
+                portraits = portraits,
+                hazeState = hazeState,
+                onSelect = { onAvatar(agent.id, it) },
+                onDismiss = { picking = null },
+            )
+        }
+    }
+    }
+}
+
+/** アバターを選ぶシート。人（2 段）・犬・猫を、絵の切り替えで並べる。選ぶとすぐオフィスに反映する。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AvatarSheet(
+    agent: Agent,
+    selected: Int,
+    portraits: List<androidx.compose.ui.graphics.ImageBitmap>?,
+    hazeState: HazeState,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AppBottomSheet(onDismissRequest = onDismiss, hazeState = hazeState, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Text(
+            stringResource(R.string.office_avatar_sheet_title, agent.name),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            modifier = Modifier.padding(horizontal = Spacing.l),
+        )
+        Surface(
+            color = sheetFieldColor(),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s).navigationBarsPadding(),
+        ) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(vertical = Spacing.s),
+                verticalArrangement = Arrangement.spacedBy(Spacing.s),
+            ) {
+                AVATAR_GROUPS.forEach { (title, rows) ->
+                    Text(
+                        stringResource(title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = Spacing.m, end = Spacing.m, top = Spacing.s).semantics { heading() },
+                    )
+                    rows.forEach { row ->
+                        val rowModifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.m)
+                        if (portraits != null) {
+                            ConnectedImageChoiceRow(row, selected, onSelect, rowModifier, description = { avatarName(it) }) { BitmapPainter(portraits[it]) }
+                        } else {
+                            // 絵を描けない端末: 名前で選ぶ
+                            ConnectedChoiceRow(row, selected, onSelect, rowModifier) { avatarName(it) }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun Portrait(image: androidx.compose.ui.graphics.ImageBitmap, size: androidx.compose.ui.unit.Dp) {
+    Image(BitmapPainter(image), contentDescription = null, modifier = Modifier.size(size))
+}
+
+/**
+ * 見本の絵を描くための WebView（オフィスと同じ HTML を、見本を作るだけの読み込みで開く）。画面に付けておく必要があるので、
+ * 1dp の見えない大きさで置き、描けたら外す。
+ */
+@Composable
+private fun PortraitRenderer() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val view = remember { OfficeWebView(context.applicationContext, page = "portraits") }
+    LaunchedEffect(view.ready) { if (view.ready) OfficePortraits.load(view, scope) }
+    androidx.compose.runtime.DisposableEffect(view) { onDispose { view.web.destroy() } }
+    Box(Modifier.size(1.dp).graphicsLayer { alpha = 0f }) {
+        AndroidView(factory = { view }, modifier = Modifier.size(1.dp))
     }
 }
 
@@ -133,5 +242,23 @@ private fun themeLabel(v: OfficeTheme) = when (v) {
     OfficeTheme.NIGHT -> R.string.office_theme_night
 }
 
-/** キャラクターの見本（assets/office/index.html の PRESETS と同じ並び）。 */
-private val AVATAR_IMAGES = listOf(R.drawable.office_avatar_1, R.drawable.office_avatar_2, R.drawable.office_avatar_3, R.drawable.office_avatar_4)
+/** シートの並び（assets/office/index.html の PRESETS の番号）。 */
+private val AVATAR_GROUPS = listOf(
+    R.string.office_avatar_group_people to listOf(listOf(0, 1, 2, 3), listOf(4, 5, 6, 7)),
+    R.string.office_avatar_group_dogs to listOf(listOf(8, 9, 10, 11)),
+    R.string.office_avatar_group_cats to listOf(listOf(12, 13, 14, 15)),
+)
+
+@Composable
+private fun avatarName(index: Int): String = when (index) {
+    in 0..3 -> stringResource(R.string.office_avatar_man, index + 1)
+    in 4..7 -> stringResource(R.string.office_avatar_woman, index - 3)
+    8 -> stringResource(R.string.office_avatar_dachshund)
+    9 -> stringResource(R.string.office_avatar_shiba)
+    10 -> stringResource(R.string.office_avatar_corgi)
+    11 -> stringResource(R.string.office_avatar_bulldog)
+    12 -> stringResource(R.string.office_avatar_cat_black)
+    13 -> stringResource(R.string.office_avatar_cat_white)
+    14 -> stringResource(R.string.office_avatar_cat_orange)
+    else -> stringResource(R.string.office_avatar_cat_gray)
+}

@@ -93,11 +93,36 @@ const THEMES = {
   dark: { hemiSky: '#8ea2cc', hemiGround: '#2c2f38', hemi: 0.85, sun: 0.22, sunColor: '#9fb4e0',
     screenOn: '#b9dcff', screenOff: '#1a1c21', ink: '#eef0f6', accent: '#9cb8ff', bg: '#3a3c44', night: true },
 };
+// キャラクター 16 種（人 8・犬 4・猫 4。マスター指定 2026-11-28）。並びは設定の画面のアバターと同じ（0 始まりの番号で保存する）
 const PRESETS = [
-  { skin: '#f1c7a5', hair: '#2b2421', shirt: '#4c7bd9', pants: '#3a3f4b' },
-  { skin: '#e0b08a', hair: '#7a4a2a', shirt: '#e06a5a', pants: '#33363f' },
-  { skin: '#f6d3b8', hair: '#e2c25a', shirt: '#4fae7a', pants: '#41454f' },
-  { skin: '#c68b62', hair: '#1e1a18', shirt: '#f0b23e', pants: '#2f3440' },
+  // 人（男性 4）
+  { kind: 'human', skin: '#f1c7a5', hair: '#2b2421', top: '#4c7bd9', bottom: '#3a3f4b', hairStyle: 'short' },
+  { kind: 'human', skin: '#e0b08a', hair: '#7a4a2a', top: '#e06a5a', bottom: '#33363f', hairStyle: 'short', acc: 'glasses' },
+  { kind: 'human', skin: '#f6d3b8', hair: '#e2c25a', top: '#4fae7a', bottom: '#41454f', hairStyle: 'spiky', acc: 'headphones' },
+  { kind: 'human', skin: '#c68b62', hair: '#1e1a18', top: '#2c3e63', bottom: '#2c3e63', hairStyle: 'short', outfit: 'suit' },
+  // 人（女性 4）
+  { kind: 'human', skin: '#f6d3b8', hair: '#1e1a18', top: '#f4f2ee', bottom: '#2c3e63', hairStyle: 'long', skirt: true },
+  { kind: 'human', skin: '#f1c7a5', hair: '#7a4a2a', top: '#e88aa8', bottom: '#4a6a9a', hairStyle: 'ponytail' },
+  { kind: 'human', skin: '#e0b08a', hair: '#e2c25a', top: '#2f9fb3', bottom: '#5a5f68', hairStyle: 'bob', skirt: true },
+  { kind: 'human', skin: '#f6d3b8', hair: '#b34a3a', top: '#f4f4f4', bottom: '#3a3f4b', hairStyle: 'bun', outfit: 'labcoat', acc: 'glasses' },
+  // 犬
+  { kind: 'quad', name: 'dachshund', coat: '#8b4a26', light: '#a8653a', len: 0.84, h: 0.22, w: 0.22, legH: 0.1, legW: 0.08,
+    head: [0.22, 0.2, 0.22], snout: [0.12, 0.1, 0.16], snoutColor: '#8b4a26', ears: 'floppy', earColor: '#5e2f17', tail: 'thin', eye: '#1d1d22' },
+  { kind: 'quad', name: 'shiba', coat: '#d98b3a', light: '#f3e3c8', len: 0.56, h: 0.26, w: 0.26, legH: 0.2, legW: 0.08,
+    head: [0.26, 0.22, 0.22], snout: [0.13, 0.09, 0.1], snoutColor: '#f3e3c8', ears: 'pointy', earColor: '#d98b3a', tail: 'curl', eye: '#1d1d22', chest: true, socks: true },
+  { kind: 'quad', name: 'corgi', coat: '#e0913a', light: '#f6f2ea', len: 0.64, h: 0.26, w: 0.3, legH: 0.1, legW: 0.09,
+    head: [0.26, 0.22, 0.22], snout: [0.13, 0.09, 0.1], snoutColor: '#f6f2ea', ears: 'big', earColor: '#e0913a', tail: 'stub', eye: '#1d1d22', chest: true, socks: true },
+  { kind: 'quad', name: 'bulldog', coat: '#d8c0a0', light: '#f2ece2', len: 0.5, h: 0.3, w: 0.36, legH: 0.15, legW: 0.1,
+    head: [0.34, 0.26, 0.22], snout: [0.24, 0.12, 0.06], snoutColor: '#f2ece2', ears: 'small', earColor: '#8a6a50', tail: 'stub', eye: '#1d1d22', chest: true },
+  // 猫（色違い）
+  { kind: 'quad', name: 'cat-black', coat: '#2b2b30', light: '#3a3a40', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#3a3a40', ears: 'cat', earColor: '#2b2b30', tail: 'long', eye: '#f2d14a' },
+  { kind: 'quad', name: 'cat-white', coat: '#f2f0ea', light: '#ffffff', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#ffffff', ears: 'cat', earColor: '#f2f0ea', tail: 'long', eye: '#6fb3e6' },
+  { kind: 'quad', name: 'cat-orange', coat: '#e0913a', light: '#f6e2c4', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#f6e2c4', ears: 'cat', earColor: '#e0913a', tail: 'long', eye: '#7cbf4a', stripes: '#b8692a' },
+  { kind: 'quad', name: 'cat-gray', coat: '#9aa0a8', light: '#d8dbe0', len: 0.5, h: 0.2, w: 0.22, legH: 0.17, legW: 0.07,
+    head: [0.24, 0.2, 0.2], snout: [0.1, 0.06, 0.04], snoutColor: '#d8dbe0', ears: 'cat', earColor: '#9aa0a8', tail: 'long', eye: '#f2d14a', stripes: '#5f656d' },
 ];
 let FPS = 60;              // 描く回数の上限（電池のため。試作で 30 / 60 / 上限なし を比べる）
 const WALK_SPEED = 2.6;    // 1 秒に進むマス
@@ -562,51 +587,198 @@ function grawlixSprites() {
   });
 }
 
-function makeCharacter(presetIndex) {
-  const p = PRESETS[presetIndex % PRESETS.length];
-  const m = (k) => new THREE.MeshLambertMaterial({ color: p[k], flatShading: true });
+// ------------------------------------------------------------
+// 人と動物の組み立て。どちらも root（床）→ body（体の向き）→ head、脚は legs、腕・前脚は arms。顔は -z を向く
+// ------------------------------------------------------------
+const ANIMAL_SCALE = 1.25;   // 動物は少し大きく（小さな枠でも見分けられるように）
+function lambert(color) { return new THREE.MeshLambertMaterial({ color, flatShading: true }); }
+function cone(p, color, r, h, x, y, z, rx = 0, rz = 0) {   // 4 角すい（とがった耳）。y は底
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 4), lambert(color));
+  m.position.set(x, y + h / 2, z); m.rotation.set(rx, Math.PI / 4, rz); m.castShadow = true; p.add(m); return m;
+}
+
+function buildHuman(p) {
+  const mm = {}, m = (c) => (mm[c] ??= lambert(c));
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const legs = [], arms = [];
-  for (const s of [-1, 1]) { const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.42, 0); box(hip, null, 0.15, 0.42, 0.17, 0, -0.42, 0, m('pants')); body.add(hip); legs.push(hip); }
-  box(body, null, 0.42, 0.42, 0.24, 0, 0.42, 0, m('shirt'));
-  for (const s of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(s * 0.28, 0.8, 0); box(sh, null, 0.13, 0.32, 0.15, 0, -0.32, 0, m('shirt')); box(sh, null, 0.12, 0.08, 0.13, 0, -0.4, 0, m('skin')); body.add(sh); arms.push(sh); }
+  for (const s of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.42, 0);
+    box(hip, null, 0.15, 0.42, 0.17, 0, -0.42, 0, m(p.skirt ? p.skin : p.bottom));
+    box(hip, null, 0.16, 0.06, 0.19, 0, -0.42, -0.01, m('#3a3438'));   // 靴
+    body.add(hip); legs.push(hip);
+  }
+  const coat = p.outfit === 'labcoat';
+  box(body, null, 0.42, 0.42, 0.24, 0, 0.42, 0, m(p.top));
+  if (p.skirt) box(body, null, 0.46, 0.2, 0.28, 0, 0.26, 0, m(p.bottom));
+  if (coat) box(body, null, 0.44, 0.24, 0.26, 0, 0.22, 0, m(p.top));            // 白衣の裾
+  if (p.outfit === 'suit') {                                                       // シャツとネクタイ
+    box(body, null, 0.12, 0.3, 0.01, 0, 0.54, -0.125, m('#f4f4f4'));
+    box(body, null, 0.05, 0.24, 0.012, 0, 0.56, -0.132, m('#c0504d'));
+  }
+  if (coat) box(body, null, 0.03, 0.42, 0.01, 0, 0.42, -0.125, m('#d6d8dc'));    // 白衣の合わせ
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(s * 0.28, 0.8, 0);
+    box(sh, null, 0.13, 0.32, 0.15, 0, -0.32, 0, m(p.top));
+    box(sh, null, 0.12, 0.08, 0.13, 0, -0.4, 0, m(p.skin));
+    body.add(sh); arms.push(sh);
+  }
   const head = new THREE.Group(); head.position.y = 0.84; body.add(head);
-  box(head, null, 0.36, 0.34, 0.34, 0, 0, 0, m('skin'));
-  box(head, null, 0.39, 0.1, 0.37, 0, 0.32, 0, m('hair'));
-  box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, m('hair'));
-  const eye = new THREE.MeshLambertMaterial({ color: '#1d1d22' });
+  box(head, null, 0.36, 0.34, 0.34, 0, 0, 0, m(p.skin));
+  const hair = m(p.hair);
+  box(head, null, 0.39, 0.1, 0.37, 0, 0.32, 0, hair);                              // 頭のてっぺん
+  switch (p.hairStyle) {
+    case 'spiky':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      for (const [x, z] of [[-0.12, -0.08], [0.02, 0.0], [0.13, -0.06], [-0.04, 0.12], [0.1, 0.12]]) {
+        const sp = box(head, null, 0.1, 0.12, 0.1, x, 0.38, z, hair); sp.rotation.z = x * 2;
+      }
+      break;
+    case 'long':
+      box(head, null, 0.4, 0.62, 0.1, 0, -0.3, 0.16, hair);
+      for (const s of [-1, 1]) box(head, null, 0.04, 0.5, 0.3, s * 0.2, -0.2, 0.03, hair);
+      box(head, null, 0.39, 0.07, 0.04, 0, 0.27, -0.17, hair);                     // 前髪
+      break;
+    case 'ponytail':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      box(head, null, 0.1, 0.1, 0.1, 0, 0.26, 0.22, m('#e88aa8'));                 // 髪留め
+      box(head, null, 0.11, 0.36, 0.1, 0, -0.1, 0.25, hair);
+      box(head, null, 0.39, 0.07, 0.04, 0, 0.27, -0.17, hair);
+      break;
+    case 'bob':
+      box(head, null, 0.4, 0.36, 0.1, 0, -0.06, 0.15, hair);
+      for (const s of [-1, 1]) box(head, null, 0.05, 0.34, 0.32, s * 0.2, -0.06, 0.02, hair);
+      box(head, null, 0.39, 0.08, 0.04, 0, 0.25, -0.17, hair);
+      break;
+    case 'bun':
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+      box(head, null, 0.17, 0.15, 0.17, 0, 0.4, 0.1, hair);
+      break;
+    default:   // short
+      box(head, null, 0.39, 0.26, 0.08, 0, 0.1, 0.16, hair);
+  }
+  const eye = m('#1d1d22');
   for (const s of [-1, 1]) box(head, null, 0.05, 0.06, 0.02, s * 0.08, 0.15, -0.175, eye);
-  const zzz = zzzSprite(); zzz.visible = false; scene.add(zzz);
-  const grawlix = grawlixSprites();
-  scene.add(root);
-  return { root, body, legs, arms, head, zzz, grawlix, presetIndex };
+  if (p.acc === 'glasses') {
+    const frame = m('#2b2f36');
+    for (const s of [-1, 1]) {
+      box(head, null, 0.11, 0.015, 0.015, s * 0.08, 0.215, -0.185, frame);
+      box(head, null, 0.11, 0.015, 0.015, s * 0.08, 0.125, -0.185, frame);
+      for (const e of [-1, 1]) box(head, null, 0.015, 0.1, 0.015, s * 0.08 + e * 0.05, 0.125, -0.185, frame);
+    }
+  }
+  if (p.acc === 'headphones') {
+    const hp = m('#2b2f36');
+    box(head, null, 0.44, 0.05, 0.08, 0, 0.42, 0, hp);
+    for (const s of [-1, 1]) { box(head, null, 0.04, 0.3, 0.06, s * 0.21, 0.14, 0, hp); box(head, null, 0.07, 0.15, 0.15, s * 0.21, 0.04, 0, m('#e06a5a')); }
+  }
+  return { kind: 'human', root, body, legs, arms, head, bodyZ: 0, typeBase: 1.15, sitDy: 0, lieDy: 0, lieDz: 0, lieRot: Math.PI };
+}
+
+function buildQuad(p) {
+  const mm = {}, m = (c) => (mm[c] ??= lambert(c));
+  const coat = m(p.coat), light = m(p.light);
+  const root = new THREE.Group(), scaled = new THREE.Group(); scaled.scale.setScalar(ANIMAL_SCALE); root.add(scaled);
+  const { len, h, w, legH, legW } = p;
+  const legs = [], arms = [];
+  const legX = w / 2 - legW / 2 - 0.01;
+  // 後ろ脚（root に付ける。座っても床・座面に残る）
+  for (const s of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(s * legX, legH, len * 0.36);
+    box(hip, null, legW, legH, legW, 0, -legH, 0, coat);
+    if (p.socks) box(hip, null, legW + 0.005, legH * 0.45, legW + 0.005, 0, -legH, 0, light);
+    scaled.add(hip); legs.push(hip);
+  }
+  // 体（腰を軸に起き上がる）
+  const body = new THREE.Group(); const bodyZ = len * 0.42; body.position.set(0, legH, bodyZ); scaled.add(body);
+  box(body, null, w, h, len, 0, 0, -len / 2, coat);
+  if (p.chest) box(body, null, w * 0.7, h * 0.7, 0.02, 0, 0.0, -len - 0.005, light);
+  if (p.stripes) for (let i = 0; i < 3; i++) box(body, null, w + 0.01, 0.025, 0.04, 0, h - 0.02, -len * (0.25 + i * 0.22), m(p.stripes));
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(s * legX, 0.02, -len + legW * 0.9);
+    box(sh, null, legW, legH + 0.02, legW, 0, -legH - 0.02, 0, coat);
+    if (p.socks) box(sh, null, legW + 0.005, legH * 0.45, legW + 0.005, 0, -legH - 0.02, 0, light);
+    body.add(sh); arms.push(sh);
+  }
+  // しっぽ
+  const tail = new THREE.Group(); tail.position.set(0, h * 0.75, 0); body.add(tail);
+  switch (p.tail) {
+    case 'curl': box(tail, null, 0.07, 0.14, 0.07, 0, 0, 0.02, coat); box(tail, null, 0.07, 0.07, 0.12, 0, 0.12, -0.04, light); break;
+    case 'long': { const t = box(tail, null, 0.045, 0.045, 0.36, 0, 0, 0.16, coat); t.rotation.x = 0.7; t.position.set(0, 0.12, 0.12); break; }
+    case 'thin': { const t = box(tail, null, 0.04, 0.04, 0.28, 0, 0, 0.12, coat); t.rotation.x = 0.35; t.position.set(0, 0.04, 0.12); break; }
+    default: box(tail, null, 0.06, 0.06, 0.05, 0, -0.02, 0.02, coat);   // stub
+  }
+  // 頭（体の前、少し上）
+  const [hw, hh, hd] = p.head;
+  const head = new THREE.Group(); head.position.set(0, h * 0.55, -len - hd * 0.3); body.add(head);
+  box(head, null, hw, hh, hd, 0, 0, 0, coat);
+  const [sw, sh2, sd] = p.snout;
+  box(head, null, sw, sh2, sd, 0, 0.01, -hd / 2 - sd / 2 + 0.005, m(p.snoutColor));
+  box(head, null, Math.min(0.05, sw * 0.5), 0.035, 0.03, 0, 0.01 + sh2 - 0.035, -hd / 2 - sd + 0.005, m('#1d1d22'));   // 鼻
+  const eye = m(p.eye);
+  for (const s of [-1, 1]) {
+    box(head, null, 0.045, 0.05, 0.015, s * hw * 0.26, hh * 0.52, -hd / 2 - 0.006, eye);
+    if (p.eye !== '#1d1d22') box(head, null, 0.016, 0.04, 0.016, s * hw * 0.26, hh * 0.52 + 0.005, -hd / 2 - 0.012, m('#1d1d22'));   // 猫の瞳
+  }
+  const ec = p.earColor;
+  for (const s of [-1, 1]) {
+    switch (p.ears) {
+      case 'floppy': box(head, null, 0.04, 0.2, 0.12, s * (hw / 2 + 0.02), -0.06, 0.0, m(ec)); break;
+      case 'small': box(head, null, 0.08, 0.05, 0.07, s * (hw / 2 - 0.02), hh - 0.01, 0.02, m(ec)); break;
+      case 'big': cone(head, ec, 0.085, 0.2, s * hw * 0.3, hh - 0.02, 0.02, 0, -s * 0.25); break;
+      case 'cat': cone(head, ec, 0.065, 0.12, s * hw * 0.3, hh - 0.01, 0.02, 0, -s * 0.15); break;
+      default: cone(head, ec, 0.06, 0.13, s * hw * 0.28, hh - 0.01, 0.02, 0, -s * 0.15);   // pointy
+    }
+  }
+  if (p.name === 'bulldog') for (const s of [-1, 1]) box(head, null, 0.08, 0.08, 0.04, s * 0.08, -0.04, -hd / 2 - 0.02, light);   // ほお
+  return {
+    kind: 'quad', root, body, legs, arms, head, bodyZ,
+    typeBase: 0.15,
+    // 座面（高さ 0.5）にお尻が乗る・ベッド（0.48）に伏せる高さ
+    sitDy: 0.43 - legH * ANIMAL_SCALE, lieDy: 0.48 - legH * ANIMAL_SCALE - 0.6, lieDz: -0.05, lieRot: 0,
+  };
+}
+
+function buildFigure(presetIndex) {
+  const p = PRESETS[((presetIndex % PRESETS.length) + PRESETS.length) % PRESETS.length];
+  return p.kind === 'quad' ? buildQuad(p) : buildHuman(p);
+}
+
+function makeCharacter(presetIndex) {
+  const c = buildFigure(presetIndex);
+  c.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  c.zzz = zzzSprite(); c.zzz.visible = false; scene.add(c.zzz);
+  c.grawlix = grawlixSprites();
+  c.presetIndex = presetIndex;
+  scene.add(c.root);
+  return c;
 }
 const disposeCharacter = (c) => scene.remove(c.root, c.zzz, ...c.grawlix.map((g) => g.s));
 function poseStand(c) {
   c.body.rotation.set(0, 0, 0); c.body.scale.set(1, 1, 1); c.head.rotation.set(0, 0, 0);
   c.legs.forEach((l) => l.rotation.set(0, 0, 0)); c.arms.forEach((a) => a.rotation.set(0, 0, 0));
+  c.body.position.z = c.bodyZ;
   c.root.position.y = 0;
 }
-function poseSit(c) { poseStand(c); c.legs.forEach((l) => (l.rotation.x = Math.PI / 2)); c.arms.forEach((a) => (a.rotation.x = 1.15)); }
-function poseLie(c) { poseStand(c); c.body.rotation.x = Math.PI / 2; }
-
-// ============================================================
-// 状態 → 居場所。歩く道: ベッド ⇔ 仮眠室の通路 ⇔ 出入口 ⇔ 手前の通路 ⇔ デスク
-// ============================================================
-const people = new Map();
-let reduced = false, paused = false, firstSet = true, dirty = true, lastTime = 0;
-const hashId = (id) => { let h = 0; for (const ch of id) h = (h * 31 + ch.codePointAt(0)) | 0; return Math.abs(h); };
-const V = (x, z) => new THREE.Vector3(x, 0, z);
-function routeBedToDesk(slot) {
-  const b = beds[slot].stand, d = desks[slot].stand;
-  return [b.clone(), V(AISLE.napX, AISLE.napZ), V(DOOR.x, AISLE.napZ), V(DOOR.x, AISLE.frontZ), V(AISLE.officeX, d.z), d.clone()];
+function poseSit(c) {
+  poseStand(c);
+  c.legs.forEach((l) => (l.rotation.x = Math.PI / 2));
+  c.arms.forEach((a) => (a.rotation.x = c.typeBase));
+  if (c.kind === 'quad') { c.body.rotation.x = 1.2; c.body.position.z = 0.02; }   // お座りして、前脚をキーボードへ
 }
-
+function poseLie(c) {
+  poseStand(c);
+  if (c.kind === 'quad') {   // 伏せて、脚をたたむ
+    c.legs.forEach((l) => (l.rotation.x = -1.3)); c.arms.forEach((a) => (a.rotation.x = 1.3)); c.head.rotation.x = 0.15;
+  } else c.body.rotation.x = Math.PI / 2;
+}
 function placeAt(p, place) {
   const c = p.c;
   // 姿勢を先に決めてから置く（姿勢を戻すときに高さを 0 に戻すので、逆だとベッドの中に沈む）
-  if (place === 'desk') { poseSit(c); c.root.position.copy(desks[p.slot].seat); c.root.rotation.y = 0; }
-  else { poseLie(c); c.root.position.copy(beds[p.slot].lie); c.root.rotation.y = Math.PI; }
+  if (place === 'desk') { poseSit(c); c.root.position.copy(desks[p.slot].seat); c.root.position.y += c.sitDy; c.root.rotation.y = 0; }
+  else {
+    poseLie(c); c.root.position.copy(beds[p.slot].lie);
+    c.root.position.y += c.lieDy; c.root.position.z += c.lieDz; c.root.rotation.y = c.lieRot;
+  }
   p.place = place; p.walk = null; refreshFurniture();
 }
 function walkTo(p, place) {
@@ -682,7 +854,7 @@ function update(dt, t) {
       }
     } else if (!reduced && p.place === 'desk') {
       const k = t * 14 + p.slot;
-      c.arms[0].rotation.x = 1.15 + Math.sin(k) * 0.12; c.arms[1].rotation.x = 1.15 + Math.sin(k + 1.7) * 0.12;
+      c.arms[0].rotation.x = c.typeBase + Math.sin(k) * 0.12; c.arms[1].rotation.x = c.typeBase + Math.sin(k + 1.7) * 0.12;
       c.head.rotation.y = Math.sin(t * 0.7 + p.slot) * 0.12;
     } else if (!reduced && p.place === 'bed') {
       c.body.scale.y = 1 + Math.sin(t * 2 + p.slot) * 0.015;
@@ -767,7 +939,37 @@ function layout() {
 new ResizeObserver(layout).observe(hero);
 
 // アプリ（WebView）から呼ぶ口
+/**
+ * キャラクターの見本の絵（設定の画面のアバター。PRESETS の並び）。PNG の data URL の配列を返す。
+ * オフィスと同じ組み立てで描くので、見本とオフィスの見た目が必ずそろう。顔の見える斜め前から、透明な背景で
+ */
+function portraits(size = 160) {
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1); r.setSize(size, size, false); r.setClearColor(0x000000, 0);
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight('#ffffff', '#b8ad9a', 1.7));
+  const dl = new THREE.DirectionalLight('#fff4e2', 1.3); dl.position.set(-3, 6, -5); sc.add(dl);
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
+  const dir = new THREE.Vector3(0.9, 0.55, -1).normalize(), v = new THREE.Vector3(), out = [];
+  for (let i = 0; i < PRESETS.length; i++) {
+    const f = buildFigure(i); poseStand(f); sc.add(f.root); f.root.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(f.root), center = bb.getCenter(new THREE.Vector3());
+    cam.position.copy(center).addScaledVector(dir, 10); cam.lookAt(center); cam.updateMatrixWorld();
+    let half = 0;
+    for (const x of [bb.min.x, bb.max.x]) for (const y of [bb.min.y, bb.max.y]) for (const z of [bb.min.z, bb.max.z]) {
+      v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse); half = Math.max(half, Math.abs(v.x), Math.abs(v.y));
+    }
+    half *= 1.08;
+    Object.assign(cam, { left: -half, right: half, top: half, bottom: -half }); cam.updateProjectionMatrix();
+    r.render(sc, cam); out.push(r.domElement.toDataURL('image/png'));
+    sc.remove(f.root);
+  }
+  r.dispose();
+  return out;
+}
+
 window.office = {
+  portraits,
   setAgents, setTheme,
   setReducedMotion(v) { reduced = !!v; setAgents([...people.values()].sort((a, b) => a.slot - b.slot).map((p) => p.agent)); },
   setPaused(v) { paused = !!v; dirty = true; },
@@ -777,7 +979,9 @@ window.office = {
 // ============================================================
 // プレビューだけの操作盤
 // ============================================================
-const embed = new URLSearchParams(location.search).has('embed');
+const params = new URLSearchParams(location.search);
+// 埋め込み（アプリのサイドパネル）と、見本の絵を作るだけの読み込み（設定の画面）では操作盤を出さない
+const embed = params.has('embed') || params.has('portraits');
 document.body.classList.toggle('embed', embed);
 const NAMES = ['Moonshot', 'Wordsmith', 'CJ', 'Scout'];
 let demo = [

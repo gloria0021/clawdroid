@@ -31,6 +31,8 @@ import jp.miyavi.android.sumahoclaw.core.data.SessionListState
 import jp.miyavi.android.sumahoclaw.core.settings.OfficeSettings
 import jp.miyavi.android.sumahoclaw.core.settings.OfficeTheme
 import kotlinx.serialization.json.JsonArray
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -40,8 +42,8 @@ import kotlinx.serialization.json.put
  */
 val LocalOfficeSettings = staticCompositionLocalOf { OfficeSettings() }
 
-/** キャラクターの種類の数（assets/office/index.html の PRESETS と同じ）。 */
-const val OFFICE_AVATAR_COUNT = 4
+/** キャラクターの種類の数（assets/office/index.html の PRESETS と同じ。人 8・犬 4・猫 4）。 */
+const val OFFICE_AVATAR_COUNT = 16
 
 /** エージェントのキャラクター。選んでいなければ id から決める（試作と同じ計算。開くたびに同じ）。 */
 fun officeAvatarOf(agentId: String, chosen: Map<String, Int>): Int {
@@ -203,7 +205,7 @@ internal object OfficeHost {
 
 /** オフィスを入れる枠。タッチを受けない（[dispatchTouchEvent] が false なので、下の部品へ渡る）。 */
 @SuppressLint("SetJavaScriptEnabled", "ViewConstructor")
-internal class OfficeWebView(context: Context) : FrameLayout(context) {
+internal class OfficeWebView(context: Context, page: String = "embed") : FrameLayout(context) {
     /** 部屋を読み込み終えたか。 */
     var ready by mutableStateOf(false)
         private set
@@ -228,7 +230,7 @@ internal class OfficeWebView(context: Context) : FrameLayout(context) {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
             override fun onPageFinished(view: WebView, url: String) { ready = true }
         }
-        loadUrl("$OFFICE_ORIGIN/office/index.html?embed")
+        loadUrl("$OFFICE_ORIGIN/office/index.html?$page")
     }
 
     init { addView(web, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)) }
@@ -257,3 +259,33 @@ private fun denied() = WebResourceResponse("text/plain", "utf-8", 403, "Forbidde
 
 /** 同梱のファイルを見せる住所（Android の WebViewAssetLoader と同じ、どこにも届かない名前）。 */
 private const val OFFICE_ORIGIN = "https://appassets.androidplatform.net"
+
+/**
+ * キャラクターの見本の絵（設定 → バーチャルオフィス → アバター）。オフィスと同じ HTML で描いて受け取り、プロセスのあいだ覚えておく。
+ * 描けなかった（WebGL が使えない端末など）ときは null のまま（画面は名前だけで選ぶ）。
+ */
+internal object OfficePortraits {
+    var images by mutableStateOf<List<androidx.compose.ui.graphics.ImageBitmap>?>(null)
+        private set
+
+    /** 見本を作る。WebView は画面に付けたまま（[host] に入れて）渡す。 */
+    fun load(view: OfficeWebView, scope: kotlinx.coroutines.CoroutineScope) {
+        if (images != null) return
+        view.web.evaluateJavascript("window.office && JSON.stringify(office.portraits($PORTRAIT_PX))") { result ->
+            scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+                val decoded = runCatching {
+                    // 返り値は JSON の文字列（中身が配列の JSON）
+                    val inner = kotlinx.serialization.json.Json.parseToJsonElement(result).let { (it as kotlinx.serialization.json.JsonPrimitive).content }
+                    kotlinx.serialization.json.Json.parseToJsonElement(inner).let { it as JsonArray }.map { url ->
+                        val bytes = android.util.Base64.decode((url as kotlinx.serialization.json.JsonPrimitive).content.substringAfter(","), android.util.Base64.DEFAULT)
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+                    }
+                }.getOrNull()?.takeIf { it.size == OFFICE_AVATAR_COUNT }
+                if (decoded != null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { images = decoded }
+            }
+        }
+    }
+}
+
+/** 見本の絵の大きさ（px）。 */
+private const val PORTRAIT_PX = 160
