@@ -39,15 +39,48 @@ import kotlinx.serialization.json.put
  */
 val LocalVirtualOffice = staticCompositionLocalOf { false }
 
-/** オフィスの 1 人。エージェントごとに、セッションが 1 つでも動いていれば作業中、未読があれば印。 */
-internal data class OfficeAgent(val id: String, val name: String, val working: Boolean, val unread: Boolean)
+/**
+ * オフィスの 1 人（Gateway の写し）。[running] はセッションが 1 つでも動いているか、[updatedAt] はセッションのいちばん新しい更新。
+ * デスクにいるかは [deskAgents] で、動いていなくても最後の動きから [DESK_LINGER_MS] のあいだはデスクに残す。
+ */
+internal data class OfficeAgent(val id: String, val name: String, val running: Boolean, val unread: Boolean, val updatedAt: Long?)
 
 internal fun officeAgents(agents: List<Agent>, sessionsByAgent: Map<String, SessionListState>): List<OfficeAgent> =
     agents.map { agent ->
         val list = sessionsByAgent[agent.id]
         val all = listOfNotNull(list?.home) + list?.sessions.orEmpty()
-        OfficeAgent(agent.id, agent.name, working = all.any { it.running }, unread = all.any { it.unread })
+        OfficeAgent(agent.id, agent.name, running = all.any { it.running }, unread = all.any { it.unread }, updatedAt = all.mapNotNull { it.updatedAt }.maxOrNull())
     }
+
+/**
+ * メッセージを受け取ったら（動き始めた・セッションが更新された）デスクへ向かい、動き終わってからも最低 [DESK_LINGER_MS] はデスクに残る。
+ * 短いやり取りで、デスクに着く前にベッドへ戻ってしまわないように（マスター指定 2026-11-28）。
+ * 時刻は端末の経過時間で測る（Gateway の時計とずれていても狂わない）。最初に見た更新時刻は基準にするだけで、動きとみなさない。
+ */
+internal class DeskTracker {
+    private val until = HashMap<String, Long>()
+    private val lastUpdate = HashMap<String, Long>()
+    private val wasRunning = HashMap<String, Boolean>()
+
+    /** 新しい状態を受け取る。[now] は端末の経過時間（ms）。 */
+    fun observe(agents: List<OfficeAgent>, now: Long) {
+        for (a in agents) {
+            val prevUpdate = lastUpdate[a.id]
+            val updated = prevUpdate != null && a.updatedAt != null && a.updatedAt > prevUpdate
+            if (a.running || wasRunning[a.id] == true || updated) until[a.id] = now + DESK_LINGER_MS
+            a.updatedAt?.let { lastUpdate[a.id] = maxOf(prevUpdate ?: it, it) }
+            wasRunning[a.id] = a.running
+        }
+    }
+
+    fun atDesk(a: OfficeAgent, now: Long) = a.running || (until[a.id] ?: 0L) > now
+
+    /** 次にデスクを離れる人が出る時刻（無ければ null）。 */
+    fun nextExpiry(now: Long): Long? = until.values.filter { it > now }.minOrNull()
+}
+
+/** 動き終わってからデスクに残る時間。 */
+internal const val DESK_LINGER_MS = 20_000L
 
 /**
  * サイドパネルの頭の看板に置くバーチャルオフィス。同梱の HTML（assets/office）を WebView で見る専用に描く。
@@ -88,13 +121,24 @@ internal fun AgentOffice(
         onPauseOrDispose { webView.web.onPause() }
     }
 
-    val payload = remember(agents) {
+    // デスクにいるか: 動いている、または最後の動きから 20 秒以内。残り時間が切れたら数え直す
+    val tracker = remember { DeskTracker() }
+    var tick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val observedAt = remember(agents) { android.os.SystemClock.elapsedRealtime().also { tracker.observe(agents, it) } }
+    LaunchedEffect(observedAt, tick) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val next = tracker.nextExpiry(now) ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(next - now + 1)
+        tick++
+    }
+    val payload = remember(agents, tick) {
+        val now = android.os.SystemClock.elapsedRealtime()
         JsonArray(
             agents.map { a ->
                 buildJsonObject {
                     put("id", a.id)
                     put("name", a.name)
-                    put("working", a.working)
+                    put("working", tracker.atDesk(a, now))
                     put("unread", a.unread)
                 }
             },
