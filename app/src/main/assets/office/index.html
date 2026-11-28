@@ -8,9 +8,12 @@
   html, body { margin: 0; }
   body { font-family: system-ui, sans-serif; background: #f3efe7; color: #1d1d22; }
   body.dark { background: #1b1a20; color: #e8e8ee; }
-  #hero { position: relative; width: 100%; height: 204px; overflow: hidden; }
+  #hero { position: relative; width: 100%; height: 286px; overflow: hidden; }
   body.embed #hero { height: 100vh; }
   #hero canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+  /* プレビューだけ: アプリの閉じるボタンの位置の目安 */
+  #fakeClose { position: absolute; right: 12px; top: 58px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.55); }
+  body.embed #fakeClose { display: none; }
   #panel { padding: 12px 16px 40px; font-size: 14px; }
   body.embed #panel { display: none; }
   #panel h2 { font-size: 15px; margin: 16px 0 8px; }
@@ -24,7 +27,7 @@
 </style>
 </head>
 <body>
-<div id="hero"></div>
+<div id="hero"><div id="fakeClose"></div></div>
 
 <div id="panel">
   <div class="note">上の帯がサイドパネルの看板の場所（試作）。見る専用でタッチは受けない。下はプレビューだけの操作盤（アプリには出さない）。</div>
@@ -34,9 +37,9 @@
   <h2>表示</h2>
   <div class="row"><label><input type="checkbox" id="dark"> ダーク（夜のオフィス。既定はシステムに連動）</label>
     <label><input type="checkbox" id="reduced"> アニメーションを削除</label></div>
-  <div class="row">帯の高さ <input type="range" id="height" min="140" max="420" value="204"> <span id="heightV">204px</span></div>
+  <div class="row">帯の高さ <input type="range" id="height" min="200" max="480" value="286"> <span id="heightV">286px</span></div>
   <div class="row">描く回数の上限 <select id="fps"><option value="30">30</option><option value="60" selected>60</option><option value="0">上限なし</option></select> 実測 <b id="fpsV">-</b></div>
-  <div class="row">寄り <input type="range" id="zoom" min="45" max="120" value="88"> <span id="zoomV">0.88</span></div>
+  <div class="row">寄り <input type="range" id="zoom" min="60" max="140" value="100"> <span id="zoomV">1.00</span></div>
   <div class="note">作業中 = デスクで仕事。睡眠 = 仮眠室のベッドで寝る。未読 = 頭の上に印。状態を変えると、通路と仮眠室の出入口を通って歩く。</div>
 </div>
 
@@ -695,9 +698,14 @@ setInterval(() => { const el = document.getElementById('fpsV'); if (el) el.textC
 // ============================================================
 // 枠に合わせる（部屋が収まる大きさに寄せる。外側は壁と床で埋まる）
 // ============================================================
-let zoom = 0.88;
+// 寄り（1 で見せたい所がちょうど収まる。小さいほど寄る）。マスター指定 2026-11-28: 前の試作の約 1.2 倍の大きさ
+let zoom = 1.0;
+// 枠のうち、上に重なる部品（ステータスバー・閉じるボタン）がある分。部屋はその下に収める（CSS px = dp）
+let insets = { top: 0, right: 0, bottom: 0, left: 0 };
+// 見せたい所（デスク・ベッド・ラウンジ）。これが使える所にちょうど収まる寄りを 1 とする。壁や奥の棚は枠の端で切れてよい
 const focus = [];
-for (const x of [-7.5, 7.3]) for (const z of [-7.5, 6.2]) for (const y of [0, 2.2]) focus.push(new THREE.Vector3(x, y, z));
+for (const [x0, x1, z0, z1, y1] of [[-5.5, -2.0, 0.6, 5.4, 1.3], [2.4, 5.6, -6.7, -2.6, 1.0], [3.5, 6.7, 1.2, 3.4, 1.4]])
+  for (const x of [x0, x1]) for (const z of [z0, z1]) for (const y of [0, y1]) focus.push(new THREE.Vector3(x, y, z));
 function layout() {
   const w = hero.clientWidth, h = hero.clientHeight;
   if (!w || !h) return;
@@ -705,9 +713,12 @@ function layout() {
   camera.updateMatrixWorld();
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const v of focus) { tmp.copy(v).applyMatrix4(camera.matrixWorldInverse); minX = Math.min(minX, tmp.x); maxX = Math.max(maxX, tmp.x); minY = Math.min(minY, tmp.y); maxY = Math.max(maxY, tmp.y); }
-  const aspect = w / h, cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  const halfW = Math.max((maxX - minX) / 2, ((maxY - minY) / 2) * aspect) * zoom, halfH = halfW / aspect;
-  Object.assign(camera, { left: cx - halfW, right: cx + halfW, top: cy + halfH, bottom: cy - halfH });
+  // 部屋は、上に重なる部品を除いた所（使える所）の真ん中に、使える所に収まる大きさ × 寄りで置く。枠の残りも床と壁で埋まる
+  const aw = Math.max(1, w - insets.left - insets.right), ah = Math.max(1, h - insets.top - insets.bottom);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const unit = (Math.max((maxX - minX) / aw, (maxY - minY) / ah) * zoom);   // 1 px あたりの長さ
+  const fx = cx - ((insets.left - insets.right) / 2) * unit, fy = cy + ((insets.top - insets.bottom) / 2) * unit;
+  Object.assign(camera, { left: fx - (w / 2) * unit, right: fx + (w / 2) * unit, top: fy + (h / 2) * unit, bottom: fy - (h / 2) * unit });
   camera.updateProjectionMatrix(); dirty = true;
 }
 new ResizeObserver(layout).observe(hero);
@@ -717,6 +728,7 @@ window.office = {
   setAgents, setTheme,
   setReducedMotion(v) { reduced = !!v; setAgents([...people.values()].sort((a, b) => a.slot - b.slot).map((p) => p.agent)); },
   setPaused(v) { paused = !!v; dirty = true; },
+  setInsets(v) { insets = { top: 0, right: 0, bottom: 0, left: 0, ...v }; layout(); },
 };
 
 // ============================================================
@@ -761,7 +773,7 @@ sysDark.addEventListener('change', (e) => { setTheme({ dark: e.matches }); docum
 setTheme({ dark: sysDark.matches });
 document.getElementById('dark').checked = sysDark.matches;
 layout();
-if (!embed) push();
+if (!embed) { insets = { top: 106, right: 0, bottom: 0, left: 0 }; layout(); push(); }
 requestAnimationFrame(frame);
 </script>
 </body>

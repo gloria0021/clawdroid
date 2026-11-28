@@ -58,7 +58,13 @@ internal fun officeAgents(agents: List<Agent>, sessionsByAgent: Map<String, Sess
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun AgentOffice(agents: List<OfficeAgent>, active: Boolean, modifier: Modifier = Modifier) {
+internal fun AgentOffice(
+    agents: List<OfficeAgent>,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    /** 枠の上に重なる部品（はみ出し・ステータスバー・閉じるボタン）の高さ。部屋はその下に収める。 */
+    topInset: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp(0f),
+) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
@@ -98,6 +104,8 @@ internal fun AgentOffice(agents: List<OfficeAgent>, active: Boolean, modifier: M
     LaunchedEffect(ready, dark, accent) {
         if (ready) webView.call("office.setTheme(${buildJsonObject { put("dark", dark); put("accent", accent) }})")
     }
+    // WebView の CSS の 1px は 1dp（端末の密度で拡大される）なので、dp の値をそのまま渡す
+    LaunchedEffect(ready, topInset) { if (ready) webView.call("office.setInsets({ top: ${topInset.value} })") }
     LaunchedEffect(ready, still) { if (ready) webView.call("office.setReducedMotion($still)") }
     LaunchedEffect(ready, active) {
         if (active) webView.web.onResume() else webView.web.onPause()
