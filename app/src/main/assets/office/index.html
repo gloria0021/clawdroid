@@ -838,6 +838,8 @@ function refreshFurniture() {
   invalidate();
 }
 function setAgents(all) {
+  // 止まっているあいだに届いた状態は、それまでに向かっていた所へ経った時間の分だけ進めてから当てる
+  if (!running()) catchUp(true);
   const list = all.slice(0, SEATS), seen = new Set();   // タブと同じ並び・同じ 4 体
   list.forEach((agent, index) => {
     seen.add(agent.id);
@@ -932,6 +934,38 @@ function updateGrawlix(c, on, head, t, slot) {
   });
 }
 const anyWalking = () => { for (const p of people.values()) if (p.walk) return true; return false; };
+// 止まっていたあいだの時間に合わせる（マスター指定 2026-11-28）。止めた時刻を覚え、再開したとき（または止まっているあいだに
+// 状態が届いたとき）に、経った秒数 × 歩く速さだけ道のりを進める。着いているはずなら行き先に置く。計算は再開の 1 回だけ
+let stoppedAt = null;
+function noteStopped() { if (stoppedAt === null) stoppedAt = performance.now(); }
+function advanceWalk(p, seconds) {
+  let left = WALK_SPEED * seconds;
+  const w = p.walk, pos = p.c.root.position;
+  while (p.walk === w && left > 0) {
+    const target = w.points[w.i];
+    tmp.subVectors(target, pos); tmp.y = 0;
+    const dist = tmp.length();
+    if (dist <= left) {
+      left -= dist; pos.set(target.x, 0, target.z);
+      if (++w.i >= w.points.length) { placeAt(p, w.target); return; }
+    } else {
+      tmp.multiplyScalar(1 / dist);
+      pos.addScaledVector(tmp, left); pos.y = 0;
+      p.c.root.rotation.y = Math.atan2(-tmp.x, -tmp.z);
+      left = 0;
+    }
+  }
+}
+// 止まっていたあいだの分を進める。[stillStopped] なら、続けて止まっているので数え直しの起点を今にする
+function catchUp(stillStopped) {
+  if (stoppedAt === null) return;
+  const now = performance.now(), seconds = (now - stoppedAt) / 1000;
+  stoppedAt = stillStopped ? now : null;
+  lastTime = now;   // 次のコマで同じ時間をもう一度進めない
+  if (seconds <= 0 || reduced) return;
+  for (const p of people.values()) if (p.walk) advanceWalk(p, seconds);
+  dirty = true;
+}
 // 次のコマは、描く必要があるときだけ予約する（CJ レビュー 2026-11-28）。止まっている（パネルが閉じている・アプリが裏・見えない）
 // あいだと、動く物が無く描き直しも要らないあいだは予約しない。再開は schedule() で必ず入れ直す（setPaused(false)・
 // 見えるようになった・状態が変わった＝invalidate）。止める条件にウィンドウのフォーカスは使わない（通知の欄を下ろしただけで止めない）
@@ -939,7 +973,7 @@ let rafId = 0;
 const running = () => !paused && !document.hidden;
 function schedule() { if (!rafId && running()) rafId = requestAnimationFrame(frame); }
 function invalidate() { dirty = true; schedule(); }
-document.addEventListener('visibilitychange', schedule);
+document.addEventListener('visibilitychange', () => { if (running()) { catchUp(false); schedule(); } else noteStopped(); });
 function frame(now) {
   rafId = 0;
   if (!running()) return;
@@ -1018,7 +1052,7 @@ window.office = {
   portraits,
   setAgents, setTheme,
   setReducedMotion(v) { reduced = !!v; setAgents([...people.values()].sort((a, b) => a.slot - b.slot).map((p) => p.agent)); },
-  setPaused(v) { paused = !!v; if (!paused) invalidate(); },
+  setPaused(v) { paused = !!v; if (running()) { catchUp(false); invalidate(); } else noteStopped(); },
   setInsets(v) { insets = { top: 0, right: 0, bottom: 0, left: 0, ...v }; layout(); },
 };
 
